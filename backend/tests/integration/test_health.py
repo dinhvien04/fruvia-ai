@@ -70,8 +70,25 @@ class TestHealthEndpoint:
 
         app.dependency_overrides.clear()
 
-    def test_health_status_degraded_when_qdrant_offline(self) -> None:
-        """When Qdrant is offline, status should be 'degraded'."""
+    def test_readiness_returns_200_when_ready(self) -> None:
+        """GET /api/ready should return 200 OK when fully ready."""
+        mock_encoder = MagicMock()
+        mock_encoder.is_loaded = True
+        mock_repo = MagicMock()
+        mock_repo.get_health_status.return_value = (True, True)
+
+        app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
+        app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo
+
+        client = TestClient(app)
+        resp = client.get("/api/ready")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ready"}
+
+        app.dependency_overrides.clear()
+
+    def test_readiness_returns_503_when_not_ready(self) -> None:
+        """GET /api/ready should return 503 Service Unavailable when degraded."""
         mock_encoder = MagicMock()
         mock_encoder.is_loaded = True
         mock_repo = MagicMock()
@@ -81,13 +98,8 @@ class TestHealthEndpoint:
         app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo
 
         client = TestClient(app)
-        resp = client.get("/api/health")
-        data = resp.json()
-
-        assert resp.status_code == 200
-        assert data["status"] == "degraded"
-        assert data["model_loaded"] is True
-        assert data["qdrant_connected"] is False
-        assert data["collection_available"] is False
+        resp = client.get("/api/ready")
+        assert resp.status_code == 503
+        assert resp.json() == {"status": "not_ready"}
 
         app.dependency_overrides.clear()

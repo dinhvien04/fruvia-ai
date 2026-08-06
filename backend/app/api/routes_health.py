@@ -7,7 +7,8 @@ from __future__ import annotations
 import time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
@@ -77,9 +78,15 @@ async def health_check(
 async def readiness_check(
     encoder: Annotated[ImageEncoder, Depends(get_image_encoder)],
     repo: Annotated[QdrantRepository, Depends(get_qdrant_repository)],
-) -> dict[str, str]:
+) -> JSONResponse:
     """Readiness probe endpoint for Kubernetes / Docker container health checks."""
     qdrant_ok, coll_ok = repo.get_health_status()
     if encoder.is_loaded and qdrant_ok and coll_ok:
-        return {"status": "ready"}
-    return {"status": "not_ready"}
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "ready"},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"status": "not_ready"},
+    )

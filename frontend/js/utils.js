@@ -3,6 +3,23 @@
  */
 const Utils = {
   /**
+   * Validate image URL to prevent XSS / malicious protocol injection.
+   * Only accepts http://, https://, or relative URLs. Rejects javascript:, data:, file:, etc.
+   * @param {string|null|undefined} url
+   * @returns {boolean}
+   */
+  isSafeImageUrl(url) {
+    if (!url || typeof url !== "string") return false;
+    const trimmed = url.trim().toLowerCase();
+    return (
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("http://localhost") ||
+      trimmed.startsWith("http://127.0.0.1") ||
+      trimmed.startsWith("/")
+    );
+  },
+
+  /**
    * Format similarity score (0.0 to 1.0 or negative) into percentage text safely.
    * Keeps negative similarity layout safe by clamping visual percentage to 0%.
    * @param {number} similarity
@@ -18,9 +35,9 @@ const Utils = {
     const visualWidth = `${clampedWidth}%`;
 
     let levelClass = "level-low";
-    if (rawNum >= 0.70) {
+    if (rawNum >= CONFIG.HIGH_SIMILARITY_THRESHOLD) {
       levelClass = "level-high";
-    } else if (rawNum >= 0.55) {
+    } else if (rawNum >= CONFIG.LOW_SIMILARITY_THRESHOLD) {
       levelClass = "level-moderate";
     }
 
@@ -29,6 +46,7 @@ const Utils = {
 
   /**
    * Map domain & API error codes into friendly user messages.
+   * Checks specific error_code prior to falling back to HTTP status codes.
    * @param {Error} error
    * @returns {{title: string, message: string}}
    */
@@ -57,17 +75,31 @@ const Utils = {
       };
     }
 
-    if (code === "MODEL_NOT_LOADED" || status === 503) {
+    if (code === "MODEL_NOT_LOADED") {
       return {
         title: "Feature Encoder Offline",
         message: "The DINOv2 feature encoder model is still initializing or unavailable. Please try again shortly."
       };
     }
 
-    if (code === "QDRANT_UNAVAILABLE" || code === "COLLECTION_NOT_FOUND") {
+    if (code === "ENCODING_FAILED") {
+      return {
+        title: "Feature Extraction Failed",
+        message: "Failed to extract deep feature embeddings from the image. Please try another image."
+      };
+    }
+
+    if (code === "QDRANT_UNAVAILABLE") {
       return {
         title: "Vector Search Offline",
-        message: "Could not connect to Qdrant vector database or collection is unavailable. Please check backend connection."
+        message: "Could not connect to Qdrant vector database. Please verify your connection."
+      };
+    }
+
+    if (code === "COLLECTION_NOT_FOUND") {
+      return {
+        title: "Search Collection Missing",
+        message: "Target vector collection is missing in Qdrant Cloud. Please verify configuration."
       };
     }
 
@@ -78,10 +110,24 @@ const Utils = {
       };
     }
 
-    if (status === 0 || error.message.includes("Failed to fetch")) {
+    if (code === "INTERNAL_ERROR" || status === 500) {
+      return {
+        title: "Internal Server Error",
+        message: "An internal server error occurred while processing retrieval. Please try again later."
+      };
+    }
+
+    if (status === 503) {
+      return {
+        title: "Service Unavailable",
+        message: "The image retrieval service is currently unavailable or initializing. Please try again in a few moments."
+      };
+    }
+
+    if (status === 0 || (error.message && error.message.includes("Failed to fetch"))) {
       return {
         title: "Backend Unreachable",
-        message: "Cannot connect to Fruvia AI backend server. Please verify the backend is running at http://localhost:8000."
+        message: "Cannot connect to Fruvia AI backend server. Please verify backend is running at " + CONFIG.API_BASE_URL
       };
     }
 
@@ -89,20 +135,5 @@ const Utils = {
       title: "Retrieval Error",
       message: error.message || "An unexpected error occurred while processing your request. Please try again."
     };
-  },
-
-  /**
-   * Escape text to prevent XSS when inserting dynamic content
-   * @param {string} str
-   * @returns {string}
-   */
-  escapeHtml(str) {
-    if (!str) return "";
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
   }
 };

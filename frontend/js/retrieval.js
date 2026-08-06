@@ -21,6 +21,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const backendStatusBadge = document.getElementById("backend-status");
   const statusText = document.getElementById("status-text");
 
+  const comparisonContainer = document.getElementById("comparison-container");
+  const queryComparisonImg = document.getElementById("query-comparison-img");
+  const topMatchMedia = document.getElementById("top-match-media");
+
   const errorBannerContainer = document.getElementById("error-banner-container");
   const warningBannerContainer = document.getElementById("warning-banner-container");
   const resultsHeader = document.getElementById("results-header");
@@ -29,8 +33,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const resultsGrid = document.getElementById("results-grid");
   const initialEmptyState = document.getElementById("initial-empty-state");
 
+  // Modal Elements
+  const imageModal = document.getElementById("image-modal");
+  const modalClose = document.getElementById("modal-close");
+  const modalMediaWrapper = document.getElementById("modal-media-wrapper");
+  const modalTitle = document.getElementById("modal-title");
+  const modalOriginalClass = document.getElementById("modal-original-class");
+  const modalSimilarityBox = document.getElementById("modal-similarity-box");
+  const modalFilename = document.getElementById("modal-filename");
+  const modalSplit = document.getElementById("modal-split");
+  const modalPath = document.getElementById("modal-path");
+
   // State Variables
   let selectedFile = null;
+  let queryDataUrl = null;
   let isSearching = false;
 
   // ---------- Health Check Polling ----------
@@ -58,7 +74,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleFileSelected(file) {
     if (!file) return;
 
-    // Validate size
     if (file.size > CONFIG.MAX_UPLOAD_BYTES) {
       showErrorBanner(
         "File Too Large",
@@ -67,7 +82,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Validate extension
     const ext = "." + file.name.split(".").pop().toLowerCase();
     if (!CONFIG.ALLOWED_EXTENSIONS.includes(ext)) {
       showErrorBanner(
@@ -80,10 +94,10 @@ document.addEventListener("DOMContentLoaded", () => {
     clearBanners();
     selectedFile = file;
 
-    // Show Preview
     const reader = new FileReader();
     reader.onload = (e) => {
-      previewImg.src = e.target.result;
+      queryDataUrl = e.target.result;
+      previewImg.src = queryDataUrl;
       dropzonePrompt.style.display = "none";
       previewContainer.style.display = "flex";
       btnSearch.disabled = false;
@@ -93,15 +107,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function clearSelectedFile() {
     selectedFile = null;
+    queryDataUrl = null;
     fileInput.value = "";
     previewImg.src = "";
     previewContainer.style.display = "none";
     dropzonePrompt.style.display = "block";
     btnSearch.disabled = true;
+    comparisonContainer.style.display = "none";
     clearBanners();
   }
 
-  // Event Listeners for File Selection
   dropzone.addEventListener("click", (e) => {
     if (e.target !== btnChangeImage && e.target !== btnRemoveImage && !previewContainer.contains(e.target)) {
       fileInput.click();
@@ -131,7 +146,6 @@ document.addEventListener("DOMContentLoaded", () => {
     clearSelectedFile();
   });
 
-  // Drag and Drop Events
   ["dragenter", "dragover"].forEach((eventName) => {
     dropzone.addEventListener(eventName, (e) => {
       e.preventDefault();
@@ -155,35 +169,64 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ---------- Top K Controls ----------
   topKSlider.addEventListener("input", (e) => {
     topKDisplay.textContent = e.target.value;
   });
 
   // ---------- Banner Renderers ----------
   function showErrorBanner(title, message) {
-    errorBannerContainer.innerHTML = `
-      <div class="alert-banner alert-banner-error" role="alert">
-        <span class="alert-icon" aria-hidden="true">⚠️</span>
-        <div class="alert-content">
-          <h4>${Utils.escapeHtml(title)}</h4>
-          <p>${Utils.escapeHtml(message)}</p>
-        </div>
-      </div>
-    `;
+    errorBannerContainer.innerHTML = "";
+    const banner = document.createElement("div");
+    banner.className = "alert-banner alert-banner-error";
+    banner.setAttribute("role", "alert");
+
+    const icon = document.createElement("span");
+    icon.className = "alert-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "⚠️";
+
+    const content = document.createElement("div");
+    content.className = "alert-content";
+
+    const h4 = document.createElement("h4");
+    h4.textContent = title;
+
+    const p = document.createElement("p");
+    p.textContent = message;
+
+    content.appendChild(h4);
+    content.appendChild(p);
+    banner.appendChild(icon);
+    banner.appendChild(content);
+    errorBannerContainer.appendChild(banner);
     errorBannerContainer.style.display = "block";
   }
 
   function showWarningBanner(title, message) {
-    warningBannerContainer.innerHTML = `
-      <div class="alert-banner alert-banner-warning" role="alert">
-        <span class="alert-icon" aria-hidden="true">⚠️</span>
-        <div class="alert-content">
-          <h4>${Utils.escapeHtml(title)}</h4>
-          <p>${Utils.escapeHtml(message)}</p>
-        </div>
-      </div>
-    `;
+    warningBannerContainer.innerHTML = "";
+    const banner = document.createElement("div");
+    banner.className = "alert-banner alert-banner-warning";
+    banner.setAttribute("role", "alert");
+
+    const icon = document.createElement("span");
+    icon.className = "alert-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "⚠️";
+
+    const content = document.createElement("div");
+    content.className = "alert-content";
+
+    const h4 = document.createElement("h4");
+    h4.textContent = title;
+
+    const p = document.createElement("p");
+    p.textContent = message;
+
+    content.appendChild(h4);
+    content.appendChild(p);
+    banner.appendChild(icon);
+    banner.appendChild(content);
+    warningBannerContainer.appendChild(banner);
     warningBannerContainer.style.display = "block";
   }
 
@@ -220,108 +263,331 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ---------- Render Results Cards ----------
+  // ---------- Render Results Cards (DOM API) ----------
   function renderResults(response) {
     if (initialEmptyState) {
       initialEmptyState.style.display = "none";
     }
 
     const results = response.results || [];
-    resCount.textContent = response.result_count || results.length;
-    resTime.textContent = response.processing_time_ms || 0;
+    resCount.textContent = String(response.result_count || results.length);
+    resTime.textContent = String(response.processing_time_ms || 0);
     resultsHeader.style.display = "flex";
 
-    // Clear previous cards
+    // Setup Query Image vs Top Match comparison section
+    if (queryDataUrl) {
+      queryComparisonImg.src = queryDataUrl;
+      comparisonContainer.style.display = "flex";
+    }
+
+    // Clear previous results
     resultsGrid.innerHTML = "";
+    topMatchMedia.innerHTML = "";
 
     if (results.length === 0) {
-      resultsGrid.innerHTML = `
-        <div class="empty-state" style="grid-column: 1 / -1;">
-          <div class="empty-state-icon" aria-hidden="true">🍃</div>
-          <h3>No Similar Images Found</h3>
-          <p>The vector search returned zero matches for your query image.</p>
-        </div>
-      `;
+      const emptyDiv = document.createElement("div");
+      emptyDiv.className = "empty-state";
+      emptyDiv.style.gridColumn = "1 / -1";
+
+      const icon = document.createElement("div");
+      icon.className = "empty-state-icon";
+      icon.textContent = "🍃";
+
+      const h3 = document.createElement("h3");
+      h3.textContent = "No Similar Images Found";
+
+      const p = document.createElement("p");
+      p.textContent = "The vector search returned zero matches for your query image.";
+
+      emptyDiv.appendChild(icon);
+      emptyDiv.appendChild(h3);
+      emptyDiv.appendChild(p);
+      resultsGrid.appendChild(emptyDiv);
       return;
     }
 
-    // Check top similarity score for low confidence warning (threshold < 0.55)
+    // Check similarity thresholds for reliability warning
     const topResult = results[0];
-    if (topResult && typeof topResult.similarity === "number" && topResult.similarity < 0.55) {
+    const topSim = topResult && typeof topResult.similarity === "number" ? topResult.similarity : 0;
+
+    if (topSim < CONFIG.LOW_SIMILARITY_THRESHOLD) {
       showWarningBanner(
         "No close match was found in the current dataset.",
-        "Không tìm thấy kết quả đủ tương đồng trong dữ liệu hiện tại."
+        "Không tìm thấy loại trái cây đủ tương đồng trong dữ liệu hiện tại."
       );
     }
 
-    // Render cards
+    // Populate Top Match in Comparison Container
+    if (topResult) {
+      const displayName = topResult.display_name || topResult.canonical_class || "Unknown";
+      if (Utils.isSafeImageUrl(topResult.image_url)) {
+        const topImg = document.createElement("img");
+        topImg.src = topResult.image_url;
+        topImg.alt = `Top match: ${displayName}`;
+        topMatchMedia.appendChild(topImg);
+      } else {
+        const topPlaceholder = document.createElement("div");
+        topPlaceholder.className = "card-placeholder";
+        const pIcon = document.createElement("span");
+        pIcon.className = "fruit-icon";
+        pIcon.textContent = "🍎";
+        const pText = document.createElement("span");
+        pText.className = "placeholder-class";
+        pText.textContent = displayName;
+        topPlaceholder.appendChild(pIcon);
+        topPlaceholder.appendChild(pText);
+        topMatchMedia.appendChild(topPlaceholder);
+      }
+    }
+
+    // Render individual result cards using DOM Methods (No unsafe innerHTML)
     results.forEach((item, index) => {
       const rank = index + 1;
+      const originalClass = item.original_class || "unknown";
       const canonicalClass = item.canonical_class || "unknown";
-      const originalClass = item.original_class || "";
+      const displayName = item.display_name || canonicalClass;
       const filename = item.filename || "unknown";
       const originalSplit = item.original_split || "unknown";
       const relativePath = item.relative_path || "";
       const similarityObj = Utils.formatSimilarity(item.similarity);
 
-      // Card Element
       const card = document.createElement("article");
       card.className = "result-card";
 
-      // Media Section: image_url or placeholder
-      let mediaHtml = "";
-      if (item.image_url) {
-        mediaHtml = `
-          <div class="card-media">
-            <span class="rank-badge">#${rank}</span>
-            <img src="${Utils.escapeHtml(item.image_url)}"
-                 alt="Similar match for ${Utils.escapeHtml(canonicalClass)}"
-                 loading="lazy"
-                 onerror="this.onerror=null; this.parentNode.innerHTML='<span class=\\'rank-badge\\'>#${rank}</span><div class=\\'card-placeholder\\'><span class=\\'fruit-icon\\'>🍎</span><span class=\\'placeholder-class\\'>${Utils.escapeHtml(canonicalClass)}</span><span class=\\'placeholder-note\\'>Image load error</span></div>';">
-          </div>
-        `;
+      // --- Media Container ---
+      const mediaDiv = document.createElement("div");
+      mediaDiv.className = "card-media";
+
+      const rankBadge = document.createElement("span");
+      rankBadge.className = "rank-badge";
+      rankBadge.textContent = `#${rank}`;
+      mediaDiv.appendChild(rankBadge);
+
+      const hasSafeUrl = Utils.isSafeImageUrl(item.image_url);
+
+      if (hasSafeUrl) {
+        // Skeleton shimmer overlay
+        const skeleton = document.createElement("div");
+        skeleton.className = "card-skeleton";
+        mediaDiv.appendChild(skeleton);
+
+        const img = document.createElement("img");
+        img.setAttribute("loading", "lazy");
+        img.setAttribute("decoding", "async");
+        img.alt = `Similar fruit match: ${displayName}`;
+
+        img.addEventListener("load", () => {
+          skeleton.remove();
+          img.classList.add("loaded");
+        });
+
+        img.addEventListener("error", () => {
+          skeleton.remove();
+          img.remove();
+          mediaDiv.appendChild(createPlaceholderElement(displayName, "Image load error"));
+        });
+
+        img.src = item.image_url;
+        mediaDiv.appendChild(img);
       } else {
-        // Fallback placeholder when image_url is null
-        mediaHtml = `
-          <div class="card-media">
-            <span class="rank-badge">#${rank}</span>
-            <div class="card-placeholder">
-              <span class="fruit-icon" aria-hidden="true">🍇</span>
-              <span class="placeholder-class">${Utils.escapeHtml(canonicalClass)}</span>
-              <span class="placeholder-note">Preview unavailable</span>
-            </div>
-          </div>
-        `;
+        mediaDiv.appendChild(createPlaceholderElement(displayName, "Preview unavailable"));
       }
 
-      // Card Content
-      card.innerHTML = `
-        ${mediaHtml}
-        <div class="card-body">
-          <div>
-            <h3 class="card-class-title">${Utils.escapeHtml(canonicalClass)}</h3>
-            ${originalClass ? `<p class="card-class-original">Raw class: ${Utils.escapeHtml(originalClass)}</p>` : ""}
-          </div>
+      // Click media to open Modal Lightbox
+      mediaDiv.addEventListener("click", () => {
+        openModal(item, queryDataUrl);
+      });
 
-          <div class="similarity-box ${similarityObj.levelClass}">
-            <div class="similarity-header">
-              <span class="similarity-label">Similarity</span>
-              <span class="similarity-value">${similarityObj.percentageText}</span>
-            </div>
-            <div class="similarity-track" role="progressbar" aria-valuenow="${(item.similarity * 100).toFixed(1)}" aria-valuemin="-100" aria-valuemax="100">
-              <div class="similarity-fill" style="width: ${similarityObj.visualWidth};"></div>
-            </div>
-          </div>
+      // --- Body Container ---
+      const bodyDiv = document.createElement("div");
+      bodyDiv.className = "card-body";
 
-          <div class="card-details">
-            <div><strong>File:</strong> ${Utils.escapeHtml(filename)}</div>
-            <div><strong>Split:</strong> ${Utils.escapeHtml(originalSplit)}</div>
-            ${relativePath ? `<div style="font-size:0.625rem; opacity:0.8;">${Utils.escapeHtml(relativePath)}</div>` : ""}
-          </div>
-        </div>
-      `;
+      const titleHeader = document.createElement("div");
+      const titleH3 = document.createElement("h3");
+      titleH3.className = "card-class-title";
+      titleH3.textContent = displayName;
 
+      const rawLabelP = document.createElement("p");
+      rawLabelP.className = "card-class-original";
+      rawLabelP.textContent = `Dataset label: ${originalClass}`;
+
+      titleHeader.appendChild(titleH3);
+      titleHeader.appendChild(rawLabelP);
+      bodyDiv.appendChild(titleHeader);
+
+      // --- Similarity Bar ---
+      const simBox = document.createElement("div");
+      simBox.className = `similarity-box ${similarityObj.levelClass}`;
+
+      const simHeader = document.createElement("div");
+      simHeader.className = "similarity-header";
+
+      const simLabel = document.createElement("span");
+      simLabel.className = "similarity-label";
+      simLabel.textContent = "Similarity";
+
+      const simValue = document.createElement("span");
+      simValue.className = "similarity-value";
+      simValue.textContent = similarityObj.percentageText;
+
+      simHeader.appendChild(simLabel);
+      simHeader.appendChild(simValue);
+
+      const simTrack = document.createElement("div");
+      simTrack.className = "similarity-track";
+      simTrack.setAttribute("role", "progressbar");
+      simTrack.setAttribute("aria-valuenow", (item.similarity * 100).toFixed(1));
+      simTrack.setAttribute("aria-valuemin", "-100");
+      simTrack.setAttribute("aria-valuemax", "100");
+
+      const simFill = document.createElement("div");
+      simFill.className = "similarity-fill";
+      simFill.style.width = similarityObj.visualWidth;
+
+      simTrack.appendChild(simFill);
+      simBox.appendChild(simHeader);
+      simBox.appendChild(simTrack);
+      bodyDiv.appendChild(simBox);
+
+      // --- Compact Metadata Summary ---
+      const summaryDiv = document.createElement("div");
+      summaryDiv.className = "card-details";
+
+      const fileLine = document.createElement("div");
+      const fileStrong = document.createElement("strong");
+      fileStrong.textContent = "File: ";
+      fileLine.appendChild(fileStrong);
+      fileLine.appendChild(document.createTextNode(filename));
+
+      const splitLine = document.createElement("div");
+      const splitStrong = document.createElement("strong");
+      splitStrong.textContent = "Split: ";
+      splitLine.appendChild(splitStrong);
+      splitLine.appendChild(document.createTextNode(originalSplit));
+
+      summaryDiv.appendChild(fileLine);
+      summaryDiv.appendChild(splitLine);
+
+      // --- Collapsible Technical Details ---
+      const detailsToggleBtn = document.createElement("button");
+      detailsToggleBtn.type = "button";
+      detailsToggleBtn.className = "card-details-toggle";
+      detailsToggleBtn.textContent = "▶ Technical Details";
+
+      const hiddenDetailsDiv = document.createElement("div");
+      hiddenDetailsDiv.style.display = "none";
+      hiddenDetailsDiv.className = "card-details";
+      hiddenDetailsDiv.style.marginTop = "0.25rem";
+
+      const pathLine = document.createElement("div");
+      const pathStrong = document.createElement("strong");
+      pathStrong.textContent = "Path: ";
+      pathLine.appendChild(pathStrong);
+      pathLine.appendChild(document.createTextNode(relativePath));
+
+      const rawSimLine = document.createElement("div");
+      const rawSimStrong = document.createElement("strong");
+      rawSimStrong.textContent = "Raw Similarity: ";
+      rawSimLine.appendChild(rawSimStrong);
+      rawSimLine.appendChild(document.createTextNode(String(item.similarity)));
+
+      hiddenDetailsDiv.appendChild(pathLine);
+      hiddenDetailsDiv.appendChild(rawSimLine);
+
+      detailsToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isHidden = hiddenDetailsDiv.style.display === "none";
+        hiddenDetailsDiv.style.display = isHidden ? "block" : "none";
+        detailsToggleBtn.textContent = isHidden ? "▼ Technical Details" : "▶ Technical Details";
+      });
+
+      bodyDiv.appendChild(summaryDiv);
+      bodyDiv.appendChild(detailsToggleBtn);
+      bodyDiv.appendChild(hiddenDetailsDiv);
+
+      card.appendChild(mediaDiv);
+      card.appendChild(bodyDiv);
       resultsGrid.appendChild(card);
     });
   }
+
+  function createPlaceholderElement(displayName, noteText) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "card-placeholder";
+
+    const fruitIcon = document.createElement("span");
+    fruitIcon.className = "fruit-icon";
+    fruitIcon.setAttribute("aria-hidden", "true");
+    fruitIcon.textContent = "🍇";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "placeholder-class";
+    nameSpan.textContent = displayName;
+
+    const noteSpan = document.createElement("span");
+    noteSpan.className = "placeholder-note";
+    noteSpan.textContent = noteText;
+
+    placeholder.appendChild(fruitIcon);
+    placeholder.appendChild(nameSpan);
+    placeholder.appendChild(noteSpan);
+    return placeholder;
+  }
+
+  // ---------- Modal / Lightbox Logic ----------
+  function openModal(item, queryImgUrl) {
+    const displayName = item.display_name || item.canonical_class || "Unknown";
+    const originalClass = item.original_class || "unknown";
+    const filename = item.filename || "unknown";
+    const originalSplit = item.original_split || "unknown";
+    const relativePath = item.relative_path || "";
+    const similarityObj = Utils.formatSimilarity(item.similarity);
+
+    modalTitle.textContent = displayName;
+    modalOriginalClass.textContent = `Dataset label: ${originalClass}`;
+    modalFilename.textContent = filename;
+    modalSplit.textContent = originalSplit;
+    modalPath.textContent = relativePath;
+
+    modalMediaWrapper.innerHTML = "";
+    if (Utils.isSafeImageUrl(item.image_url)) {
+      const modalImg = document.createElement("img");
+      modalImg.src = item.image_url;
+      modalImg.alt = displayName;
+      modalMediaWrapper.appendChild(modalImg);
+    } else {
+      modalMediaWrapper.appendChild(createPlaceholderElement(displayName, "Preview unavailable"));
+    }
+
+    modalSimilarityBox.className = `similarity-box ${similarityObj.levelClass}`;
+    modalSimilarityBox.innerHTML = `
+      <div class="similarity-header">
+        <span class="similarity-label">Similarity</span>
+        <span class="similarity-value">${similarityObj.percentageText}</span>
+      </div>
+      <div class="similarity-track">
+        <div class="similarity-fill" style="width: ${similarityObj.visualWidth};"></div>
+      </div>
+    `;
+
+    imageModal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeModal() {
+    imageModal.style.display = "none";
+    document.body.style.overflow = "";
+  }
+
+  modalClose.addEventListener("click", closeModal);
+  imageModal.addEventListener("click", (e) => {
+    if (e.target === imageModal) {
+      closeModal();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && imageModal.style.display === "flex") {
+      closeModal();
+    }
+  });
 });

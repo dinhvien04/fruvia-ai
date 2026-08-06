@@ -36,6 +36,7 @@ class TestRetrievalRoute:
             RetrievalResult(
                 original_class="Banana",
                 canonical_class="banana",
+                display_name="Banana",
                 filename="banana_01.jpg",
                 relative_path="Training/Banana/banana_01.jpg",
                 original_split="train",

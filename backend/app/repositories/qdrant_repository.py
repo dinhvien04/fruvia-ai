@@ -14,6 +14,7 @@ from app.core.config import Settings, get_settings
 from app.core.exceptions import QdrantCollectionNotFoundError, QdrantConnectionError
 from app.core.logging import get_logger
 from app.schemas.retrieval import RetrievalResult
+from app.utils.class_resolver import resolve_class_names
 from app.utils.file_utils import load_class_mapping
 
 logger = get_logger(__name__)
@@ -187,13 +188,14 @@ class QdrantRepository:
                     similarity_score = float(getattr(hit, "score", 0.0))
 
                     original_cls = str(payload.get("original_class", "unknown"))
-                    canonical_cls = self.class_mapping.get(
-                        original_cls, original_cls.lower().strip()
+                    canonical_cls, display_name = resolve_class_names(
+                        original_cls, self.class_mapping
                     )
 
                     res = RetrievalResult(
                         original_class=original_cls,
                         canonical_class=canonical_cls,
+                        display_name=display_name,
                         filename=str(payload.get("filename", "unknown")),
                         relative_path=str(payload.get("relative_path", "")),
                         original_split=str(

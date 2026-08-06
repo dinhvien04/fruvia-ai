@@ -18,6 +18,9 @@ class RetrievalResult(BaseModel):
 
     original_class: str = Field(..., description="Original Fruits-360 class name")
     canonical_class: str = Field(..., description="Canonical fruit class name (e.g. apple, papaya)")
+    display_name: str = Field(
+        ..., description="Human-friendly display name (e.g. Apple, Dragon Fruit)"
+    )
     filename: str = Field(..., description="Filename of the matched image")
     relative_path: str = Field(..., description="Relative path of the matched image")
     original_split: str = Field(

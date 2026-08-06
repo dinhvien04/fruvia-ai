@@ -28,6 +28,7 @@ class TestRetrievalService:
             RetrievalResult(
                 original_class="Apple Braeburn",
                 canonical_class="apple",
+                display_name="Apple",
                 filename="0_100.jpg",
                 relative_path="Training/Apple Braeburn/0_100.jpg",
                 original_split="train",
