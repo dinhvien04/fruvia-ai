@@ -5,11 +5,24 @@
 Fruvia AI is an AI-powered fruit recognition and image retrieval system.
 This document tracks the phased implementation plan.
 
+### Notebook Policy
+
+> **Notebooks are authored in the repository and executed on Google Colab.**
+> They are never run locally or in CI.
+
+Workflow: GitHub repo → Open in Google Colab → Enable T4 GPU →
+Read Kaggle/Qdrant credentials from Colab Secrets →
+Download Fruits-360 → Process & embed on Colab →
+Upload vectors to Qdrant Cloud → Save checkpoints to Google Drive.
+
+Local tests only validate notebook structure (valid JSON, no outputs,
+no secrets, no Windows paths) — they never execute notebook code.
+
 ---
 
-## Phase 1: Foundation (Current)
+## Phase 1: Foundation
 
-**Status: IN PROGRESS**
+**Status: COMPLETE**
 
 - [x] Initialize repository structure
 - [x] Create all directories
@@ -33,19 +46,21 @@ This document tracks the phased implementation plan.
 
 ## Phase 2: Data Exploration & Preparation
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- [ ] Notebook 01: Explore Fruits-360 dataset
-  - Mount Google Drive
+- [x] Notebook 01: Explore Fruits-360 dataset (Colab)
+  - Download via Kaggle API (credentials from Colab Secrets)
   - Count images per class
   - Visualize sample images
   - Distribution chart (matplotlib, not seaborn)
   - Detect corrupt images
-- [ ] Notebook 02: Prepare dataset
+  - Export CSV summary
+- [x] Notebook 02: Prepare dataset (Colab)
   - Read classes.yaml and class_mapping.yaml
-  - Create manifest CSV
-  - Remove duplicates and corrupt images
-  - Stratified train/validation/test split
+  - Create retrieval_manifest.csv (all images for DINOv2)
+  - Create classification_manifest.csv (target classes only)
+  - SHA-256 duplicate removal
+  - Stratified train/validation/test split (70/15/15, seed=42)
   - Pre/post statistics
 
 ---
@@ -72,17 +87,23 @@ This document tracks the phased implementation plan.
 
 ## Phase 4: DINOv2 Embedding & Qdrant
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- [ ] Notebook 06: Generate DINOv2 embeddings
+- [x] Notebook 06: Generate DINOv2 embeddings (Colab T4 GPU)
   - facebook/dinov2-base, CLS token, L2 normalize
-  - Batch inference, skip corrupt images
+  - Batch inference with progress bar
+  - Save embedding shards to Google Drive (not all in RAM)
+  - Checkpoint/resume support
   - Mixed precision
-- [ ] Notebook 07: Upload to Qdrant Cloud
+- [x] Notebook 07: Upload to Qdrant Cloud (Colab)
+  - Credentials from Colab Secrets (never hardcoded)
   - Stable point IDs (UUID5)
   - Structured payload
+  - Batch upload with retry and exponential backoff
+  - Resume support (skip already-uploaded points)
   - No recreate_collection by default
   - RESET_COLLECTION flag for intentional reset
+  - Verification: count points, sample query
 
 ---
 

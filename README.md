@@ -188,17 +188,42 @@ QDRANT_API_KEY=your-api-key-here
 
 ## Colab Notebooks
 
-The notebooks are designed to run on Google Colab with data stored on Google Drive:
+> **Notebooks are authored in the repository and executed on Google Colab.**
+> They are never run locally or in CI.
 
-| Notebook | Purpose |
+### Workflow
+
+```
+GitHub repository
+  → Open notebook in Google Colab
+  → Enable T4 GPU (for embedding/training notebooks)
+  → Read KAGGLE_API_TOKEN from Colab Secrets
+  → Download Fruits-360 into /content/fruits360
+  → Process and embed on Colab
+  → Upload vectors to Qdrant Cloud
+  → Save checkpoints to Google Drive
+```
+
+| Notebook | Purpose | Runtime |
+|---|---|---|
+| `01_explore_fruits360.ipynb` | Explore and visualize the dataset | CPU |
+| `02_prepare_dataset.ipynb` | Create retrieval + classification manifests | CPU |
+| `03_train_efficientnet_baseline.ipynb` | Train EfficientNet-B0 baseline | GPU |
+| `04_train_convnext.ipynb` | Train ConvNeXt-Tiny (primary) | GPU |
+| `05_evaluate_models.ipynb` | Compare models on test set | GPU |
+| `06_generate_dinov2_embeddings.ipynb` | Generate DINOv2 image embeddings | GPU (T4) |
+| `07_upload_qdrant.ipynb` | Upload vectors to Qdrant Cloud | CPU |
+
+### Colab Secrets Required
+
+| Secret | Used by |
 |---|---|
-| `01_explore_fruits360.ipynb` | Explore and visualize the dataset |
-| `02_prepare_dataset.ipynb` | Create manifest, split data |
-| `03_train_efficientnet_baseline.ipynb` | Train EfficientNet-B0 baseline |
-| `04_train_convnext.ipynb` | Train ConvNeXt-Tiny (primary) |
-| `05_evaluate_models.ipynb` | Compare models on test set |
-| `06_generate_dinov2_embeddings.ipynb` | Generate DINOv2 image embeddings |
-| `07_upload_qdrant.ipynb` | Upload vectors to Qdrant Cloud |
+| `KAGGLE_USERNAME` | Notebooks 01, 02, 06 |
+| `KAGGLE_KEY` | Notebooks 01, 02, 06 |
+| `QDRANT_URL` | Notebook 07 |
+| `QDRANT_API_KEY` | Notebook 07 |
+
+All data paths use `/content/` (Colab default) or Google Drive. No Windows paths.
 
 ## Data Conventions
 
