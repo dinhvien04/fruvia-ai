@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fruvia AI — Image Retrieval</title>
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/retrieval.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="index.html" class="brand-logo" aria-label="Fruvia AI Homepage">
+        <span class="logo-icon" aria-hidden="true">🍇</span>
+        <span>Fruvia AI</span>
+        <span class="brand-badge">Retrieval</span>
+      </a>
+      <div class="header-status">
+        <div id="backend-status" class="status-badge" data-status="unknown" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="status-text">Checking Backend...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero-section">
+      <h1 class="hero-title">Find Visually Similar Fruits</h1>
+      <p class="hero-subtitle">
+        Upload a fruit image to extract deep feature embeddings via <strong>DINOv2</strong> and search vector matches in Qdrant Cloud based on <strong>Cosine Similarity</strong>.
+      </p>
+    </section>
+
+    <div class="retrieval-grid">
+      <!-- Left Column: Search Controls & Upload Area -->
+      <aside class="controls-card">
+        <div>
+          <h2 class="section-label">1. Upload Query Image</h2>
+          <form id="upload-form" onsubmit="return false;">
+            <!-- Dropzone -->
+            <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload fruit image file. Drag and drop or click to choose file">
+              <input type="file" id="file-input" accept="image/jpeg,image/jpg,image/png,image/webp" class="sr-only">
+              <div id="dropzone-prompt">
+                <div class="dropzone-icon" aria-hidden="true">📁</div>
+                <div class="dropzone-text">Drag & drop your image here</div>
+                <div class="dropzone-hint">Supports JPG, PNG, WEBP (Max 10 MB)</div>
+              </div>
+
+              <!-- Image Preview Area -->
+              <div id="preview-container" class="preview-container" style="display: none;">
+                <div class="preview-image-wrapper">
+                  <img id="preview-img" src="" alt="Selected image preview">
+                </div>
+                <div class="preview-actions">
+                  <button type="button" id="btn-change-image" class="btn btn-secondary btn-sm">Change Image</button>
+                  <button type="button" id="btn-remove-image" class="btn btn-secondary btn-sm" style="color: var(--color-error);">Remove</button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div>
+          <div class="top-k-header">
+            <h2 class="section-label">2. Result Count (Top K)</h2>
+            <span id="top-k-display" class="top-k-value">5</span>
+          </div>
+          <div class="top-k-group">
+            <input type="range" id="top-k-slider" min="1" max="20" value="5" step="1" class="top-k-slider" aria-label="Select top K results count from 1 to 20">
+          </div>
+        </div>
+
+        <div>
+          <button type="button" id="btn-search" class="btn btn-primary btn-search" disabled>
+            <span id="search-spinner" class="spinner" style="display: none;" aria-hidden="true"></span>
+            <span id="search-text">Find Similar Images</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Right Column: Results Grid & Messages -->
+      <section class="results-panel" aria-live="polite" id="results-section">
+        <!-- Error Banner Container -->
+        <div id="error-banner-container" style="display: none;"></div>
+
+        <!-- Reliability Warning Banner Container -->
+        <div id="warning-banner-container" style="display: none;"></div>
+
+        <!-- Meta info bar -->
+        <div id="results-header" class="results-header" style="display: none;">
+          <div class="results-meta">
+            Found <strong id="res-count">0</strong> matches in <strong id="res-time">0</strong> ms
+          </div>
+        </div>
+
+        <!-- Results Grid -->
+        <div id="results-grid" class="results-grid">
+          <!-- Initial Empty State -->
+          <div id="initial-empty-state" class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-state-icon" aria-hidden="true">🔍</div>
+            <h3>No Search Performed Yet</h3>
+            <p>Upload a fruit image on the left and click "Find Similar Images" to view visual vector matches.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 Fruvia AI. Built for fruit recognition and vector search capabilities.</p>
+    </div>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/retrieval.js"></script>
+</body>
+</html>

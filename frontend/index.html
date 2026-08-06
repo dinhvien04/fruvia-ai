@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fruvia AI — AI-Powered Fruit Recognition & Retrieval</title>
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    .landing-hero {
+      padding: var(--space-2xl) 0;
+      text-align: center;
+      background: radial-gradient(circle at top, var(--color-primary-light) 0%, transparent 70%);
+    }
+    .landing-hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: var(--space-md);
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-xl);
+      margin: var(--space-2xl) 0;
+    }
+    .feature-card {
+      background-color: var(--color-bg-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      padding: var(--space-xl);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      position: relative;
+    }
+    .feature-card.coming-soon {
+      opacity: 0.85;
+      background-color: var(--color-bg-subtle);
+    }
+    .feature-badge {
+      align-self: flex-start;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-full);
+      text-transform: uppercase;
+    }
+    .badge-active {
+      background-color: var(--color-primary-light);
+      color: var(--color-primary);
+      border: 1px solid var(--color-primary-border);
+    }
+    .badge-disabled {
+      background-color: #e2e8f0;
+      color: var(--color-text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="index.html" class="brand-logo" aria-label="Fruvia AI Homepage">
+        <span class="logo-icon" aria-hidden="true">🍇</span>
+        <span>Fruvia AI</span>
+        <span class="brand-badge">v1.0</span>
+      </a>
+      <div class="header-status">
+        <div id="backend-status" class="status-badge" data-status="unknown" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="status-text">Checking Backend...</span>
+        </div>
+        <a href="retrieval.html" class="btn btn-primary btn-sm">Try Image Search</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="landing-hero">
+      <h1>AI-Powered Fruit Intelligence</h1>
+      <p class="hero-subtitle">
+        Explore visually similar fruits using deep learning feature representations (DINOv2) and Qdrant vector database search.
+      </p>
+    </section>
+
+    <section class="features-grid">
+      <!-- Feature 1: Image Retrieval (Active) -->
+      <article class="feature-card">
+        <span class="feature-badge badge-active">Active Capability</span>
+        <h2>Visual Image Retrieval</h2>
+        <p>
+          Upload any fruit image to find visually similar fruit samples from our dataset. Uses 768-dimensional DINOv2 embeddings and cosine similarity search.
+        </p>
+        <div style="margin-top: auto;">
+          <a href="retrieval.html" class="btn btn-primary" style="width: 100%;">
+            Try Visual Search →
+          </a>
+        </div>
+      </article>
+
+      <!-- Feature 2: Fruit Classification (Coming Soon) -->
+      <article class="feature-card coming-soon">
+        <span class="feature-badge badge-disabled">Coming Soon</span>
+        <h2>Fruit Classification</h2>
+        <p>
+          Automated fruit species identification using ConvNeXt-Tiny deep classifier models with top-3 predictions and confidence scoring.
+        </p>
+        <div style="margin-top: auto;">
+          <button class="btn btn-secondary" disabled style="width: 100%;">
+            Under Development
+          </button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 Fruvia AI. Built for fruit recognition and vector search capabilities.</p>
+    </div>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    // Header health ping
+    document.addEventListener("DOMContentLoaded", async () => {
+      const badge = document.getElementById("backend-status");
+      const statusText = document.getElementById("status-text");
+      try {
+        const health = await ApiClient.getHealth();
+        if (health.status === "ok") {
+          badge.setAttribute("data-status", "online");
+          statusText.textContent = "Backend Online";
+        } else {
+          badge.setAttribute("data-status", "degraded");
+          statusText.textContent = "Backend Degraded";
+        }
+      } catch (err) {
+        badge.setAttribute("data-status", "offline");
+        statusText.textContent = "Backend Offline";
+      }
+    });
+  </script>
+</body>
+</html>

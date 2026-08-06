@@ -145,9 +145,20 @@ make run-backend
 
 ### Run Frontend
 
+In a separate terminal, serve the static frontend directory:
+
+```bash
+python -m http.server 3000 --directory frontend
+```
+
+Open your browser at:
+- **Landing page**: [http://localhost:3000](http://localhost:3000)
+- **Image Retrieval Web UI**: [http://localhost:3000/retrieval.html](http://localhost:3000/retrieval.html)
+
+Or use Make:
+
 ```bash
 make run-frontend
-# Opens at http://localhost:3000
 ```
 
 ### Run Tests
