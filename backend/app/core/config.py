@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000)
     app_version: str = Field(default="0.1.0")
 
+    # --- DINOv2 Embedding Model ---
+    dinov2_model_name: str = Field(
+        default="facebook/dinov2-base", description="Hugging Face model repository ID"
+    )
+    dinov2_revision: str = Field(
+        default="main", description="Pinned commit hash or revision tag for DINOv2 model"
+    )
+    hf_home: Path | None = Field(
+        default=None, description="Optional custom directory for Hugging Face cache"
+    )
+
     # --- Classification Model ---
     model_path: Path = Field(default=Path("models/classifier/model.pth"))
     class_names_path: Path = Field(default=Path("models/classifier/class_names.json"))
@@ -50,6 +61,15 @@ class Settings(BaseSettings):
 
     # --- Upload ---
     max_upload_mb: int = Field(default=10, ge=1, le=50)
+    max_image_pixels: int = Field(
+        default=25_000_000, description="Maximum total pixel count to prevent decompression bombs"
+    )
+    max_image_width: int = Field(default=5000, description="Maximum image width in pixels")
+    max_image_height: int = Field(default=5000, description="Maximum image height in pixels")
+    class_mapping_path: Path = Field(
+        default=Path("configs/class_mapping.yaml"),
+        description="Path to original->canonical class mapping YAML",
+    )
 
     # --- CORS ---
     cors_origins: str = Field(default="http://localhost:3000")

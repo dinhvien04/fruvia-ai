@@ -25,7 +25,9 @@ class RequestIdFilter(logging.Filter):
     """Inject request_id into every log record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.request_id = request_id_ctx.get() or "-"  # type: ignore[attr-defined]
+        from app.core.middleware import get_request_id
+
+        record.request_id = get_request_id() or "-"  # type: ignore[attr-defined]
         return True
 
 

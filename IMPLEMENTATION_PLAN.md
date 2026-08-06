@@ -109,25 +109,26 @@ no secrets, no Windows paths) — they never execute notebook code.
 
 ## Phase 5: FastAPI Backend
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS (Retrieval Pipeline Complete & Hardened)**
 
-- [ ] Load classifier at startup
-- [ ] Load DINOv2 encoder at startup
-- [ ] POST /api/classify with confidence threshold
-- [ ] POST /api/retrieve with top_k
+- [ ] Load classifier at startup (Phase 3 dependent)
+- [x] Load DINOv2 encoder at startup
+- [ ] POST /api/classify with confidence threshold (Phase 3 dependent)
+- [x] POST /api/retrieve with top_k (Non-blocking threadpool, bounded streaming upload, security checks)
 - [ ] GET /api/fruits and GET /api/fruits/{class_name}
-- [ ] Dependency injection
-- [ ] Request ID middleware
-- [ ] Qdrant repository with timeout and retry
-- [ ] Classification service
-- [ ] Retrieval service
-- [ ] Full integration tests
+- [x] Dependency injection for ImageEncoder, QdrantRepository, and RetrievalService
+- [x] Request ID middleware (X-Request-ID propagation, ContextVar, log tracing)
+- [x] Qdrant repository with timeout, retry, collection status, health caching, and canonical_class mapping
+- [ ] Classification service (Phase 3 dependent)
+- [x] Retrieval service (Image validation, DINOv2 768-dim L2 vector, Qdrant search, processing timing)
+- [x] Full integration and unit tests for retrieval pipeline
 
 ---
 
 ## Phase 6: Frontend
 
 **Status: NOT STARTED**
+> Note: Frontend implementation is scheduled for subsequent phases. Currently NOT IMPLEMENTED.
 
 - [ ] Home page with navigation
 - [ ] Classification page (drag & drop, top-3 results, confidence bars)
@@ -140,11 +141,11 @@ no secrets, no Windows paths) — they never execute notebook code.
 
 ## Phase 7: Docker & Final
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- [ ] Dockerfile for backend
-- [ ] docker-compose.yml
-- [ ] Security review
-- [ ] Final test suite run
-- [ ] Complete README documentation
+- [x] Dockerfile for backend with 60s healthcheck start_period
+- [x] docker-compose.yml with background backend service
+- [x] Security review (Decompression bomb protection, pixel/dimension limits, non-blocking upload)
+- [x] Final test suite run
+- [x] Complete README documentation
 - [ ] Clean up any remaining TODOs

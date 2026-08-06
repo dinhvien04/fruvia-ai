@@ -11,11 +11,19 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api import routes_health
 from app.main import app
 from app.ml.image_encoder import get_image_encoder
 from app.repositories.qdrant_repository import get_qdrant_repository
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def reset_health_cache() -> None:
+    """Reset the module-level health cache before each test."""
+    routes_health._health_cache = None
+    routes_health._last_health_check_time = 0.0
 
 
 @pytest.fixture
@@ -45,8 +53,7 @@ class TestHealthEndpoint:
         mock_encoder = MagicMock()
         mock_encoder.is_loaded = True
         mock_repo = MagicMock()
-        mock_repo.is_connected.return_value = True
-        mock_repo.is_collection_available.return_value = True
+        mock_repo.get_health_status.return_value = (True, True)
 
         app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
         app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo
@@ -68,8 +75,7 @@ class TestHealthEndpoint:
         mock_encoder = MagicMock()
         mock_encoder.is_loaded = True
         mock_repo = MagicMock()
-        mock_repo.is_connected.return_value = False
-        mock_repo.is_collection_available.return_value = False
+        mock_repo.get_health_status.return_value = (False, False)
 
         app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
         app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo

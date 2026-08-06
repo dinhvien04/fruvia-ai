@@ -37,6 +37,7 @@ class RetrievalService:
         file_bytes: bytes,
         filename: str,
         top_k: int = 5,
+        content_type: str | None = None,
     ) -> RetrievalResponse:
         """
         Process uploaded image bytes and retrieve visually similar fruit images.
@@ -69,6 +70,7 @@ class RetrievalService:
             data=file_bytes,
             filename=filename,
             max_bytes=self.settings.max_upload_bytes,
+            content_type=content_type,
         )
 
         # 2. Extract 768-dim L2-normalized feature vector using DINOv2

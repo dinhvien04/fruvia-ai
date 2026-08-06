@@ -33,9 +33,12 @@ class TestQdrantRepository:
     def test_collection_not_found_raises(self) -> None:
         """Missing target collection must raise QdrantCollectionNotFoundError."""
         mock_client = MagicMock()
-        mock_collections_res = MagicMock()
-        mock_collections_res.collections = []
-        mock_client.get_collections.return_value = mock_collections_res
+        mock_client.search.side_effect = Exception(
+            "Collection fruvia_fruits360_original_dinov2_base_v1 not found"
+        )
+        mock_client.query_points.side_effect = Exception(
+            "Collection fruvia_fruits360_original_dinov2_base_v1 not found"
+        )
 
         repo = QdrantRepository(client=mock_client)
         vector = [0.1] * 768

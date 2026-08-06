@@ -70,7 +70,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # --- CORS ---
+    # --- Middleware ---
+    from app.core.middleware import RequestIdMiddleware
+
+    app.add_middleware(RequestIdMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

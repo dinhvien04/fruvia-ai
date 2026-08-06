@@ -7,10 +7,13 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
+from starlette.concurrency import run_in_threadpool
 
+from app.core.config import get_settings
 from app.core.exceptions import ImageValidationError
 from app.schemas.retrieval import RetrievalResponse
 from app.services.retrieval_service import RetrievalService, get_retrieval_service
+from app.utils.image_validation import read_upload_bounded
 
 router = APIRouter(tags=["retrieval"])
 
@@ -25,6 +28,9 @@ async def retrieve_images(
     Search for visually similar fruit images using DINOv2 vector embeddings.
 
     Upload an image file and retrieve top_k visually similar images stored in Qdrant Cloud.
+    Features:
+    - Bounded streaming file read to protect RAM
+    - Offloads CPU-intensive DINOv2 feature extraction and Qdrant queries to threadpool
     """
     if not (1 <= top_k <= 20):
         raise ImageValidationError(
@@ -32,11 +38,18 @@ async def retrieve_images(
             detail=f"Invalid top_k parameter: {top_k}",
         )
 
-    file_bytes = await file.read()
-    filename = file.filename or "uploaded_image.jpg"
+    settings = get_settings()
 
-    return service.retrieve_similar(
+    # Bounded streaming read up to max_upload_bytes + 1
+    file_bytes = await read_upload_bounded(file, max_bytes=settings.max_upload_bytes)
+    filename = file.filename or "uploaded_image.jpg"
+    content_type = file.content_type
+
+    # Offload CPU-bound ML & synchronous Qdrant query to threadpool to avoid blocking event loop
+    return await run_in_threadpool(
+        service.retrieve_similar,
         file_bytes=file_bytes,
         filename=filename,
         top_k=top_k,
+        content_type=content_type,
     )

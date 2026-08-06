@@ -7,18 +7,19 @@ using the CLS token output.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import torch
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModel
 
+from app.core.config import Settings, get_settings
 from app.core.exceptions import ImageEncodingError, ModelNotLoadedError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-MODEL_NAME = "facebook/dinov2-base"
 EXPECTED_VECTOR_SIZE = 768
 
 
@@ -26,12 +27,20 @@ class ImageEncoder:
     """
     DINOv2 Image Encoder for generating 768-dimensional image embeddings.
 
-    Loads the model once at initialization, determines the optimal hardware device
-    (CUDA if available, else CPU), and executes fast inference in torch.inference_mode.
+    Loads the model once at initialization using configured model name & revision,
+    determines hardware device (CUDA if available, else CPU), and executes fast
+    inference in torch.inference_mode.
     """
 
-    def __init__(self, model_name: str = MODEL_NAME) -> None:
-        self.model_name = model_name
+    def __init__(
+        self,
+        model_name: str | None = None,
+        revision: str | None = None,
+        settings: Settings | None = None,
+    ) -> None:
+        self.settings = settings or get_settings()
+        self.model_name = model_name or self.settings.dinov2_model_name
+        self.revision = revision or self.settings.dinov2_revision
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.processor: Any = None
         self.model: Any = None
@@ -43,10 +52,20 @@ class ImageEncoder:
             logger.info("DINOv2 ImageEncoder model is already loaded.")
             return
 
-        logger.info("Loading DINOv2 model '%s' on device '%s'...", self.model_name, self.device)
+        if self.settings.hf_home:
+            os.environ["HF_HOME"] = str(self.settings.hf_home)
+
+        logger.info(
+            "Loading DINOv2 model '%s' (revision='%s') on device '%s'...",
+            self.model_name,
+            self.revision,
+            self.device,
+        )
         try:
-            self.processor = AutoImageProcessor.from_pretrained(self.model_name)
-            model = AutoModel.from_pretrained(self.model_name)
+            self.processor = AutoImageProcessor.from_pretrained(
+                self.model_name, revision=self.revision
+            )
+            model = AutoModel.from_pretrained(self.model_name, revision=self.revision)
             model.to(self.device)
             model.eval()
             self.model = model
@@ -91,8 +110,7 @@ class ImageEncoder:
                     inputs = inputs.to(self.device)
                 else:
                     inputs = {
-                        k: v.to(self.device) if hasattr(v, "to") else v
-                        for k, v in inputs.items()
+                        k: v.to(self.device) if hasattr(v, "to") else v for k, v in inputs.items()
                     }
                 outputs = self.model(**inputs)
 

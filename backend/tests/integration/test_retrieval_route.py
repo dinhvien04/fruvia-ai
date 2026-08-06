@@ -35,6 +35,7 @@ class TestRetrievalRoute:
         mock_repo.query_similar.return_value = [
             RetrievalResult(
                 original_class="Banana",
+                canonical_class="banana",
                 filename="banana_01.jpg",
                 relative_path="Training/Banana/banana_01.jpg",
                 original_split="train",

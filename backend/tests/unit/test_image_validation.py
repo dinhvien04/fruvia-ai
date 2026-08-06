@@ -112,6 +112,16 @@ class TestValidateImageContent:
         img = validate_image_content(buf.getvalue())
         assert img.mode == "RGB"
 
+    def test_extension_content_type_mismatch_raises(self, sample_jpg_bytes: bytes) -> None:
+        """Uploading JPEG content with .png extension should raise UnsupportedFormatError."""
+        with pytest.raises(UnsupportedFormatError, match="does not match detected"):
+            validate_image_content(sample_jpg_bytes, content_type="image/jpeg", filename="test.png")
+
+    def test_content_type_mismatch_raises(self, sample_jpg_bytes: bytes) -> None:
+        """Uploading JPEG content with image/png content-type header should raise UnsupportedFormatError."""
+        with pytest.raises(UnsupportedFormatError, match="does not match detected"):
+            validate_image_content(sample_jpg_bytes, content_type="image/png", filename="test.jpg")
+
     def test_corrupt_image_raises(self, corrupt_image_bytes: bytes) -> None:
         with pytest.raises(ImageValidationError):
             validate_image_content(corrupt_image_bytes)

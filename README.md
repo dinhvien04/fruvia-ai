@@ -7,7 +7,9 @@ AI-powered fruit recognition and image retrieval system using deep learning.
 Fruvia AI provides two independent AI capabilities:
 
 1. **Fruit Classification** — Upload an image, get top-3 fruit predictions with confidence scores
-2. **Image Retrieval** — Upload an image, find visually similar fruit images via vector search
+2. **Image Retrieval** — Upload an image, find visually similar fruit images via vector search (*Implemented & Active*)
+
+> **Note on Implementation Status**: The **Image Retrieval backend** is fully implemented and hardened (DINOv2 embeddings + Qdrant Cloud collection `fruvia_fruits360_original_dinov2_base_v1`). Fruit Classification endpoints and Frontend web application are currently **NOT YET IMPLEMENTED** (scheduled for future phases).
 
 ## System Architecture
 
@@ -216,12 +218,11 @@ GitHub repository
 
 ### Colab Secrets Required
 
-| Secret | Used by |
+| Secret | Description / Used by |
 |---|---|
-| `KAGGLE_USERNAME` | Notebooks 01, 02, 06 |
-| `KAGGLE_KEY` | Notebooks 01, 02, 06 |
-| `QDRANT_URL` | Notebook 07 |
-| `QDRANT_API_KEY` | Notebook 07 |
+| `KAGGLE_API_TOKEN` (or `KAGGLE_USERNAME` & `KAGGLE_KEY`) | Kaggle API credentials for downloading Fruits-360 |
+| `QDRANT_URL` | Qdrant Cloud endpoint URL (Collection: `fruvia_fruits360_original_dinov2_base_v1`) |
+| `QDRANT_API_KEY` | Qdrant Cloud API key |
 
 All data paths use `/content/` (Colab default) or Google Drive. No Windows paths.
 
