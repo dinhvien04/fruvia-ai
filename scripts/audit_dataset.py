@@ -28,12 +28,12 @@ import json
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import yaml
 from PIL import Image
 
-SUPPORTED_EXTENSIONS: Set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
+SUPPORTED_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
 
 
 def compute_sha256(filepath: Path, chunk_size: int = 65536) -> str:
@@ -48,7 +48,7 @@ def compute_sha256(filepath: Path, chunk_size: int = 65536) -> str:
     return h.hexdigest()
 
 
-def validate_image(filepath: Path) -> Tuple[bool, Optional[Tuple[int, int]]]:
+def validate_image(filepath: Path) -> tuple[bool, tuple[int, int] | None]:
     """
     Check if an image file can be opened and decoded by Pillow.
 
@@ -64,21 +64,21 @@ def validate_image(filepath: Path) -> Tuple[bool, Optional[Tuple[int, int]]]:
         return False, None
 
 
-def load_class_mapping(mapping_path: Path) -> Dict[str, str]:
+def load_class_mapping(mapping_path: Path) -> dict[str, str]:
     """Load original→target class mapping from YAML."""
-    with open(mapping_path, "r", encoding="utf-8") as f:
+    with open(mapping_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data.get("class_mapping", {})
 
 
-def discover_classes(data_dir: Path) -> List[str]:
+def discover_classes(data_dir: Path) -> list[str]:
     """
     Discover class folders inside a dataset directory.
 
     Assumes structure: data_dir/<split>/<class_folder>/images
     or data_dir/<class_folder>/images (flat).
     """
-    classes: Set[str] = set()
+    classes: set[str] = set()
     if not data_dir.exists():
         return sorted(classes)
 
@@ -104,13 +104,13 @@ def discover_classes(data_dir: Path) -> List[str]:
     return sorted(classes)
 
 
-def scan_images(data_dir: Path) -> List[Dict[str, Any]]:
+def scan_images(data_dir: Path) -> list[dict[str, Any]]:
     """
     Recursively scan for image files under data_dir.
 
     Returns a list of dicts with file metadata.
     """
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     for filepath in sorted(data_dir.rglob("*")):
         if not filepath.is_file():
@@ -126,7 +126,7 @@ def scan_images(data_dir: Path) -> List[Dict[str, Any]]:
         parts = relative.parts
         source_split = parts[0] if len(parts) >= 3 else "unknown"
 
-        record: Dict[str, Any] = {
+        record: dict[str, Any] = {
             "filename": filepath.name,
             "original_class": original_class,
             "relative_path": str(relative),
@@ -155,9 +155,9 @@ def scan_images(data_dir: Path) -> List[Dict[str, Any]]:
     return results
 
 
-def find_duplicates(records: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+def find_duplicates(records: list[dict[str, Any]]) -> dict[str, list[str]]:
     """Group records by SHA-256 and return groups with more than one file."""
-    hash_groups: Dict[str, List[str]] = defaultdict(list)
+    hash_groups: dict[str, list[str]] = defaultdict(list)
     for rec in records:
         sha = rec.get("sha256")
         if sha:
@@ -169,7 +169,7 @@ def audit(
     data_dir: Path,
     mapping_path: Path,
     min_samples: int = 20,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run full audit on the raw dataset.
 
@@ -181,21 +181,19 @@ def audit(
 
     # Load mapping
     class_mapping = load_class_mapping(mapping_path)
-    mapped_originals: Set[str] = set(class_mapping.keys())
+    mapped_originals: set[str] = set(class_mapping.keys())
 
     # Per-class stats
     class_counts: Counter = Counter()
-    invalid_images: List[Dict[str, Any]] = []
-    all_originals: Set[str] = set()
+    invalid_images: list[dict[str, Any]] = []
+    all_originals: set[str] = set()
 
     for rec in records:
         oc = rec["original_class"]
         all_originals.add(oc)
         class_counts[oc] += 1
         if not rec["is_valid"]:
-            invalid_images.append(
-                {"relative_path": rec["relative_path"], "original_class": oc}
-            )
+            invalid_images.append({"relative_path": rec["relative_path"], "original_class": oc})
 
     # Classes not in mapping
     unmapped_classes = sorted(all_originals - mapped_originals)
@@ -204,9 +202,7 @@ def audit(
     missing_classes = sorted(mapped_originals - all_originals)
 
     # Classes with too few samples
-    small_classes = {
-        cls: count for cls, count in class_counts.items() if count < min_samples
-    }
+    small_classes = {cls: count for cls, count in class_counts.items() if count < min_samples}
 
     # Target class distribution (after mapping)
     target_counts: Counter = Counter()
@@ -220,7 +216,7 @@ def audit(
     duplicates = find_duplicates(records)
     duplicate_count = sum(len(v) for v in duplicates.values())
 
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         "data_dir": str(data_dir.resolve()),
         "total_images": len(records),
         "valid_images": sum(1 for r in records if r["is_valid"]),
@@ -241,7 +237,7 @@ def audit(
     return report
 
 
-def save_report(report: Dict[str, Any], output_path: Path) -> None:
+def save_report(report: dict[str, Any], output_path: Path) -> None:
     """Save audit report as JSON."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
@@ -249,7 +245,7 @@ def save_report(report: Dict[str, Any], output_path: Path) -> None:
     print(f"[audit] JSON report saved to {output_path}")
 
 
-def save_csv_summary(report: Dict[str, Any], output_path: Path) -> None:
+def save_csv_summary(report: dict[str, Any], output_path: Path) -> None:
     """Save a CSV summary of per-class counts."""
     csv_path = output_path.with_suffix(".csv")
     rows = []

@@ -31,7 +31,7 @@ import yaml
 
 def load_yaml(path: Path) -> dict:
     """Load a YAML file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -68,11 +68,10 @@ def export_model(
 
     # 3. Export model config
     training_cfg = load_yaml(training_config_path)
-    model_section = training_cfg.get(model_name.replace("-", "_").split("_")[0], {})
     if model_name == "convnext_tiny":
-        model_section = training_cfg.get("convnext", {})
+        _model_section = training_cfg.get("convnext", {})
     elif model_name == "efficientnet_b0":
-        model_section = training_cfg.get("efficientnet", {})
+        _model_section = training_cfg.get("efficientnet", {})
 
     model_config = {
         "model_name": model_name,
@@ -105,9 +104,7 @@ def export_model(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export trained model for deployment")
-    parser.add_argument(
-        "--checkpoint", type=Path, required=True, help="Path to trained model .pth"
-    )
+    parser.add_argument("--checkpoint", type=Path, required=True, help="Path to trained model .pth")
     parser.add_argument(
         "--output-dir",
         type=Path,

@@ -42,6 +42,7 @@ class TestGenerateStableUuid:
         """Must return a valid UUID string."""
         u = generate_stable_uuid("model", "image", "version")
         import uuid
+
         parsed = uuid.UUID(u)
         assert parsed.version == 5
 

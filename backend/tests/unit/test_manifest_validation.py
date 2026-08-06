@@ -7,7 +7,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from scripts.validate_manifest import validate_manifest
 
 pytestmark = pytest.mark.unit
@@ -16,9 +15,7 @@ pytestmark = pytest.mark.unit
 class TestValidateManifest:
     """Tests for manifest CSV validation."""
 
-    def test_valid_manifest_passes(
-        self, sample_manifest_csv: Path, classes_yaml: Path
-    ) -> None:
+    def test_valid_manifest_passes(self, sample_manifest_csv: Path, classes_yaml: Path) -> None:
         report = validate_manifest(
             manifest_path=sample_manifest_csv,
             classes_path=classes_yaml,

@@ -8,7 +8,7 @@ details are logged but never leaked to the client.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -32,10 +32,10 @@ class FruviaError(Exception):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         *,
-        detail: Optional[str] = None,
-        status_code: Optional[int] = None,
+        detail: str | None = None,
+        status_code: int | None = None,
     ) -> None:
         self.message = message or self.__class__.message
         self.detail = detail  # internal detail, logged but not sent to client
@@ -43,7 +43,7 @@ class FruviaError(Exception):
             self.status_code = status_code
         super().__init__(self.message)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "error": True,
             "error_code": self.error_code,

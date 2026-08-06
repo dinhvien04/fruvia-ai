@@ -22,17 +22,18 @@ pytestmark = pytest.mark.unit
 class TestExceptionHierarchy:
     """All domain errors should extend FruviaError."""
 
-    @pytest.mark.parametrize("exc_class,code,status", [
-        (ImageValidationError, "INVALID_IMAGE", 400),
-        (FileTooLargeError, "FILE_TOO_LARGE", 413),
-        (UnsupportedFormatError, "UNSUPPORTED_FORMAT", 415),
-        (ModelNotLoadedError, "MODEL_NOT_LOADED", 503),
-        (QdrantConnectionError, "QDRANT_UNAVAILABLE", 503),
-        (LowConfidenceError, "LOW_CONFIDENCE", 200),
-    ])
-    def test_error_attributes(
-        self, exc_class: type, code: str, status: int
-    ) -> None:
+    @pytest.mark.parametrize(
+        "exc_class,code,status",
+        [
+            (ImageValidationError, "INVALID_IMAGE", 400),
+            (FileTooLargeError, "FILE_TOO_LARGE", 413),
+            (UnsupportedFormatError, "UNSUPPORTED_FORMAT", 415),
+            (ModelNotLoadedError, "MODEL_NOT_LOADED", 503),
+            (QdrantConnectionError, "QDRANT_UNAVAILABLE", 503),
+            (LowConfidenceError, "LOW_CONFIDENCE", 200),
+        ],
+    )
+    def test_error_attributes(self, exc_class: type, code: str, status: int) -> None:
         err = exc_class()
         assert isinstance(err, FruviaError)
         assert err.error_code == code

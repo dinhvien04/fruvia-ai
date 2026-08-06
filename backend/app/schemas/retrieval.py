@@ -4,8 +4,6 @@ Pydantic schemas for image retrieval endpoints.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -20,15 +18,15 @@ class RetrievalResult(BaseModel):
 
     image_id: str = Field(..., description="Unique image identifier")
     fruit_class: str = Field(..., description="Fruit class label")
-    image_url: Optional[str] = Field(None, description="URL or path to the result image")
+    image_url: str | None = Field(None, description="URL or path to the result image")
     similarity: float = Field(..., ge=0.0, le=1.0, description="Cosine similarity score")
-    original_class: Optional[str] = Field(None, description="Original Fruits-360 class name")
+    original_class: str | None = Field(None, description="Original Fruits-360 class name")
 
 
 class RetrievalResponse(BaseModel):
     """Response body for POST /api/retrieve."""
 
     query: QueryInfo = Field(..., description="Query image info")
-    results: List[RetrievalResult] = Field(..., description="Retrieved similar images")
+    results: list[RetrievalResult] = Field(..., description="Retrieved similar images")
     top_k: int = Field(..., description="Number of results requested")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")

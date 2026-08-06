@@ -15,7 +15,6 @@ from app.core.exceptions import (
     UnsupportedFormatError,
 )
 from app.utils.image_validation import (
-    ALLOWED_EXTENSIONS,
     validate_file_extension,
     validate_file_size,
     validate_image_content,
@@ -33,26 +32,32 @@ pytestmark = pytest.mark.unit
 class TestValidateFileExtension:
     """Tests for file extension validation."""
 
-    @pytest.mark.parametrize("filename,expected", [
-        ("photo.jpg", ".jpg"),
-        ("photo.JPEG", ".jpeg"),
-        ("image.png", ".png"),
-        ("image.PNG", ".png"),
-        ("pic.webp", ".webp"),
-    ])
+    @pytest.mark.parametrize(
+        "filename,expected",
+        [
+            ("photo.jpg", ".jpg"),
+            ("photo.JPEG", ".jpeg"),
+            ("image.png", ".png"),
+            ("image.PNG", ".png"),
+            ("pic.webp", ".webp"),
+        ],
+    )
     def test_valid_extensions(self, filename: str, expected: str) -> None:
         assert validate_file_extension(filename) == expected
 
-    @pytest.mark.parametrize("filename", [
-        "file.gif",
-        "file.bmp",
-        "file.tiff",
-        "file.svg",
-        "file.txt",
-        "file.pdf",
-        "noextension",
-        "",
-    ])
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "file.gif",
+            "file.bmp",
+            "file.tiff",
+            "file.svg",
+            "file.txt",
+            "file.pdf",
+            "noextension",
+            "",
+        ],
+    )
     def test_invalid_extensions(self, filename: str) -> None:
         with pytest.raises(UnsupportedFormatError):
             validate_file_extension(filename)

@@ -27,12 +27,12 @@ import sys
 import uuid
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import yaml
 from PIL import Image
 
-SUPPORTED_EXTENSIONS: Set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
+SUPPORTED_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
 
 MANIFEST_COLUMNS = [
     "image_id",
@@ -73,7 +73,7 @@ def generate_image_id(relative_path: str) -> str:
     return str(uuid.uuid5(namespace, relative_path))
 
 
-def validate_image(filepath: Path) -> Tuple[bool, Optional[Tuple[int, int]]]:
+def validate_image(filepath: Path) -> tuple[bool, tuple[int, int] | None]:
     """Check if Pillow can open and verify the image."""
     try:
         with Image.open(filepath) as img:
@@ -86,16 +86,16 @@ def validate_image(filepath: Path) -> Tuple[bool, Optional[Tuple[int, int]]]:
 
 def load_yaml(path: Path) -> dict:
     """Load a YAML file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def stratified_split_by_class(
-    records: List[Dict[str, Any]],
+    records: list[dict[str, Any]],
     train_ratio: float = 0.70,
     val_ratio: float = 0.15,
     seed: int = 42,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Split records into train/validation/test per target class.
 
@@ -108,11 +108,11 @@ def stratified_split_by_class(
     rng = random.Random(seed)
 
     # Group by target class
-    by_class: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for rec in records:
         by_class[rec["target_class"]].append(rec)
 
-    result: List[Dict[str, Any]] = []
+    result: list[dict[str, Any]] = []
 
     for cls in sorted(by_class.keys()):
         items = by_class[cls]
@@ -147,7 +147,7 @@ def create_manifest(
     seed: int = 42,
     train_ratio: float = 0.70,
     val_ratio: float = 0.15,
-) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     Create the dataset manifest.
 
@@ -155,16 +155,16 @@ def create_manifest(
     """
     # Load configs
     classes_cfg = load_yaml(classes_path)
-    target_classes: Set[str] = set(classes_cfg.get("classes", []))
+    target_classes: set[str] = set(classes_cfg.get("classes", []))
     mapping_cfg = load_yaml(mapping_path)
-    class_mapping: Dict[str, str] = mapping_cfg.get("class_mapping", {})
+    class_mapping: dict[str, str] = mapping_cfg.get("class_mapping", {})
 
     print(f"[manifest] Target classes: {len(target_classes)}")
     print(f"[manifest] Class mappings: {len(class_mapping)}")
 
     # Scan images
     print(f"[manifest] Scanning {data_dir} ...")
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     skipped_unmapped = 0
     skipped_invalid = 0
     skipped_not_target = 0
@@ -207,20 +207,22 @@ def create_manifest(
         parts = Path(relative_path).parts
         source = parts[0] if len(parts) >= 3 else "unknown"
 
-        records.append({
-            "image_id": generate_image_id(relative_path),
-            "original_class": original_class,
-            "target_class": target_class,
-            "relative_path": relative_path,
-            "filename": filepath.name,
-            "width": width,
-            "height": height,
-            "file_size": filepath.stat().st_size,
-            "sha256": sha256,
-            "split": "",  # filled by split function
-            "source": source,
-            "is_valid": True,
-        })
+        records.append(
+            {
+                "image_id": generate_image_id(relative_path),
+                "original_class": original_class,
+                "target_class": target_class,
+                "relative_path": relative_path,
+                "filename": filepath.name,
+                "width": width,
+                "height": height,
+                "file_size": filepath.stat().st_size,
+                "sha256": sha256,
+                "split": "",  # filled by split function
+                "source": source,
+                "is_valid": True,
+            }
+        )
 
     print(f"[manifest] Valid records: {len(records)}")
     print(f"[manifest] Skipped (unmapped): {skipped_unmapped}")
@@ -228,8 +230,8 @@ def create_manifest(
     print(f"[manifest] Skipped (invalid): {skipped_invalid}")
 
     # Remove exact duplicates (same SHA-256)
-    seen_hashes: Set[str] = set()
-    unique_records: List[Dict[str, Any]] = []
+    seen_hashes: set[str] = set()
+    unique_records: list[dict[str, Any]] = []
     dup_count = 0
     for rec in records:
         if rec["sha256"] in seen_hashes:
@@ -253,11 +255,11 @@ def create_manifest(
     split_counts: Counter = Counter(r["split"] for r in split_records)
     target_counts: Counter = Counter(r["target_class"] for r in split_records)
 
-    per_split_per_class: Dict[str, Counter] = defaultdict(Counter)
+    per_split_per_class: dict[str, Counter] = defaultdict(Counter)
     for r in split_records:
         per_split_per_class[r["split"]][r["target_class"]] += 1
 
-    stats: Dict[str, Any] = {
+    stats: dict[str, Any] = {
         "total_records": len(split_records),
         "split_counts": dict(split_counts),
         "target_class_counts": dict(sorted(target_counts.items())),
@@ -273,7 +275,7 @@ def create_manifest(
     return split_records, stats
 
 
-def save_manifest(records: List[Dict[str, Any]], output_path: Path) -> None:
+def save_manifest(records: list[dict[str, Any]], output_path: Path) -> None:
     """Save manifest as CSV."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8", newline="") as f:
@@ -284,7 +286,7 @@ def save_manifest(records: List[Dict[str, Any]], output_path: Path) -> None:
     print(f"[manifest] Saved {len(records)} records to {output_path}")
 
 
-def save_stats(stats: Dict[str, Any], output_path: Path) -> None:
+def save_stats(stats: dict[str, Any], output_path: Path) -> None:
     """Save manifest stats as JSON."""
     stats_path = output_path.with_name(output_path.stem + "_stats.json")
     with open(stats_path, "w", encoding="utf-8") as f:

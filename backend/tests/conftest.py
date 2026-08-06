@@ -6,11 +6,7 @@ from __future__ import annotations
 
 import io
 import json
-import os
-import struct
-import tempfile
 from pathlib import Path
-from typing import Dict
 
 import pytest
 import yaml
@@ -165,9 +161,18 @@ def sample_manifest_csv(tmp_dir: Path) -> Path:
 
     path = tmp_dir / "manifest.csv"
     fieldnames = [
-        "image_id", "original_class", "target_class", "relative_path",
-        "filename", "width", "height", "file_size", "sha256", "split",
-        "source", "is_valid",
+        "image_id",
+        "original_class",
+        "target_class",
+        "relative_path",
+        "filename",
+        "width",
+        "height",
+        "file_size",
+        "sha256",
+        "split",
+        "source",
+        "is_valid",
     ]
     rows = [
         {

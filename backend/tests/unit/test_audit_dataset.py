@@ -7,7 +7,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from scripts.audit_dataset import (
     compute_sha256,
     discover_classes,

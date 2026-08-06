@@ -4,8 +4,6 @@ Pydantic schemas for classification endpoints.
 
 from __future__ import annotations
 
-from typing import List
-
 from pydantic import BaseModel, Field
 
 
@@ -20,7 +18,7 @@ class ClassificationResponse(BaseModel):
     """Response body for POST /api/classify."""
 
     prediction: PredictionItem = Field(..., description="Top prediction")
-    top_predictions: List[PredictionItem] = Field(
+    top_predictions: list[PredictionItem] = Field(
         ..., description="Top-K predictions ordered by confidence"
     )
     accepted: bool = Field(

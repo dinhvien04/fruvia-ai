@@ -26,7 +26,7 @@ import json
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any
 
 import yaml
 
@@ -50,7 +50,7 @@ VALID_SPLITS = {"train", "validation", "test", "gallery"}
 
 def load_yaml(path: Path) -> dict:
     """Load a YAML config file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -58,7 +58,7 @@ def validate_manifest(
     manifest_path: Path,
     data_dir: Path | None = None,
     classes_path: Path | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Validate a manifest CSV and return a validation report.
 
@@ -76,11 +76,11 @@ def validate_manifest(
     dict
         Validation results with errors, warnings, and stats.
     """
-    errors: List[str] = []
-    warnings: List[str] = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     # Load manifest
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         columns = set(reader.fieldnames or [])
         rows = list(reader)
@@ -91,20 +91,20 @@ def validate_manifest(
         errors.append(f"Missing columns: {sorted(missing_cols)}")
 
     # Load valid classes if provided
-    valid_classes: Set[str] | None = None
+    valid_classes: set[str] | None = None
     if classes_path and classes_path.exists():
         cfg = load_yaml(classes_path)
         valid_classes = set(cfg.get("classes", []))
 
     # Validate rows
-    image_ids: Set[str] = set()
-    duplicate_ids: List[str] = []
-    missing_files: List[str] = []
-    invalid_splits: List[str] = []
-    invalid_classes: List[str] = []
+    image_ids: set[str] = set()
+    duplicate_ids: list[str] = []
+    missing_files: list[str] = []
+    invalid_splits: list[str] = []
+    invalid_classes: list[str] = []
     split_counts: Counter = Counter()
     class_counts: Counter = Counter()
-    per_split_per_class: Dict[str, Counter] = defaultdict(Counter)
+    per_split_per_class: dict[str, Counter] = defaultdict(Counter)
 
     for i, row in enumerate(rows, start=2):  # header is line 1
         # Check image_id uniqueness
@@ -145,7 +145,7 @@ def validate_manifest(
     if missing_files:
         warnings.append(f"Files not found on disk: {len(missing_files)}")
 
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         "manifest_path": str(manifest_path),
         "total_rows": len(rows),
         "columns_present": sorted(columns),

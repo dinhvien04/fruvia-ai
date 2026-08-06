@@ -11,10 +11,9 @@ import logging
 import sys
 import uuid
 from contextvars import ContextVar
-from typing import Optional
 
 # Context variable for per-request ID tracking
-request_id_ctx: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
+request_id_ctx: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 
 def generate_request_id() -> str:

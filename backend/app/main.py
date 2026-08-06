@@ -11,14 +11,14 @@ for testing the project skeleton.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.core.exceptions import FruviaError, generic_error_handler, fruvia_error_handler
+from app.core.exceptions import FruviaError, fruvia_error_handler, generic_error_handler
 from app.core.logging import get_logger, setup_logging
 
 logger = get_logger(__name__)

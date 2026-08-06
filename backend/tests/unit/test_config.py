@@ -10,7 +10,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
 
 from app.core.config import Settings, load_class_names
 
@@ -61,14 +60,18 @@ class TestSettings:
         assert s.is_production is False
 
     def test_invalid_log_level_rejected(self) -> None:
-        with patch.dict(os.environ, {"LOG_LEVEL": "VERBOSE"}, clear=True):
-            with pytest.raises(Exception):
-                Settings()
+        with (
+            patch.dict(os.environ, {"LOG_LEVEL": "VERBOSE"}, clear=True),
+            pytest.raises(ValueError, match="log_level must be one of"),
+        ):
+            Settings()
 
     def test_classification_threshold_bounds(self) -> None:
-        with patch.dict(os.environ, {"CLASSIFICATION_THRESHOLD": "1.5"}, clear=True):
-            with pytest.raises(Exception):
-                Settings()
+        with (
+            patch.dict(os.environ, {"CLASSIFICATION_THRESHOLD": "1.5"}, clear=True),
+            pytest.raises(ValueError),
+        ):
+            Settings()
 
     def test_threshold_from_env(self) -> None:
         with patch.dict(os.environ, {"CLASSIFICATION_THRESHOLD": "0.8"}, clear=True):

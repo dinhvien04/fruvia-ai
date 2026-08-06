@@ -35,14 +35,15 @@ ENV/
 !.env.example
 
 # ---------- Data (large files, not tracked) ----------
-data/raw/
-data/processed/
+# Use wildcard inside dir so .gitkeep negation is not blocked
+data/raw/*
+data/processed/*
 data/manifests/*.csv
 data/metadata/*.json
-!data/manifests/.gitkeep
-!data/metadata/.gitkeep
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/manifests/.gitkeep
+!data/metadata/.gitkeep
 
 # ---------- Models (large binary files) ----------
 models/classifier/*.pth

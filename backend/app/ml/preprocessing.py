@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from PIL import Image
 
 
-def load_preprocessing_config(config_path: Path) -> Dict[str, Any]:
+def load_preprocessing_config(config_path: Path) -> dict[str, Any]:
     """
     Load preprocessing parameters from the exported JSON.
 
@@ -26,20 +26,19 @@ def load_preprocessing_config(config_path: Path) -> Dict[str, Any]:
     - interpolation: str
     - color_mode: str
     """
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         config = json.load(f)
 
     required_keys = {"image_size", "mean", "std"}
     missing = required_keys - set(config.keys())
     if missing:
         raise ValueError(
-            f"Preprocessing config missing keys: {missing}. "
-            f"Expected at least: {required_keys}"
+            f"Preprocessing config missing keys: {missing}. Expected at least: {required_keys}"
         )
     return config
 
 
-def get_preprocessing_transforms(config: Dict[str, Any]) -> Any:
+def get_preprocessing_transforms(config: dict[str, Any]) -> Any:
     """
     Build a torchvision transform pipeline from preprocessing config.
 
@@ -50,23 +49,27 @@ def get_preprocessing_transforms(config: Dict[str, Any]) -> Any:
     """
     # Import here to avoid import errors when torch is not installed
     # (e.g., during unit tests that mock this module)
-    import torchvision.transforms as T
+    import torchvision.transforms as tv_transforms
 
     image_size = config["image_size"]
     mean = config["mean"]
     std = config["std"]
 
-    transforms = T.Compose([
-        T.Resize((image_size, image_size), interpolation=T.InterpolationMode.BILINEAR),
-        T.ToTensor(),
-        T.Normalize(mean=mean, std=std),
-    ])
+    transforms = tv_transforms.Compose(
+        [
+            tv_transforms.Resize(
+                (image_size, image_size), interpolation=tv_transforms.InterpolationMode.BILINEAR
+            ),
+            tv_transforms.ToTensor(),
+            tv_transforms.Normalize(mean=mean, std=std),
+        ]
+    )
     return transforms
 
 
 def preprocess_image(
     image: Image.Image,
-    config: Dict[str, Any],
+    config: dict[str, Any],
 ) -> Any:
     """
     Preprocess a PIL Image for model inference.
@@ -83,7 +86,6 @@ def preprocess_image(
     torch.Tensor
         Preprocessed tensor with shape (1, 3, H, W), ready for model input.
     """
-    import torch
 
     transform = get_preprocessing_transforms(config)
     tensor = transform(image)

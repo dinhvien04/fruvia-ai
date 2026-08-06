@@ -11,7 +11,6 @@ Validates uploaded images by:
 from __future__ import annotations
 
 import io
-from typing import Set, Tuple
 
 from PIL import Image
 
@@ -22,13 +21,13 @@ from app.core.exceptions import (
 )
 
 # Allowed file extensions (lowercase)
-ALLOWED_EXTENSIONS: Set[str] = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".webp"}
 
 # Pillow format names that correspond to allowed types
-ALLOWED_PILLOW_FORMATS: Set[str] = {"JPEG", "PNG", "WEBP"}
+ALLOWED_PILLOW_FORMATS: set[str] = {"JPEG", "PNG", "WEBP"}
 
 # MIME types considered valid
-ALLOWED_MIME_TYPES: Set[str] = {
+ALLOWED_MIME_TYPES: set[str] = {
     "image/jpeg",
     "image/png",
     "image/webp",
@@ -77,9 +76,7 @@ def validate_file_size(data: bytes, max_bytes: int) -> None:
     if len(data) > max_bytes:
         max_mb = max_bytes / (1024 * 1024)
         actual_mb = len(data) / (1024 * 1024)
-        raise FileTooLargeError(
-            f"File size {actual_mb:.1f} MB exceeds the {max_mb:.0f} MB limit."
-        )
+        raise FileTooLargeError(f"File size {actual_mb:.1f} MB exceeds the {max_mb:.0f} MB limit.")
 
 
 def validate_image_content(data: bytes) -> Image.Image:
@@ -98,9 +95,7 @@ def validate_image_content(data: bytes) -> Image.Image:
     try:
         img = Image.open(io.BytesIO(data))
     except Exception as exc:
-        raise ImageValidationError(
-            "Cannot open file as an image.", detail=str(exc)
-        ) from exc
+        raise ImageValidationError("Cannot open file as an image.", detail=str(exc)) from exc
 
     # Verify image integrity
     try:
@@ -113,18 +108,14 @@ def validate_image_content(data: bytes) -> Image.Image:
 
     # Check format
     if img.format and img.format not in ALLOWED_PILLOW_FORMATS:
-        raise UnsupportedFormatError(
-            f"Detected image format '{img.format}' is not supported."
-        )
+        raise UnsupportedFormatError(f"Detected image format '{img.format}' is not supported.")
 
     # Convert to RGB
     try:
         if img.mode != "RGB":
             img = img.convert("RGB")
     except Exception as exc:
-        raise ImageValidationError(
-            "Cannot convert image to RGB.", detail=str(exc)
-        ) from exc
+        raise ImageValidationError("Cannot convert image to RGB.", detail=str(exc)) from exc
 
     return img
 
@@ -133,7 +124,7 @@ def validate_upload(
     data: bytes,
     filename: str,
     max_bytes: int,
-) -> Tuple[Image.Image, str]:
+) -> tuple[Image.Image, str]:
     """
     Full validation pipeline for an uploaded image.
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,9 +35,7 @@ class Settings(BaseSettings):
     model_path: Path = Field(default=Path("models/classifier/model.pth"))
     class_names_path: Path = Field(default=Path("models/classifier/class_names.json"))
     model_config_path: Path = Field(default=Path("models/classifier/model_config.json"))
-    preprocessing_config_path: Path = Field(
-        default=Path("models/classifier/preprocessing.json")
-    )
+    preprocessing_config_path: Path = Field(default=Path("models/classifier/preprocessing.json"))
 
     # --- Classification Behavior ---
     classification_threshold: float = Field(
@@ -46,8 +43,8 @@ class Settings(BaseSettings):
     )
 
     # --- Qdrant ---
-    qdrant_url: Optional[str] = Field(default=None, description="Qdrant Cloud endpoint URL")
-    qdrant_api_key: Optional[str] = Field(default=None, description="Qdrant Cloud API key")
+    qdrant_url: str | None = Field(default=None, description="Qdrant Cloud endpoint URL")
+    qdrant_api_key: str | None = Field(default=None, description="Qdrant Cloud API key")
     qdrant_collection: str = Field(default="fruvia_images_dinov2_base_v1")
     qdrant_timeout: int = Field(default=10, description="Qdrant request timeout in seconds")
 
@@ -68,7 +65,7 @@ class Settings(BaseSettings):
         return self.max_upload_mb * 1024 * 1024
 
     @property
-    def cors_origin_list(self) -> List[str]:
+    def cors_origin_list(self) -> list[str]:
         """Parse comma-separated CORS origins into a list."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
@@ -97,9 +94,9 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def load_class_names(path: Path) -> List[str]:
+def load_class_names(path: Path) -> list[str]:
     """Load the ordered list of class names from a JSON file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     if isinstance(data, list):
         return data

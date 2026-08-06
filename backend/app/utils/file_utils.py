@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import List
 
 import yaml
 
@@ -36,11 +35,11 @@ def generate_stable_uuid(namespace_str: str, *parts: str) -> str:
 
 def load_yaml_config(path: Path) -> dict:
     """Load a YAML configuration file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-def load_class_list(classes_yaml_path: Path) -> List[str]:
+def load_class_list(classes_yaml_path: Path) -> list[str]:
     """Load the ordered class list from classes.yaml."""
     cfg = load_yaml_config(classes_yaml_path)
     classes = cfg.get("classes", [])
