@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Fruvia AI - tìm kiếm hình ảnh trái cây tương tự bằng DINOv2 và Qdrant Cloud">
+  <title>Fruvia AI — Tìm ảnh trái cây tương tự</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Fruvia AI home">
+      <span class="brand-mark" aria-hidden="true">F</span>
+      <span>
+        <strong>Fruvia AI</strong>
+        <small>Visual Fruit Search</small>
+      </span>
+    </a>
+
+    <div class="service-status" id="serviceStatus" data-state="checking">
+      <span class="status-dot"></span>
+      <span id="serviceStatusText">Đang kiểm tra backend…</span>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">DINOv2 · 768 dimensions · Qdrant Cloud</p>
+        <h1>Tìm những hình ảnh trái cây <span>gần giống nhất</span></h1>
+        <p class="hero-description">
+          Tải một ảnh lên, Fruvia AI sẽ tạo vector đặc trưng và tìm kiếm trong
+          <strong>102.551 ảnh Fruits-360 Original Size</strong>.
+        </p>
+
+        <div class="hero-stats" aria-label="Thông số hệ thống">
+          <div><strong>102.551</strong><span>vectors</span></div>
+          <div><strong>768</strong><span>dimensions</span></div>
+          <div><strong>Top 20</strong><span>maximum</span></div>
+        </div>
+      </div>
+
+      <div class="search-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Bắt đầu tìm kiếm</p>
+            <h2>Chọn ảnh truy vấn</h2>
+          </div>
+          <button class="ghost-button" id="clearButton" type="button" disabled>Xóa ảnh</button>
+        </div>
+
+        <label class="drop-zone" id="dropZone" for="imageInput">
+          <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <div class="drop-placeholder" id="dropPlaceholder">
+            <span class="upload-icon" aria-hidden="true">↥</span>
+            <strong>Kéo thả ảnh vào đây</strong>
+            <span>hoặc bấm để chọn JPG, PNG, WEBP</span>
+            <small>Tối đa 10 MB · tối đa 5000 × 5000 px</small>
+          </div>
+          <img id="imagePreview" alt="Ảnh xem trước" hidden>
+        </label>
+
+        <div class="controls-row">
+          <label class="field-label" for="topKSelect">
+            Số kết quả
+            <select id="topKSelect">
+              <option value="5">Top 5</option>
+              <option value="10" selected>Top 10</option>
+              <option value="15">Top 15</option>
+              <option value="20">Top 20</option>
+            </select>
+          </label>
+
+          <button class="primary-button" id="searchButton" type="button" disabled>
+            <span class="button-label">Tìm ảnh tương tự</span>
+            <span class="button-loader" hidden></span>
+          </button>
+        </div>
+
+        <p class="form-message" id="formMessage" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="results-section" id="resultsSection" hidden>
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Kết quả truy xuất</p>
+          <h2>Ảnh gần giống nhất</h2>
+        </div>
+        <div class="result-meta">
+          <span id="resultCount">0 kết quả</span>
+          <span id="processingTime">0 ms</span>
+        </div>
+      </div>
+
+      <div class="result-summary" id="resultSummary"></div>
+      <div class="results-grid" id="resultsGrid"></div>
+    </section>
+
+    <section class="empty-state" id="emptyState">
+      <div class="empty-orbit" aria-hidden="true"><span></span></div>
+      <h2>Kết quả sẽ xuất hiện tại đây</h2>
+      <p>Chọn một ảnh rõ chủ thể, nền đơn giản để mô hình tìm được kết quả tốt hơn.</p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Fruvia AI Retrieval Prototype</span>
+    <span>Backend: FastAPI · Model: facebook/dinov2-base</span>
+  </footer>
+
+  <template id="resultCardTemplate">
+    <article class="result-card">
+      <div class="result-rank"></div>
+      <div class="result-visual">
+        <img class="result-image" alt="" hidden>
+        <div class="result-placeholder" aria-hidden="true">
+          <span>FRUIT</span>
+        </div>
+      </div>
+      <div class="result-content">
+        <div class="result-title-row">
+          <div>
+            <p class="canonical-class"></p>
+            <h3 class="original-class"></h3>
+          </div>
+          <strong class="similarity-value"></strong>
+        </div>
+        <div class="similarity-track"><span></span></div>
+        <dl>
+          <div><dt>File</dt><dd class="result-filename"></dd></div>
+          <div><dt>Split</dt><dd class="result-split"></dd></div>
+        </dl>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
