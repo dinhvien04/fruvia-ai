@@ -3,10 +3,6 @@ Fruvia AI FastAPI application entry point.
 
 This module creates the FastAPI app instance, registers middleware,
 exception handlers, and routes. Model loading happens at startup.
-
-NOTE: Full route registration and model loading will be implemented
-in Phase 5. This stub provides the app factory and health endpoint
-for testing the project skeleton.
 """
 
 from __future__ import annotations
@@ -20,6 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.exceptions import FruviaError, fruvia_error_handler, generic_error_handler
 from app.core.logging import get_logger, setup_logging
+from app.ml.image_encoder import get_image_encoder
+from app.repositories.qdrant_repository import get_qdrant_repository
 
 logger = get_logger(__name__)
 
@@ -34,8 +32,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.app_env,
         settings.app_version,
     )
-    # Phase 5: load classifier model and connect to Qdrant here
+
+    # Initialize ImageEncoder
+    try:
+        encoder = get_image_encoder()
+        encoder.load_model()
+        app.state.image_encoder = encoder
+    except Exception as e:
+        logger.warning("Failed to initialize ImageEncoder during startup: %s", e)
+
+    # Initialize QdrantRepository
+    try:
+        qdrant_repo = get_qdrant_repository()
+        if qdrant_repo.is_connected():
+            logger.info("Connected to Qdrant Cloud.")
+        else:
+            logger.warning("Qdrant Cloud is not reachable during startup.")
+        app.state.qdrant_repo = qdrant_repo
+    except Exception as e:
+        logger.warning("Failed to initialize QdrantRepository during startup: %s", e)
+
     yield
+
     logger.info("Fruvia AI shutting down.")
 
 
@@ -65,10 +83,12 @@ def create_app() -> FastAPI:
     app.add_exception_handler(FruviaError, fruvia_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, generic_error_handler)  # type: ignore[arg-type]
 
-    # --- Routes (Phase 5 will add classify, retrieve, fruits) ---
+    # --- Routes ---
     from app.api.routes_health import router as health_router
+    from app.api.routes_retrieval import router as retrieval_router
 
     app.include_router(health_router, prefix="/api")
+    app.include_router(retrieval_router, prefix="/api")
 
     return app
 

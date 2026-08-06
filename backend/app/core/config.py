@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     # --- Qdrant ---
     qdrant_url: str | None = Field(default=None, description="Qdrant Cloud endpoint URL")
     qdrant_api_key: str | None = Field(default=None, description="Qdrant Cloud API key")
-    qdrant_collection: str = Field(default="fruvia_images_dinov2_base_v1")
+    qdrant_collection: str = Field(default="fruvia_fruits360_original_dinov2_base_v1")
     qdrant_timeout: int = Field(default=10, description="Qdrant request timeout in seconds")
 
     # --- Upload ---

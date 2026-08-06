@@ -1,15 +1,19 @@
 """
 Integration tests for the health endpoint.
 
-These tests use FastAPI TestClient — no external services required.
+These tests use FastAPI TestClient with dependency overrides for predictable health statuses.
 """
 
 from __future__ import annotations
+
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.ml.image_encoder import get_image_encoder
+from app.repositories.qdrant_repository import get_qdrant_repository
 
 pytestmark = pytest.mark.integration
 
@@ -33,21 +37,51 @@ class TestHealthEndpoint:
         assert "status" in data
         assert "model_loaded" in data
         assert "qdrant_connected" in data
+        assert "collection_available" in data
         assert "version" in data
 
-    def test_health_status_ok(self, client: TestClient) -> None:
+    def test_health_status_ok_when_fully_healthy(self) -> None:
+        """When encoder and Qdrant are ready, health status should be 'ok'."""
+        mock_encoder = MagicMock()
+        mock_encoder.is_loaded = True
+        mock_repo = MagicMock()
+        mock_repo.is_connected.return_value = True
+        mock_repo.is_collection_available.return_value = True
+
+        app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
+        app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo
+
+        client = TestClient(app)
         resp = client.get("/api/health")
         data = resp.json()
+
+        assert resp.status_code == 200
         assert data["status"] == "ok"
+        assert data["model_loaded"] is True
+        assert data["qdrant_connected"] is True
+        assert data["collection_available"] is True
 
-    def test_health_model_not_loaded_yet(self, client: TestClient) -> None:
-        """In Phase 1, model is not loaded."""
+        app.dependency_overrides.clear()
+
+    def test_health_status_degraded_when_qdrant_offline(self) -> None:
+        """When Qdrant is offline, status should be 'degraded'."""
+        mock_encoder = MagicMock()
+        mock_encoder.is_loaded = True
+        mock_repo = MagicMock()
+        mock_repo.is_connected.return_value = False
+        mock_repo.is_collection_available.return_value = False
+
+        app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
+        app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo
+
+        client = TestClient(app)
         resp = client.get("/api/health")
         data = resp.json()
-        assert data["model_loaded"] is False
 
-    def test_health_qdrant_not_connected_yet(self, client: TestClient) -> None:
-        """In Phase 1, Qdrant is not connected."""
-        resp = client.get("/api/health")
-        data = resp.json()
+        assert resp.status_code == 200
+        assert data["status"] == "degraded"
+        assert data["model_loaded"] is True
         assert data["qdrant_connected"] is False
+        assert data["collection_available"] is False
+
+        app.dependency_overrides.clear()

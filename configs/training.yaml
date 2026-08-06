@@ -100,7 +100,7 @@ dinov2:
 
 # ---------- Qdrant ----------
 qdrant:
-  collection_name: fruvia_images_dinov2_base_v1
+  collection_name: fruvia_fruits360_original_dinov2_base_v1
   distance: Cosine
   vector_size: 768
   dataset_version: fruits360-v1

@@ -14,13 +14,15 @@ class QueryInfo(BaseModel):
 
 
 class RetrievalResult(BaseModel):
-    """A single retrieval result from Qdrant."""
+    """A single retrieval result from vector database."""
 
-    image_id: str = Field(..., description="Unique image identifier")
-    fruit_class: str = Field(..., description="Fruit class label")
-    image_url: str | None = Field(None, description="URL or path to the result image")
+    original_class: str = Field(..., description="Original Fruits-360 class name")
+    filename: str = Field(..., description="Filename of the matched image")
+    relative_path: str = Field(..., description="Relative path of the matched image")
+    original_split: str = Field(
+        ..., description="Dataset split of the matched image (e.g. train, test)"
+    )
     similarity: float = Field(..., ge=0.0, le=1.0, description="Cosine similarity score")
-    original_class: str | None = Field(None, description="Original Fruits-360 class name")
 
 
 class RetrievalResponse(BaseModel):
@@ -28,5 +30,5 @@ class RetrievalResponse(BaseModel):
 
     query: QueryInfo = Field(..., description="Query image info")
     results: list[RetrievalResult] = Field(..., description="Retrieved similar images")
-    top_k: int = Field(..., description="Number of results requested")
+    result_count: int = Field(..., description="Number of items returned in results")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")

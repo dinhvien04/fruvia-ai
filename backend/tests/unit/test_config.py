@@ -22,12 +22,12 @@ class TestSettings:
     def test_default_values(self) -> None:
         """Settings should have sensible defaults without any env vars."""
         with patch.dict(os.environ, {}, clear=True):
-            s = Settings()
+            s = Settings(_env_file=None)
         assert s.app_env == "development"
         assert s.app_port == 8000
         assert s.classification_threshold == 0.65
         assert s.max_upload_mb == 10
-        assert s.qdrant_collection == "fruvia_images_dinov2_base_v1"
+        assert s.qdrant_collection == "fruvia_fruits360_original_dinov2_base_v1"
         assert s.log_level == "INFO"
 
     def test_max_upload_bytes(self) -> None:

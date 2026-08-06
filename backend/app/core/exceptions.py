@@ -88,12 +88,28 @@ class ModelNotLoadedError(FruviaError):
     message = "The classification model is not loaded. Please try again later."
 
 
+class ImageEncodingError(FruviaError):
+    """Raised when feature extraction with DINOv2 fails."""
+
+    status_code = 500
+    error_code = "ENCODING_FAILED"
+    message = "Failed to extract features from the image."
+
+
 class QdrantConnectionError(FruviaError):
     """Raised when Qdrant Cloud is unreachable."""
 
     status_code = 503
     error_code = "QDRANT_UNAVAILABLE"
     message = "The image search service is temporarily unavailable."
+
+
+class QdrantCollectionNotFoundError(FruviaError):
+    """Raised when the specified Qdrant collection does not exist."""
+
+    status_code = 503
+    error_code = "COLLECTION_NOT_FOUND"
+    message = "The search collection is not available. Please try again later."
 
 
 class LowConfidenceError(FruviaError):
