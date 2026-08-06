@@ -1,0 +1,73 @@
+# ============================================================
+# Fruvia AI .gitignore
+# ============================================================
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ---------- Virtual environments ----------
+.venv/
+venv/
+env/
+ENV/
+
+# ---------- IDE ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ---------- Environment and secrets ----------
+.env
+.env.local
+.env.production
+!.env.example
+
+# ---------- Data (large files, not tracked) ----------
+data/raw/
+data/processed/
+data/manifests/*.csv
+data/metadata/*.json
+!data/manifests/.gitkeep
+!data/metadata/.gitkeep
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# ---------- Models (large binary files) ----------
+models/classifier/*.pth
+models/classifier/*.pt
+models/classifier/*.onnx
+!models/classifier/.gitkeep
+!models/metadata/.gitkeep
+
+# ---------- Notebooks checkpoints ----------
+.ipynb_checkpoints/
+
+# ---------- Test / Coverage ----------
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ---------- Docker ----------
+*.log
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Misc ----------
+*.bak
+*.tmp

@@ -1,0 +1,29 @@
+# ============================================================
+# Fruvia AI — Target Classes
+# ============================================================
+# This file lists all fruit classes used by the classifier.
+# Only classes listed here are included in training.
+# Order matters: index 0 → first class, etc.
+# ============================================================
+
+version: "1.0"
+
+classes:
+  - apple
+  - avocado
+  - banana
+  - cherry
+  - grape
+  - guava
+  - kiwi
+  - lemon
+  - lychee
+  - mango
+  - orange
+  - papaya
+  - pear
+  - pineapple
+  - pomegranate
+  - strawberry
+  - tomato
+  - watermelon

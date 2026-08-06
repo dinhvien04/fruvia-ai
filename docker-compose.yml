@@ -1,0 +1,54 @@
+# ============================================================
+# Fruvia AI Docker Compose
+# ============================================================
+# Services:
+#   - backend: FastAPI application
+#   - frontend: Static file server (nginx)
+#
+# Qdrant Cloud is used externally — no local Qdrant by default.
+# For local Qdrant testing, use: docker-compose --profile local-qdrant up
+# ============================================================
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./models:/app/models:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # ---------- Local Qdrant (for testing only) ----------
+  qdrant-local:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    profiles:
+      - local-qdrant
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:

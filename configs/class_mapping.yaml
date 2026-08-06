@@ -1,0 +1,110 @@
+# ============================================================
+# Fruvia AI — Class Mapping
+# ============================================================
+# Maps original Fruits-360 folder names → target class names.
+# Multiple original classes can map to one target class.
+# Any original class NOT listed here is excluded from training.
+# ============================================================
+
+version: "1.0"
+
+class_mapping:
+  # Apple varieties → apple
+  Apple Braeburn: apple
+  Apple Crimson Snow: apple
+  Apple Golden 1: apple
+  Apple Golden 2: apple
+  Apple Golden 3: apple
+  Apple Granny Smith: apple
+  Apple Pink Lady: apple
+  Apple Red 1: apple
+  Apple Red 2: apple
+  Apple Red 3: apple
+  Apple Red Delicious: apple
+  Apple Red Yellow 1: apple
+  Apple Red Yellow 2: apple
+
+  # Avocado
+  Avocado: avocado
+  Avocado ripe: avocado
+
+  # Banana varieties → banana
+  Banana: banana
+  Banana Lady Finger: banana
+  Banana Red: banana
+
+  # Cherry varieties → cherry
+  Cherry 1: cherry
+  Cherry 2: cherry
+  Cherry Rainier: cherry
+  Cherry Wax Black: cherry
+  Cherry Wax Red: cherry
+  Cherry Wax Yellow: cherry
+
+  # Grape varieties → grape
+  Grape Blue: grape
+  Grape Pink: grape
+  Grape White: grape
+  Grape White 2: grape
+  Grape White 3: grape
+  Grape White 4: grape
+
+  # Guava
+  Guava: guava
+
+  # Kiwi
+  Kiwi: kiwi
+  Kiwi Fuzzy: kiwi
+
+  # Lemon
+  Lemon: lemon
+  Lemon Meyer: lemon
+
+  # Lychee
+  Lychee: lychee
+
+  # Mango varieties → mango
+  Mango: mango
+  Mango Red: mango
+
+  # Orange
+  Orange: orange
+
+  # Papaya
+  Papaya: papaya
+
+  # Pear varieties → pear
+  Pear: pear
+  Pear 2: pear
+  Pear Abate: pear
+  Pear Forelle: pear
+  Pear Kaiser: pear
+  Pear Monster: pear
+  Pear Red: pear
+  Pear Stone: pear
+  Pear Williams: pear
+
+  # Pineapple varieties → pineapple
+  Pineapple: pineapple
+  Pineapple Mini: pineapple
+
+  # Pomegranate
+  Pomegranate: pomegranate
+
+  # Strawberry varieties → strawberry
+  Strawberry: strawberry
+  Strawberry Wedge: strawberry
+
+  # Tomato varieties → tomato
+  Tomato 1: tomato
+  Tomato 2: tomato
+  Tomato 3: tomato
+  Tomato 4: tomato
+  Tomato Cherry Red: tomato
+  Tomato Heart: tomato
+  Tomato Maroon: tomato
+  Tomato Yellow: tomato
+  Tomato not Ripened: tomato
+
+  # Watermelon
+  Watermelon: watermelon
