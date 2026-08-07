@@ -28,11 +28,11 @@ jobs:
 
       - name: Run Ruff Linter
         run: |
-          ruff check backend/ app/ configs/
+          ruff check backend/ configs/ scripts/
 
       - name: Run Ruff Format Check
         run: |
-          ruff format --check backend/ app/ configs/
+          ruff format --check backend/ configs/ scripts/
 
       - name: Run Unit & Integration Tests
         env:

@@ -15,6 +15,18 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def find_project_root() -> Path:
+    """Find repository root by looking for configs/ directory or pyproject.toml."""
+    curr = Path(__file__).resolve().parent
+    for p in [curr] + list(curr.parents):
+        if (p / "configs").exists() or (p / "pyproject.toml").exists():
+            return p
+    return Path.cwd()
+
+
+PROJECT_ROOT = find_project_root()
+
+
 class Settings(BaseSettings):
     """Central configuration read from environment / .env file."""
 
@@ -69,6 +81,9 @@ class Settings(BaseSettings):
     class_search_min_candidates: int = Field(
         default=30, ge=10, le=200, description="Minimum candidate pool size for class search mode"
     )
+    class_search_max_candidates: int = Field(
+        default=300, ge=50, le=1000, description="Maximum candidate cap for iterative pool expansion"
+    )
 
     # --- Rate Limiting & Concurrency ---
     rate_limit_per_minute: int = Field(
@@ -86,8 +101,12 @@ class Settings(BaseSettings):
     max_image_width: int = Field(default=5000, description="Maximum image width in pixels")
     max_image_height: int = Field(default=5000, description="Maximum image height in pixels")
     class_mapping_path: Path = Field(
-        default=Path("configs/class_mapping.yaml"),
+        default=PROJECT_ROOT / "configs" / "class_mapping.yaml",
         description="Path to original->canonical class mapping YAML",
+    )
+    taxonomy_path: Path = Field(
+        default=PROJECT_ROOT / "configs" / "taxonomy.yaml",
+        description="Path to taxonomy YAML file",
     )
 
     # --- CORS ---

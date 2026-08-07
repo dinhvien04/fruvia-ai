@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
 from app.core.exceptions import ImageValidationError
+from app.core.rate_limit import get_concurrency_limiter
 from app.schemas.retrieval import RetrievalResponse
 from app.services.retrieval_service import RetrievalService, get_retrieval_service
 from app.utils.image_validation import read_upload_bounded
@@ -67,8 +68,10 @@ async def retrieve_images(
     filename = file.filename or "uploaded_image.jpg"
     content_type = file.content_type
 
-    # Offload CPU-bound ML & synchronous Qdrant query to threadpool to avoid blocking event loop
-    return await run_in_threadpool(
+    # Offload CPU-bound ML & synchronous Qdrant query to threadpool wrapped in concurrency limiter
+    limiter = get_concurrency_limiter()
+    return await limiter.run(
+        run_in_threadpool,
         service.retrieve_similar,
         file_bytes=file_bytes,
         filename=filename,

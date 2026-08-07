@@ -2,7 +2,7 @@
 # Fruvia AI — Taxonomy Configuration
 # ============================================================
 # Defines canonical species, display names (EN/VI), category classification,
-# and aliases for multi-dataset normalization.
+# and aliases for multi-dataset normalization (Fruits-360 + Fruits-262 raw labels).
 #
 # Categories: fruit | vegetable | nut | seed | other
 # ============================================================
@@ -10,6 +10,12 @@
 version: "1.0"
 
 taxonomy:
+  almond:
+    name_en: "Almond"
+    name_vi: "Hạt hạnh nhân"
+    category: "nut"
+    is_fruit: false
+
   apple:
     name_en: "Apple"
     name_vi: "Táo"
@@ -25,6 +31,7 @@ taxonomy:
       - "apple_red"
       - "apple_red_delicious"
       - "apple_red_yellow"
+      - "apple_hit"
 
   apricot:
     name_en: "Apricot"
@@ -55,11 +62,23 @@ taxonomy:
     category: "vegetable"
     is_fruit: false
 
+  blackberry:
+    name_en: "Blackberry"
+    name_vi: "Quả mâm xôi đen"
+    category: "fruit"
+    is_fruit: true
+
   blueberry:
     name_en: "Blueberry"
     name_vi: "Việt quất"
     category: "fruit"
     is_fruit: true
+
+  cabbage:
+    name_en: "Cabbage"
+    name_vi: "Bắp cải"
+    category: "vegetable"
+    is_fruit: false
 
   cactus_fruit:
     name_en: "Cactus Fruit"
@@ -74,7 +93,7 @@ taxonomy:
     is_fruit: true
 
   carambola:
-    name_en: "Carambola"
+    name_en: "Carambola / Starfruit"
     name_vi: "Khế"
     category: "fruit"
     is_fruit: true
@@ -82,6 +101,12 @@ taxonomy:
       - "carambula"
       - "starfruit"
       - "star_fruit"
+
+  carrot:
+    name_en: "Carrot"
+    name_vi: "Cà rốt"
+    category: "vegetable"
+    is_fruit: false
 
   cashew:
     name_en: "Cashew"
@@ -111,6 +136,14 @@ taxonomy:
     name_vi: "Hạt dẻ"
     category: "nut"
     is_fruit: false
+
+  chili_pepper:
+    name_en: "Chili Pepper"
+    name_vi: "Ớt hiểm"
+    category: "vegetable"
+    is_fruit: false
+    aliases:
+      - "chili"
 
   clementine:
     name_en: "Clementine"
@@ -162,12 +195,12 @@ taxonomy:
     category: "fruit"
     is_fruit: true
     aliases:
-      - "pitahaya"
       - "dragonfruit"
+      - "pitahaya"
       - "pitahaya_red"
 
   duku:
-    name_en: "Duku"
+    name_en: "Duku / Langsat"
     name_vi: "Bòn bon"
     category: "fruit"
     is_fruit: true
@@ -191,6 +224,12 @@ taxonomy:
     name_vi: "Sung"
     category: "fruit"
     is_fruit: true
+
+  garlic:
+    name_en: "Garlic"
+    name_vi: "Tỏi"
+    category: "vegetable"
+    is_fruit: false
 
   ginger:
     name_en: "Ginger"
@@ -339,6 +378,12 @@ taxonomy:
     aliases:
       - "melon_piel_de_sapo"
 
+  mushroom:
+    name_en: "Mushroom"
+    name_vi: "Nấm"
+    category: "vegetable"
+    is_fruit: false
+
   nectarine:
     name_en: "Nectarine"
     name_vi: "Đào trơn"
@@ -349,7 +394,7 @@ taxonomy:
 
   nut:
     name_en: "Nut"
-    name_vi: "Hạt"
+    name_vi: "Hạt tổng hợp"
     category: "nut"
     is_fruit: false
     aliases:
@@ -392,6 +437,12 @@ taxonomy:
     aliases:
       - "peach_flat"
 
+  peanut:
+    name_en: "Peanut"
+    name_vi: "Đậu phụng / Lạc"
+    category: "nut"
+    is_fruit: false
+
   pear:
     name_en: "Pear"
     name_vi: "Lê"
@@ -406,6 +457,12 @@ taxonomy:
       - "pear_stone"
       - "pear_williams"
 
+  peas:
+    name_en: "Peas"
+    name_vi: "Đậu Hà Lan"
+    category: "seed"
+    is_fruit: false
+
   pepino:
     name_en: "Pepino"
     name_vi: "Dưa Pepino"
@@ -413,8 +470,8 @@ taxonomy:
     is_fruit: true
 
   pepper:
-    name_en: "Pepper"
-    name_vi: "Ớt / Ớt chuông"
+    name_en: "Bell Pepper"
+    name_vi: "Ớt chuông"
     category: "vegetable"
     is_fruit: false
     aliases:
@@ -437,6 +494,12 @@ taxonomy:
     is_fruit: true
     aliases:
       - "pineapple_mini"
+
+  pistachio:
+    name_en: "Pistachio"
+    name_vi: "Hạt dẻ cười"
+    category: "nut"
+    is_fruit: false
 
   plum:
     name_en: "Plum"
@@ -469,11 +532,23 @@ taxonomy:
       - "potato_sweet"
       - "potato_white"
 
+  pumpkin:
+    name_en: "Pumpkin"
+    name_vi: "Bí đỏ"
+    category: "vegetable"
+    is_fruit: false
+
   quince:
     name_en: "Quince"
     name_vi: "Mộc qua"
     category: "fruit"
     is_fruit: true
+
+  radish:
+    name_en: "Radish"
+    name_vi: "Củ cải"
+    category: "vegetable"
+    is_fruit: false
 
   rambutan:
     name_en: "Rambutan"
@@ -512,6 +587,12 @@ taxonomy:
     name_vi: "Mãng cầu gai"
     category: "fruit"
     is_fruit: true
+
+  spinach:
+    name_en: "Spinach"
+    name_vi: "Rau bina / Cải bó xôi"
+    category: "vegetable"
+    is_fruit: false
 
   strawberry:
     name_en: "Strawberry"
@@ -563,3 +644,4 @@ taxonomy:
     is_fruit: false
     aliases:
       - "zucchini_dark"
+      - "zucchini_green"

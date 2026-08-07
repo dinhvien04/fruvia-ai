@@ -107,3 +107,52 @@ class TestQdrantRepository:
 
         with pytest.raises(QdrantConnectionError, match="Failed to query vector database"):
             repo.query_similar(vector, top_k=5)
+
+    def test_class_mode_candidate_expansion(self) -> None:
+        """Iterative candidate expansion in class mode should expand when distinct canonical count < top_k."""
+        mock_client = MagicMock()
+
+        # Create 30 hits in round 1 that all map to canonical class 'apple'
+        hits_round_1 = []
+        for i in range(1, 31):
+            h = MagicMock()
+            h.score = 0.9 - (i * 0.001)
+            h.payload = {
+                "original_class": f"apple_red_{i}",
+                "canonical_class": "apple",
+                "filename": f"apple_{i}.jpg",
+            }
+            hits_round_1.append(h)
+
+        # Hits for expanded query limit (contains apple, banana, durian)
+        hits_round_2 = list(hits_round_1)
+        for i, cat_name in enumerate(["banana", "durian", "mango"], start=31):
+            h = MagicMock()
+            h.score = 0.8 - (i * 0.001)
+            h.payload = {
+                "original_class": cat_name,
+                "canonical_class": cat_name,
+                "filename": f"{cat_name}.jpg",
+            }
+            hits_round_2.append(h)
+
+        def query_points_side_effect(collection_name, query, limit, **kwargs):
+            res = MagicMock()
+            if limit <= 30:
+                res.points = hits_round_1
+            else:
+                res.points = hits_round_2
+            return res
+
+        mock_client.query_points.side_effect = query_points_side_effect
+        repo = QdrantRepository(client=mock_client)
+        vector = [0.1] * 768
+
+        # Query top_k=3 in class mode
+        results = repo.query_similar(vector, top_k=3, mode="class")
+
+        # Must have expanded candidates and returned 3 distinct canonical species
+        assert len(results) == 3
+        canonical_classes = [r.canonical_class for r in results]
+        assert canonical_classes == ["apple", "banana", "durian"]
+        assert results[0].hit_count == 30  # 30 apple images found in candidate pool

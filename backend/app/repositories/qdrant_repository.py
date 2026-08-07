@@ -147,20 +147,24 @@ class QdrantRepository:
                 f"Query vector must be finite and exactly {EXPECTED_VECTOR_SIZE} dimensions."
             )
 
-        # Calculate candidate limit based on mode and category filter
+        # Calculate initial candidate limit and maximum candidate cap
+        max_cap = self.settings.class_search_max_candidates
         if mode == "class" or category != "all":
-            candidate_limit = max(
+            initial_limit = max(
                 top_k * self.settings.class_search_candidate_multiplier,
                 self.settings.class_search_min_candidates,
             )
         else:
-            candidate_limit = top_k
+            initial_limit = top_k
+
+        initial_limit = min(initial_limit, max_cap)
 
         logger.info(
-            "Querying Qdrant collection '%s' (top_k=%d, limit=%d, mode=%s, category=%s)...",
+            "Querying Qdrant collection '%s' (top_k=%d, initial_limit=%d, max_cap=%d, mode=%s, category=%s)...",
             self.collection_name,
             top_k,
-            candidate_limit,
+            initial_limit,
+            max_cap,
             mode,
             category,
         )
@@ -170,98 +174,136 @@ class QdrantRepository:
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                # Request payload only, skip vector retrieval for efficiency
-                if hasattr(self.client, "query_points"):
-                    query_response = self.client.query_points(
-                        collection_name=self.collection_name,
-                        query=vector,
-                        limit=candidate_limit,
-                        with_payload=True,
-                        with_vectors=False,
-                    )
-                    hits = query_response.points
-                else:
-                    hits = self.client.search(
-                        collection_name=self.collection_name,
-                        query_vector=vector,
-                        limit=candidate_limit,
-                        with_payload=True,
-                        with_vectors=False,
-                    )
+                candidate_limit = initial_limit
+                while True:
+                    # Request payload only, skip vector retrieval for efficiency
+                    if hasattr(self.client, "query_points"):
+                        query_response = self.client.query_points(
+                            collection_name=self.collection_name,
+                            query=vector,
+                            limit=candidate_limit,
+                            with_payload=True,
+                            with_vectors=False,
+                        )
+                        hits = query_response.points
+                    else:
+                        hits = self.client.search(
+                            collection_name=self.collection_name,
+                            query_vector=vector,
+                            limit=candidate_limit,
+                            with_payload=True,
+                            with_vectors=False,
+                        )
 
-                raw_results: list[tuple[RetrievalResult, str]] = []
-                for hit in hits:
-                    payload = getattr(hit, "payload", {}) or {}
-                    similarity_score = float(getattr(hit, "score", 0.0))
+                    raw_results: list[tuple[RetrievalResult, str]] = []
+                    for hit in hits:
+                        payload = getattr(hit, "payload", {}) or {}
+                        similarity_score = float(getattr(hit, "score", 0.0))
 
-                    original_cls = str(
-                        payload.get("original_class") or payload.get("class") or "unknown"
-                    )
-                    payload_canonical = payload.get("canonical_class")
-                    payload_display = payload.get("display_name")
+                        original_cls = str(
+                            payload.get("original_class") or payload.get("class") or "unknown"
+                        )
+                        payload_canonical = payload.get("canonical_class")
+                        payload_display = payload.get("display_name")
 
-                    canonical_cls, display_en, display_vi, cat_cls = tax_mgr.resolve(
-                        original_class=original_cls,
-                        payload_canonical=payload_canonical,
-                        payload_display=payload_display,
-                    )
+                        canonical_cls, display_en, display_vi, cat_cls = tax_mgr.resolve(
+                            original_class=original_cls,
+                            payload_canonical=payload_canonical,
+                            payload_display=payload_display,
+                        )
 
-                    # Backward-compatible dataset resolution
-                    ds_name = payload.get("dataset_name")
-                    if not ds_name:
-                        img_url = str(payload.get("image_url", ""))
-                        if "fruits262" in img_url or "fruits-262" in img_url:
-                            ds_name = "fruits262_full_original_v7"
+                        # Backward-compatible dataset resolution
+                        ds_name = payload.get("dataset_name")
+                        if not ds_name:
+                            img_url = str(payload.get("image_url", ""))
+                            if "fruits262" in img_url or "fruits-262" in img_url:
+                                ds_name = "fruits262_full_original_v7"
+                            else:
+                                ds_name = "fruits360_original"
+
+                        ds_version = payload.get("dataset_version") or (
+                            "7" if "262" in ds_name else "1"
+                        )
+
+                        res = RetrievalResult(
+                            original_class=original_cls,
+                            canonical_class=canonical_cls,
+                            display_name=display_en,
+                            display_name_vi=display_vi,
+                            category=cat_cls,
+                            dataset_name=str(ds_name),
+                            dataset_version=str(ds_version),
+                            filename=str(payload.get("filename", "unknown")),
+                            relative_path=str(payload.get("relative_path", "")),
+                            original_split=str(
+                                payload.get("original_split") or payload.get("source") or "unknown"
+                            ),
+                            similarity=similarity_score,
+                            image_url=payload.get("image_url"),
+                        )
+                        raw_results.append((res, cat_cls))
+
+                    # Apply Category Filtering
+                    category_filtered: list[RetrievalResult] = []
+                    target_cat = category.lower().strip()
+                    for res, item_cat in raw_results:
+                        if target_cat == "all" or item_cat == target_cat:
+                            category_filtered.append(res)
+
+                    # Check exit criteria or need for candidate expansion
+                    if mode == "class":
+                        grouped: dict[str, list[RetrievalResult]] = {}
+                        for item in category_filtered:
+                            grouped.setdefault(item.canonical_class, []).append(item)
+
+                        distinct_count = len(grouped)
+                        if (
+                            distinct_count >= top_k
+                            or candidate_limit >= max_cap
+                            or len(hits) < candidate_limit
+                        ):
+                            final_results: list[RetrievalResult] = []
+                            for items in grouped.values():
+                                rep_item = items[0]  # highest similarity match
+                                rep_item.hit_count = len(items)
+                                final_results.append(rep_item)
+                                if len(final_results) >= top_k:
+                                    break
+                            return final_results
+                    else:
+                        # mode == "image"
+                        if (
+                            len(category_filtered) >= top_k
+                            or candidate_limit >= max_cap
+                            or len(hits) < candidate_limit
+                        ):
+                            return category_filtered[:top_k]
+
+                    # Expand candidate pool if top_k criteria not yet met
+                    next_limit = min(candidate_limit * 2, max_cap)
+                    if next_limit <= candidate_limit:
+                        # Cannot expand further
+                        if mode == "class":
+                            grouped = {}
+                            for item in category_filtered:
+                                grouped.setdefault(item.canonical_class, []).append(item)
+                            final_results = []
+                            for items in grouped.values():
+                                rep_item = items[0]
+                                rep_item.hit_count = len(items)
+                                final_results.append(rep_item)
+                                if len(final_results) >= top_k:
+                                    break
+                            return final_results
                         else:
-                            ds_name = "fruits360_original"
+                            return category_filtered[:top_k]
 
-                    ds_version = payload.get("dataset_version") or (
-                        "7" if "262" in ds_name else "1"
+                    logger.debug(
+                        "Expanding Qdrant candidate pool from %d to %d...",
+                        candidate_limit,
+                        next_limit,
                     )
-
-                    res = RetrievalResult(
-                        original_class=original_cls,
-                        canonical_class=canonical_cls,
-                        display_name=display_en,
-                        display_name_vi=display_vi,
-                        category=cat_cls,
-                        dataset_name=str(ds_name),
-                        dataset_version=str(ds_version),
-                        filename=str(payload.get("filename", "unknown")),
-                        relative_path=str(payload.get("relative_path", "")),
-                        original_split=str(
-                            payload.get("original_split") or payload.get("source") or "unknown"
-                        ),
-                        similarity=similarity_score,
-                        image_url=payload.get("image_url"),
-                    )
-                    raw_results.append((res, cat_cls))
-
-                # Apply Category Filtering
-                category_filtered: list[RetrievalResult] = []
-                target_cat = category.lower().strip()
-                for res, item_cat in raw_results:
-                    if target_cat == "all" or item_cat == target_cat:
-                        category_filtered.append(res)
-
-                # Process results based on mode
-                if mode == "class":
-                    # Deduplicate by canonical_class
-                    grouped: dict[str, list[RetrievalResult]] = {}
-                    for item in category_filtered:
-                        grouped.setdefault(item.canonical_class, []).append(item)
-
-                    final_results: list[RetrievalResult] = []
-                    for items in grouped.values():
-                        rep_item = items[0]  # highest similarity match
-                        rep_item.hit_count = len(items)
-                        final_results.append(rep_item)
-                        if len(final_results) >= top_k:
-                            break
-                    return final_results
-                else:
-                    # mode == "image"
-                    return category_filtered[:top_k]
+                    candidate_limit = next_limit
 
             except Exception as e:
                 err_msg = str(e).lower()

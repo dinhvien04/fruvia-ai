@@ -12,13 +12,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.utils.file_utils import load_yaml_config
 
 logger = get_logger(__name__)
-
-DEFAULT_TAXONOMY_PATH = Path("configs/taxonomy.yaml")
-DEFAULT_CLASS_MAPPING_PATH = Path("configs/class_mapping.yaml")
 
 
 @dataclass
@@ -39,11 +37,12 @@ class TaxonomyManager:
 
     def __init__(
         self,
-        taxonomy_path: Path = DEFAULT_TAXONOMY_PATH,
-        class_mapping_path: Path = DEFAULT_CLASS_MAPPING_PATH,
+        taxonomy_path: Path | None = None,
+        class_mapping_path: Path | None = None,
     ) -> None:
-        self.taxonomy_path = taxonomy_path
-        self.class_mapping_path = class_mapping_path
+        settings = get_settings()
+        self.taxonomy_path = taxonomy_path or settings.taxonomy_path
+        self.class_mapping_path = class_mapping_path or settings.class_mapping_path
         self._taxonomy_items: dict[str, TaxonomyItem] = {}
         self._alias_to_canonical: dict[str, str] = {}
         self._class_mapping: dict[str, str] = {}
@@ -123,16 +122,32 @@ class TaxonomyManager:
         raw_str = (original_class or "unknown").strip()
         raw_lower = raw_str.lower()
 
-        # Case 1: Payload already has canonical_class
+        # Case 1: Payload already has canonical_class — verify against taxonomy/aliases
         if payload_canonical and payload_canonical.strip() and payload_canonical != "unknown":
-            canonical = payload_canonical.strip()
-            tax_item = self._taxonomy_items.get(canonical)
-            display_en = payload_display or (
-                tax_item.name_en if tax_item else format_display_name(canonical)
-            )
-            display_vi = tax_item.name_vi if tax_item else None
-            category = tax_item.category if tax_item else "fruit"
-            return canonical, display_en, display_vi, category
+            raw_p_canon = payload_canonical.strip()
+            p_canon_lower = raw_p_canon.lower()
+            p_canon_slug = re.sub(r"[_\-\s]+", "_", p_canon_lower)
+
+            resolved_canon = None
+            if p_canon_lower in self._alias_to_canonical:
+                resolved_canon = self._alias_to_canonical[p_canon_lower]
+            elif p_canon_slug in self._alias_to_canonical:
+                resolved_canon = self._alias_to_canonical[p_canon_slug]
+
+            if resolved_canon:
+                tax_item = self._taxonomy_items[resolved_canon]
+                display_en = payload_display or tax_item.name_en
+                display_vi = tax_item.name_vi
+                return resolved_canon, display_en, display_vi, tax_item.category
+            else:
+                # Taxonomy does not know this canonical_class, keep payload's value
+                tax_item = self._taxonomy_items.get(raw_p_canon)
+                display_en = payload_display or (
+                    tax_item.name_en if tax_item else format_display_name(raw_p_canon)
+                )
+                display_vi = tax_item.name_vi if tax_item else None
+                category = tax_item.category if tax_item else "other"
+                return raw_p_canon, display_en, display_vi, category
 
         # Case 2: Exact or alias match in taxonomy
         if raw_lower in self._alias_to_canonical:
@@ -187,7 +202,7 @@ class TaxonomyManager:
         # Case 5: Fallback slug
         clean_slug = without_numbers_slug or "unknown"
         display_en = format_display_name(clean_slug)
-        return clean_slug, display_en, None, "fruit"
+        return clean_slug, display_en, None, "other"
 
 
 def format_display_name(canonical_class: str) -> str:

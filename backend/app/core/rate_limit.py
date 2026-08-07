@@ -40,6 +40,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # Prune old timestamps
             self.requests[client_ip] = [t for t in self.requests[client_ip] if t > window_start]
 
+            remaining = max(0, settings.rate_limit_per_minute - len(self.requests[client_ip]) - 1)
+
             if len(self.requests[client_ip]) >= settings.rate_limit_per_minute:
                 logger.warning("Rate limit exceeded for IP: %s", client_ip)
                 return JSONResponse(
@@ -49,9 +51,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                         "message": "Too many requests. Please try again in a minute.",
                         "detail": f"Rate limit of {settings.rate_limit_per_minute} req/min exceeded.",
                     },
+                    headers={
+                        "Retry-After": "60",
+                        "X-RateLimit-Limit": str(settings.rate_limit_per_minute),
+                        "X-RateLimit-Remaining": "0",
+                    },
                 )
 
             self.requests[client_ip].append(now)
+
+            response = await call_next(request)
+            response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_per_minute)
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            return response
 
         return await call_next(request)
 
