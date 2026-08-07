@@ -46,7 +46,7 @@
               <div id="dropzone-prompt">
                 <div class="dropzone-icon" aria-hidden="true">📁</div>
                 <div class="dropzone-text">Drag & drop your image here</div>
-                <div class="dropzone-hint">Supports JPG, PNG, WEBP (Max 10 MB)</div>
+                <div class="dropzone-hint">Supports JPG, PNG, WEBP (Max 10 MB) &bull; Drag &amp; drop, Paste (Ctrl+V), or click</div>
               </div>
 
               <!-- Image Preview Area -->
@@ -65,7 +65,34 @@
 
         <div>
           <div class="top-k-header">
-            <h2 class="section-label">2. Result Count (Top K)</h2>
+            <h2 class="section-label">2. Search Mode</h2>
+          </div>
+          <div class="top-k-group" style="margin-bottom: 1rem;">
+            <select id="mode-select" class="btn-secondary" style="width: 100%; padding: 0.5rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); font-size: var(--font-sm);" aria-label="Select retrieval search mode">
+              <option value="image" selected>🖼️ Similar Images (Top-K Images)</option>
+              <option value="class">🏷️ Fruit/Class Recognition (Top-K Species)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div class="top-k-header">
+            <h2 class="section-label">3. Category Filter</h2>
+          </div>
+          <div class="top-k-group" style="margin-bottom: 1rem;">
+            <select id="category-select" class="btn-secondary" style="width: 100%; padding: 0.5rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); font-size: var(--font-sm);" aria-label="Select category filter">
+              <option value="fruit" selected>🍎 Fruits</option>
+              <option value="all">🌐 All Categories</option>
+              <option value="vegetable">🥦 Vegetables</option>
+              <option value="nut">🥜 Nuts</option>
+              <option value="seed">🌱 Seeds</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div class="top-k-header">
+            <h2 class="section-label">4. Result Count (Top K)</h2>
             <span id="top-k-display" class="top-k-value">5</span>
           </div>
           <div class="top-k-group">

@@ -59,6 +59,25 @@ class Settings(BaseSettings):
     qdrant_collection: str = Field(default="fruvia_fruits360_original_dinov2_base_v1")
     qdrant_timeout: int = Field(default=10, description="Qdrant request timeout in seconds")
 
+    # --- Search Behavior ---
+    class_search_candidate_multiplier: int = Field(
+        default=4,
+        ge=2,
+        le=10,
+        description="Multiplier for candidate pool size in class search mode",
+    )
+    class_search_min_candidates: int = Field(
+        default=30, ge=10, le=200, description="Minimum candidate pool size for class search mode"
+    )
+
+    # --- Rate Limiting & Concurrency ---
+    rate_limit_per_minute: int = Field(
+        default=60, ge=1, description="Max requests per minute per IP"
+    )
+    max_concurrent_inferences: int = Field(
+        default=4, ge=1, description="Max concurrent ML model inferences"
+    )
+
     # --- Upload ---
     max_upload_mb: int = Field(default=10, ge=1, le=50)
     max_image_pixels: int = Field(

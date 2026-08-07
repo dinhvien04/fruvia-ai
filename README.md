@@ -1,279 +1,255 @@
 # Fruvia AI
 
-AI-powered fruit recognition and image retrieval system using deep learning.
+AI-powered multi-dataset fruit recognition, taxonomy resolution, and visual image retrieval system using DINOv2 deep learning embeddings and Qdrant Cloud.
 
-## Project Goal
+---
 
-Fruvia AI provides two independent AI capabilities:
+## 🌟 Feature Overview & Status
 
-1. **Fruit Classification** — Upload an image, get top-3 fruit predictions with confidence scores
-2. **Image Retrieval** — Upload an image, find visually similar fruit images via vector search (*Implemented & Active*)
+| Capability | Status | Details |
+|---|---|---|
+| **DINOv2 Feature Extractor** | ✅ Implemented | `facebook/dinov2-base`, CLS token, 768-dim L2-normalized vectors |
+| **Qdrant Vector Database** | ✅ Implemented | Cosine similarity vector search over ~328,190 gallery images |
+| **Cloudflare R2 Storage** | ✅ Implemented | High-performance WebP thumbnail storage and public CDN links |
+| **Multi-Dataset Support** | ✅ Implemented | Supports Fruits-360 Original & Fruits-262 datasets concurrently |
+| **Taxonomy & Translation** | ✅ Implemented | 410 raw dataset classes normalized to canonical species with Vietnamese + English display names |
+| **Dual Search Modes** | ✅ Implemented | `mode=image` (Top-K images) & `mode=class` (Top-K deduplicated species with hit count) |
+| **Category Filtering** | ✅ Implemented | Filter retrieval by `fruit`, `vegetable`, `nut`, `seed`, or `all` |
+| **Frontend Retrieval Web UI** | ✅ Implemented | Responsive web app with drag & drop, clipboard paste (Ctrl+V), lightbox, skeleton loading, and health status |
+| **Fruit Classifier (ConvNeXt)** | 🔄 Planned / In Progress | Model training scripts present in notebooks; classification API in progress |
 
-> **Note on Implementation Status**: The **Image Retrieval backend** is fully implemented and hardened (DINOv2 embeddings + Qdrant Cloud collection `fruvia_fruits360_original_dinov2_base_v1`). Fruit Classification endpoints and Frontend web application are currently **NOT YET IMPLEMENTED** (scheduled for future phases).
+---
 
-## System Architecture
+## 📊 Datasets & Gallery Index
 
-```
-┌─────────────────────────────────────────────────────┐
-│                     Frontend                         │
-│  index.html │ classify.html │ retrieval.html         │
-│         HTML + CSS + Vanilla JavaScript              │
-└──────────────────────┬──────────────────────────────┘
-                       │ HTTP (JSON + multipart)
-┌──────────────────────▼──────────────────────────────┐
-│                  FastAPI Backend                     │
-│  ┌──────────┐  ┌───────────┐  ┌──────────────────┐  │
-│  │  /health │  │ /classify │  │   /retrieve      │  │
-│  └──────────┘  └─────┬─────┘  └────────┬─────────┘  │
-│                      │                 │             │
-│         ┌────────────▼───┐   ┌─────────▼──────────┐ │
-│         │  ConvNeXt-Tiny │   │  DINOv2 Encoder    │ │
-│         │  Classifier    │   │  (768-dim vectors) │ │
-│         └────────────────┘   └─────────┬──────────┘ │
-│                                        │             │
-│                              ┌─────────▼──────────┐ │
-│                              │  Qdrant Repository  │ │
-│                              └─────────┬──────────┘ │
-└────────────────────────────────────────┼────────────┘
-                                         │
-                               ┌─────────▼──────────┐
-                               │   Qdrant Cloud     │
-                               │ (Vector Database)  │
-                               └────────────────────┘
-```
+Fruvia AI indexes multiple datasets within a unified 768-dimensional embedding space:
 
-### Classification Flow
+- **Fruits-360 Original Size**: ~102,551 images across 131 original classes
+- **Fruits-262**: 225,639 images across 262 classes (100% embedded, 0 errors)
+- **Total Gallery Size**: **~328,190 indexed vectors** across 410 raw dataset labels
+
+> **Note on Taxonomy**: 410 raw dataset labels (e.g., `Apple Red 1`, `apple_red_2`, `Pear 10`) do **not** represent 410 distinct biological species. Fruvia AI's taxonomy layer normalizes these into canonical species (e.g., `apple`, `pear`, `durian`, `dragon_fruit`) with human-friendly English and Vietnamese names.
+
+---
+
+## 🏗️ System Architecture
 
 ```
-User uploads image
-    → Validate (format, size, integrity)
-    → Preprocess (resize 224×224, normalize)
-    → ConvNeXt-Tiny inference
-    → Softmax → Top-3 predictions
-    → Confidence threshold check
-    → Return predictions + accepted flag
+┌─────────────────────────────────────────────────────────┐
+│                    Frontend Web UI                      │
+│            retrieval.html (Vanilla JS + CSS)            │
+│    Drag-and-Drop │ Clipboard Paste │ Lightbox Modal      │
+└────────────────────────────┬────────────────────────────┘
+                             │ HTTP Multipart (POST /api/retrieve)
+┌────────────────────────────▼────────────────────────────┐
+│                    FastAPI Backend                      │
+│  ┌───────────────────────┐   ┌───────────────────────┐  │
+│  │   RequestIdMiddleware │   │  RateLimitMiddleware  │  │
+│  └───────────────────────┘   └───────────────────────┘  │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │   Bounded Upload Reader & Pixel Guard (25M px)    │  │
+│  └───────────────────────────┬───────────────────────┘  │
+│                              │ Threadpool Offloading    │
+│  ┌───────────────────────────▼───────────────────────┐  │
+│  │       DINOv2 Base Image Encoder (PyTorch)          │  │
+│  │         768-dim L2-Normalized Vector              │  │
+│  └───────────────────────────┬───────────────────────┘  │
+│                              │ Cosine Similarity Query  │
+│  ┌───────────────────────────▼───────────────────────┐  │
+│  │   QdrantRepository + Taxonomy Layer               │  │
+│  │   configs/taxonomy.yaml (EN/VI names + Category)  │  │
+│  └───────────────────────────┬───────────────────────┘  │
+└──────────────────────────────┼──────────────────────────┘
+                               │ HTTPS API
+                     ┌─────────▼─────────┐
+                     │   Qdrant Cloud    │
+                     │  (~328k Vectors)  │
+                     └─────────┬─────────┘
+                               │ Thumbnail Key
+                     ┌─────────▼─────────┐
+                     │   Cloudflare R2   │
+                     │  (WebP CDN Images)│
+                     └───────────────────┘
 ```
 
-### Retrieval Flow
+---
 
-```
-User uploads image
-    → Validate (format, size, integrity)
-    → DINOv2 encode → 768-dim vector (L2 normalized)
-    → Query Qdrant Cloud (cosine similarity)
-    → Return Top-K similar images with similarity scores
+## 🔍 Search Modes & API Contract
+
+### `POST /api/retrieve`
+
+Send a `multipart/form-data` request with an image file.
+
+#### Parameters
+
+- `file` (UploadFile, required): Image file (JPG, PNG, WEBP, max 10 MB).
+- `top_k` (int, optional, default: 5): Number of items to return (1 to 20).
+- `mode` (str, optional, default: `"image"`):
+  - `"image"`: Returns Top-K nearest individual gallery images.
+  - `"class"`: Groups results by canonical species class, returning Top-K distinct species sorted by best similarity.
+- `category` (str, optional, default: `"all"`): Filter results by category: `"fruit"`, `"vegetable"`, `"nut"`, `"seed"`, or `"all"`.
+
+#### Example Response Body
+
+```json
+{
+  "query": {
+    "filename": "query_durian.jpg"
+  },
+  "mode": "class",
+  "category": "fruit",
+  "results": [
+    {
+      "original_class": "durian",
+      "canonical_class": "durian",
+      "display_name": "Durian",
+      "display_name_vi": "Sầu riêng",
+      "category": "fruit",
+      "dataset_name": "fruits262_full_original_v7",
+      "dataset_version": "7",
+      "filename": "durian_001.jpg",
+      "relative_path": "gallery/durian/durian_001.jpg",
+      "original_split": "gallery",
+      "similarity": 0.8432,
+      "image_url": "https://pub-r2.fruvia.ai/thumbnails/durian_001.webp",
+      "hit_count": 8
+    }
+  ],
+  "result_count": 1,
+  "processing_time_ms": 112.4
+}
 ```
 
-## Project Structure
+---
+
+## 📁 Repository Structure
 
 ```
 fruvia-ai/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                 # FastAPI entry point
-│   │   ├── api/                    # Route handlers
-│   │   │   ├── routes_health.py
-│   │   │   ├── routes_classification.py
-│   │   │   ├── routes_retrieval.py
-│   │   │   └── routes_fruits.py
-│   │   ├── core/                   # Config, logging, exceptions
-│   │   ├── ml/                     # ML models and preprocessing
-│   │   ├── services/               # Business logic
-│   │   ├── repositories/           # Data access (Qdrant)
-│   │   ├── schemas/                # Pydantic request/response models
-│   │   └── utils/                  # Image validation, file helpers
+│   │   ├── main.py                 # FastAPI application & lifecycle
+│   │   ├── api/                    # Route handlers (/health, /ready, /retrieve)
+│   │   ├── core/                   # Config, rate limiting, logging, exceptions
+│   │   ├── ml/                     # DINOv2 ImageEncoder (768D L2)
+│   │   ├── services/               # RetrievalService orchestration
+│   │   ├── repositories/           # QdrantRepository (Vector DB access)
+│   │   ├── schemas/                # Multi-dataset Pydantic models
+│   │   └── utils/                  # TaxonomyManager, class_resolver, image_validation
 │   ├── tests/
-│   │   ├── unit/                   # No external deps
-│   │   └── integration/            # May need model/Qdrant
+│   │   ├── unit/                   # Unit tests (mock Qdrant & DINOv2)
+│   │   └── integration/            # FastAPI TestClient endpoint integration tests
 │   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/                       # Static HTML/CSS/JS
-├── notebooks/                      # Colab notebooks (01–07)
-├── scripts/                        # Dataset audit, manifest, export
-├── configs/                        # YAML configuration
-│   ├── classes.yaml                # Target class list
-│   ├── class_mapping.yaml          # Original → target mapping
-│   └── training.yaml               # Training hyperparameters
-├── data/                           # Dataset files (not committed)
-├── models/                         # Trained model artifacts
-├── .env.example                    # Environment variable template
+│   └── Dockerfile                  # Production container with HEALTHCHECK on /api/ready
+├── frontend/                       # Web Application UI
+│   ├── retrieval.html              # Image Retrieval search page
+│   ├── css/                        # Responsive CSS styles
+│   └── js/                         # API client, UI controller, utilities
+├── configs/                        # System Configurations
+│   ├── taxonomy.yaml               # 410-class taxonomy (EN/VI names + categories)
+│   ├── class_mapping.yaml          # Legacy Fruits-360 class mapping
+│   └── classes.yaml                # Target classification classes
+├── scripts/                        # Utility & Evaluation Scripts
+│   ├── evaluate_retrieval.py       # Retrieval precision & recall evaluator
+│   └── audit_dataset.py            # Dataset integrity auditor
+├── .github/workflows/ci.yml        # GitHub Actions automated test & lint pipeline
 ├── docker-compose.yml
 ├── pyproject.toml
-└── Makefile
+└── README.md
 ```
 
-## Getting Started
+---
+
+## 🛠️ Local Development & Running
 
 ### Prerequisites
 
 - Python 3.10+
-- pip
+- Virtual environment (`venv`)
 
-### Local Setup
+### Installation
 
 ```bash
-# Clone repository
+# Clone the repository
 git clone https://github.com/dinhvien04/fruvia-ai.git
 cd fruvia-ai
 
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# or
-.venv\Scripts\activate     # Windows
+# Activate virtual environment
+.venv\Scripts\activate       # Windows
+# or: source .venv/bin/activate # Linux/Mac
 
-# Install dependencies
+# Install backend dependencies
 pip install -r backend/requirements.txt
-
-# Copy environment config
-cp .env.example .env
-# Edit .env with your Qdrant Cloud credentials
 ```
 
-### Run Backend
+### Environment Configuration
+
+Copy `.env.example` to `.env` and provide your Qdrant Cloud credentials:
+
+```ini
+APP_ENV=development
+QDRANT_URL=https://your-cluster.qdrant.io:6333
+QDRANT_API_KEY=your-api-key
+QDRANT_COLLECTION=fruvia_fruits360_original_dinov2_base_v1
+DINOV2_REVISION=main
+RATE_LIMIT_PER_MINUTE=60
+MAX_CONCURRENT_INFERENCES=4
+```
+
+### Running the Application
 
 ```bash
+# Start FastAPI backend
 cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Or use Make:
-
-```bash
-make run-backend
-```
-
-### Run Frontend
-
-In a separate terminal, serve the static frontend directory:
+In a separate terminal, serve the frontend:
 
 ```bash
 python -m http.server 3000 --directory frontend
 ```
 
-Open your browser at:
-- **Landing page**: [http://localhost:3000](http://localhost:3000)
-- **Image Retrieval Web UI**: [http://localhost:3000/retrieval.html](http://localhost:3000/retrieval.html)
+Open [http://localhost:3000/retrieval.html](http://localhost:3000/retrieval.html) in your browser.
 
-Or use Make:
+---
 
-```bash
-make run-frontend
-```
+## 🧪 Testing & Code Quality
 
-### Run Tests
+Run the test suite and linters locally before pushing:
 
 ```bash
-# All tests
-make test
+# Run pytest (154 unit & integration tests)
+python -m pytest
 
-# Unit tests only
-make test-unit
+# Run Ruff linter
+python -m ruff check backend/ configs/ scripts/
 
-# Integration tests only
-make test-integration
+# Run Ruff format check
+python -m ruff format --check backend/ configs/ scripts/
 ```
 
-### Docker
+---
 
-```bash
-# Build and start
-make docker-build
-make docker-up
+## 📦 Collection Naming & Migration Strategy
 
-# Stop
-make docker-down
-```
+- Current Production Collection: `fruvia_fruits360_original_dinov2_base_v1`
+  - Note: This collection name is preserved for backward compatibility and contains both Fruits-360 and Fruits-262 embeddings.
+- Recommended Collection Name for Next Index Refresh: `fruvia_gallery_dinov2_base_v2`
 
-## Qdrant Cloud Configuration
+---
 
-1. Create an account at [Qdrant Cloud](https://cloud.qdrant.io)
-2. Create a cluster
-3. Copy the endpoint URL and API key
-4. Set in your `.env`:
+## 🔒 Security & Performance Features
 
-```
-QDRANT_URL=https://your-cluster.qdrant.io:6333
-QDRANT_API_KEY=your-api-key-here
-```
+1. **Decompression Bomb Protection**: Pillow pixel limits capped at 25,000,000 pixels.
+2. **Bounded File Streaming**: Maximum file uploads strictly enforced in RAM before decoding.
+3. **In-Memory Rate Limiting**: Capped per IP to prevent search endpoint abuse.
+4. **Concurrency Limiter**: Global semaphore prevents GPU/CPU memory overflow under high concurrency.
+5. **No Vector Over-Fetching**: Qdrant queries request payload only (`with_vectors=False`).
+6. **Container Health Readiness**: Docker `HEALTHCHECK` queries `/api/ready` to ensure ML model & Qdrant are fully online.
 
-**Never commit `.env` or API keys to the repository.**
+---
 
-## Colab Notebooks
+## 📄 License
 
-> **Notebooks are authored in the repository and executed on Google Colab.**
-> They are never run locally or in CI.
-
-### Workflow
-
-```
-GitHub repository
-  → Open notebook in Google Colab
-  → Enable T4 GPU (for embedding/training notebooks)
-  → Read KAGGLE_API_TOKEN from Colab Secrets
-  → Download Fruits-360 into /content/fruits360
-  → Process and embed on Colab
-  → Upload vectors to Qdrant Cloud
-  → Save checkpoints to Google Drive
-```
-
-| Notebook | Purpose | Runtime |
-|---|---|---|
-| `01_explore_fruits360.ipynb` | Explore and visualize the dataset | CPU |
-| `02_prepare_dataset.ipynb` | Create retrieval + classification manifests | CPU |
-| `03_train_efficientnet_baseline.ipynb` | Train EfficientNet-B0 baseline | GPU |
-| `04_train_convnext.ipynb` | Train ConvNeXt-Tiny (primary) | GPU |
-| `05_evaluate_models.ipynb` | Compare models on test set | GPU |
-| `06_generate_dinov2_embeddings.ipynb` | Generate DINOv2 image embeddings | GPU (T4) |
-| `07_upload_qdrant.ipynb` | Upload vectors to Qdrant Cloud | CPU |
-
-### Colab Secrets Required
-
-| Secret | Description / Used by |
-|---|---|
-| `KAGGLE_API_TOKEN` (or `KAGGLE_USERNAME` & `KAGGLE_KEY`) | Kaggle API credentials for downloading Fruits-360 |
-| `QDRANT_URL` | Qdrant Cloud endpoint URL (Collection: `fruvia_fruits360_original_dinov2_base_v1`) |
-| `QDRANT_API_KEY` | Qdrant Cloud API key |
-
-All data paths use `/content/` (Colab default) or Google Drive. No Windows paths.
-
-## Data Conventions
-
-- **Raw data** is never modified — stored in `data/raw/`
-- **Class mapping** is defined in `configs/class_mapping.yaml`
-- **Manifest CSV** tracks every image with metadata and split assignment
-- **Splits**: Train 70% / Validation 15% / Test 15%
-- **Random seed**: 42 (configurable in `configs/training.yaml`)
-- SHA-256 is used for duplicate detection and data-leakage mitigation
-
-## Models
-
-| Model | Role | Input | Output |
-|---|---|---|---|
-| ConvNeXt-Tiny | Classification (primary) | 224×224 RGB | Class probabilities |
-| EfficientNet-B0 | Classification (baseline) | 224×224 RGB | Class probabilities |
-| DINOv2-Base | Image embedding | Variable RGB | 768-dim L2 vector |
-
-### Confidence vs Similarity
-
-- **Confidence** (classification): Probability from softmax — how sure the model is about the predicted class. Range 0-1.
-- **Cosine Similarity** (retrieval): Geometric distance between embedding vectors — how visually similar two images are. Range 0-1 (after L2 normalization). This is NOT "accuracy."
-
-## Current Limitations
-
-- Model artifacts (`.pth` files) are not included in the repository — must be trained via Colab notebooks
-- Retrieval requires Qdrant Cloud connection — offline mode not yet supported
-- Frontend is static HTML/CSS/JS — no framework
-- No user authentication
-- No rate limiting (planned for production)
-- Model accuracy claims will be added only after Phase 3 evaluation is complete
-
-## Dataset
-
-This project uses the [Fruits-360 Original Size](https://www.kaggle.com/datasets/moltean/fruits) dataset.
-
-**Citation**: Horea Muresan, Mihai Oltean, Fruit recognition from images using deep learning, Acta Univ. Sapientiae, Informatica Vol. 10, Issue 1, pp. 26-42, 2018.
-
-## License
-
-MIT
+MIT License © 2026 Fruvia AI

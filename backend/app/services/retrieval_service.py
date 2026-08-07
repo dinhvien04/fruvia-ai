@@ -37,6 +37,8 @@ class RetrievalService:
         file_bytes: bytes,
         filename: str,
         top_k: int = 5,
+        mode: str = "image",
+        category: str = "all",
         content_type: str | None = None,
     ) -> RetrievalResponse:
         """
@@ -50,6 +52,10 @@ class RetrievalService:
             Original filename of the uploaded image.
         top_k : int
             Number of similar results to retrieve (1 to 20).
+        mode : str
+            Retrieval mode: "image" or "class".
+        category : str
+            Category filter: "all", "fruit", "vegetable", "nut", "seed", "other".
 
         Returns
         -------
@@ -59,10 +65,12 @@ class RetrievalService:
         start_time = time.perf_counter()
 
         logger.info(
-            "Processing retrieval request for file '%s' (bytes=%d, top_k=%d)...",
+            "Processing retrieval request for file '%s' (bytes=%d, top_k=%d, mode=%s, category=%s)...",
             filename,
             len(file_bytes),
             top_k,
+            mode,
+            category,
         )
 
         # 1. Validate image format, size, and integrity
@@ -77,7 +85,9 @@ class RetrievalService:
         query_vector = self.encoder.encode_image(pil_image)
 
         # 3. Perform cosine similarity vector search in Qdrant Cloud
-        results = self.qdrant_repo.query_similar(vector=query_vector, top_k=top_k)
+        results = self.qdrant_repo.query_similar(
+            vector=query_vector, top_k=top_k, mode=mode, category=category
+        )
 
         # 4. Calculate execution time in milliseconds
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -91,6 +101,8 @@ class RetrievalService:
 
         return RetrievalResponse(
             query=QueryInfo(filename=filename),
+            mode=mode,  # type: ignore[arg-type]
+            category=category,
             results=results,
             result_count=len(results),
             processing_time_ms=elapsed_ms,

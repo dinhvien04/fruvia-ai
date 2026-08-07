@@ -56,7 +56,9 @@ class TestRetrievalService:
         assert response.processing_time_ms >= 0.0
 
         mock_encoder.encode_image.assert_called_once()
-        mock_repo.query_similar.assert_called_once_with(vector=[0.1] * 768, top_k=5)
+        mock_repo.query_similar.assert_called_once_with(
+            vector=[0.1] * 768, top_k=5, mode="image", category="all"
+        )
 
     def test_retrieve_unsupported_format_raises(self, non_image_bytes: bytes) -> None:
         """Non-image bytes with invalid extension should raise UnsupportedFormatError."""

@@ -32,15 +32,19 @@ const ApiClient = {
    * Submit query image for similarity retrieval
    * @param {File} file
    * @param {number} topK
-   * @returns {Promise<{query: {filename: string}, results: Array<any>, result_count: number, processing_time_ms: number}>}
+   * @param {string} mode
+   * @param {string} category
+   * @returns {Promise<{query: {filename: string}, mode: string, category: string, results: Array<any>, result_count: number, processing_time_ms: number}>}
    */
-  async retrieveImage(file, topK = 5) {
+  async retrieveImage(file, topK = 5, mode = "image", category = "fruit") {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT_MS);
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("top_k", String(topK));
+    formData.append("mode", mode);
+    formData.append("category", category);
 
     try {
       const response = await fetch(`${CONFIG.API_BASE_URL}/api/retrieve`, {

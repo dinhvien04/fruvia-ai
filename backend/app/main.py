@@ -72,8 +72,10 @@ def create_app() -> FastAPI:
 
     # --- Middleware ---
     from app.core.middleware import RequestIdMiddleware
+    from app.core.rate_limit import RateLimitMiddleware
 
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

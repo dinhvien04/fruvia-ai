@@ -13,6 +13,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const topKSlider = document.getElementById("top-k-slider");
   const topKDisplay = document.getElementById("top-k-display");
+  const modeSelect = document.getElementById("mode-select");
+  const categorySelect = document.getElementById("category-select");
 
   const btnSearch = document.getElementById("btn-search");
   const searchText = document.getElementById("search-text");
@@ -82,11 +84,21 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const ext = "." + file.name.split(".").pop().toLowerCase();
+    // Determine file extension (fallback to MIME type if missing filename)
+    let ext = "";
+    if (file.name && file.name.includes(".")) {
+      ext = "." + file.name.split(".").pop().toLowerCase();
+    } else if (file.type) {
+      const mimeExt = file.type.split("/")[1]?.toLowerCase();
+      if (mimeExt) {
+        ext = mimeExt === "jpeg" ? ".jpg" : "." + mimeExt;
+      }
+    }
+
     if (!CONFIG.ALLOWED_EXTENSIONS.includes(ext)) {
       showErrorBanner(
         "Unsupported File Extension",
-        `File extension "${ext}" is not supported. Please select JPG, PNG, or WEBP.`
+        `File extension "${ext || "unknown"}" is not supported. Please select JPG, PNG, or WEBP.`
       );
       return;
     }
@@ -169,6 +181,53 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // ---------- Clipboard Paste Event (Ctrl+V / Cmd+V) ----------
+  window.addEventListener("paste", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+
+    const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
+    if (!clipboardData) return;
+
+    // 1. Check for files array first (Windows Explorer copy/paste file)
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        const file = clipboardData.files[i];
+        if (file.type && file.type.startsWith("image/")) {
+          e.preventDefault();
+          handleFileSelected(file);
+          return;
+        }
+      }
+    }
+
+    // 2. Check for clipboard items (Snipping Tool, Paint, Copy Image from Browser)
+    const items = clipboardData.items || [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type && item.type.startsWith("image/")) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (!blob) continue;
+
+        let ext = "png";
+        if (blob.type === "image/jpeg" || blob.type === "image/jpg") {
+          ext = "jpg";
+        } else if (blob.type === "image/webp") {
+          ext = "webp";
+        } else if (blob.type.includes("/")) {
+          ext = blob.type.split("/")[1];
+        }
+
+        const rawName = blob.name && blob.name !== "image.png" && blob.name !== "blob" ? blob.name : "";
+        const fileName = rawName || `pasted-image-${Date.now()}.${ext}`;
+        const pastedFile = new File([blob], fileName, { type: blob.type || `image/${ext}` });
+
+        handleFileSelected(pastedFile);
+        return;
+      }
+    }
+  });
+
   topKSlider.addEventListener("input", (e) => {
     topKDisplay.textContent = e.target.value;
   });
@@ -248,9 +307,11 @@ document.addEventListener("DOMContentLoaded", () => {
     clearBanners();
 
     const topK = parseInt(topKSlider.value, 10);
+    const mode = modeSelect ? modeSelect.value : "image";
+    const category = categorySelect ? categorySelect.value : "fruit";
 
     try {
-      const response = await ApiClient.retrieveImage(selectedFile, topK);
+      const response = await ApiClient.retrieveImage(selectedFile, topK, mode, category);
       renderResults(response);
     } catch (err) {
       const friendly = Utils.getFriendlyErrorMessage(err);
@@ -345,7 +406,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const rank = index + 1;
       const originalClass = item.original_class || "unknown";
       const canonicalClass = item.canonical_class || "unknown";
-      const displayName = item.display_name || canonicalClass;
+      const displayNameEn = item.display_name || canonicalClass;
+      const displayNameVi = item.display_name_vi || null;
+      const displayName = displayNameVi ? `${displayNameVi} (${displayNameEn})` : displayNameEn;
+      const datasetName = item.dataset_name || "Fruits-360";
+      const hitCount = item.hit_count ? ` (${item.hit_count} hits)` : "";
       const filename = item.filename || "unknown";
       const originalSplit = item.original_split || "unknown";
       const relativePath = item.relative_path || "";
@@ -409,7 +474,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const rawLabelP = document.createElement("p");
       rawLabelP.className = "card-class-original";
-      rawLabelP.textContent = `Dataset label: ${originalClass}`;
+      rawLabelP.textContent = `Label: ${originalClass} • ${datasetName}${hitCount}`;
 
       titleHeader.appendChild(titleH3);
       titleHeader.appendChild(rawLabelP);
