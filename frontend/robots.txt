@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /docs
+Disallow: /redoc
+
+Sitemap: https://fruvia.ai/sitemap.xml

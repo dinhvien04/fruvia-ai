@@ -1,172 +1,202 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fruvia AI — Image Retrieval</title>
+  <title>Tìm kiếm hình ảnh trái cây | Fruvia AI</title>
+  <meta name="description" content="Tải ảnh trái cây lên để truy vấn các mẫu tương đồng bằng DINOv2 Vector Embeddings và Qdrant Vector Search.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://fruvia.ai/search">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/retrieval.css">
 </head>
 <body>
+  <!-- Header Navbar -->
   <header class="site-header">
     <div class="container header-inner">
-      <a href="index.html" class="brand-logo" aria-label="Fruvia AI Homepage">
-        <span class="logo-icon" aria-hidden="true">🍇</span>
-        <span>Fruvia AI</span>
-        <span class="brand-badge">Retrieval</span>
+      <a href="/" class="brand-logo" aria-label="Fruvia AI - Trang chủ">
+        <img src="assets/svg/brand-lockup.svg" alt="Fruvia AI Logo" width="160" height="32">
       </a>
-      <div class="header-status">
-        <div id="backend-status" class="status-badge" data-status="unknown" aria-live="polite">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span id="status-text">Checking Backend...</span>
-        </div>
+
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <a href="/" class="nav-link">Trang chủ</a>
+        <a href="/search" class="nav-link active">Tìm kiếm ảnh</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="/" class="btn btn-secondary btn-sm">Về trang chủ</a>
       </div>
     </div>
   </header>
 
   <main class="container">
-    <section class="hero-section">
-      <h1 class="hero-title">Find Visually Similar Fruits</h1>
-      <p class="hero-subtitle">
-        Upload a fruit image to extract deep feature embeddings via <strong>DINOv2</strong> and search vector matches in Qdrant Cloud based on <strong>Cosine Similarity</strong>.
-      </p>
-    </section>
+    <!-- Page Header -->
+    <header class="retrieval-header">
+      <h1>Truy vấn hình ảnh tương đồng</h1>
+      <p>Trích xuất đặc trưng thị giác bằng <strong>DINOv2</strong> và tìm kiếm vector gần nhất trên <strong>Qdrant Cloud</strong> dựa trên Cosine Similarity.</p>
+    </header>
 
+    <!-- Master Grid -->
     <div class="retrieval-grid">
-      <!-- Left Column: Search Controls & Upload Area -->
-      <aside class="controls-card">
-        <div>
-          <h2 class="section-label">1. Upload Query Image</h2>
+      <!-- Controls Column (Left) -->
+      <aside class="controls-card" aria-label="Bộ điều khiển tìm kiếm">
+        <!-- 1. Dropzone Upload -->
+        <div class="control-group">
+          <span class="section-label">1. Tải ảnh hình học</span>
           <form id="upload-form" onsubmit="return false;">
-            <!-- Dropzone -->
-            <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload fruit image file. Drag and drop or click to choose file">
+            <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Tải ảnh trái cây. Kéo thả hoặc click để chọn tệp">
               <input type="file" id="file-input" accept="image/jpeg,image/jpg,image/png,image/webp" class="sr-only">
+
               <div id="dropzone-prompt">
-                <div class="dropzone-icon" aria-hidden="true">📁</div>
-                <div class="dropzone-text">Drag & drop your image here</div>
-                <div class="dropzone-hint">Supports JPG, PNG, WEBP (Max 10 MB) &bull; Drag &amp; drop, Paste (Ctrl+V), or click</div>
+                <img src="assets/svg/upload-illustration.svg" alt="" class="dropzone-icon" aria-hidden="true">
+                <div class="dropzone-text">Tải ảnh trái cây</div>
+                <div class="dropzone-hint">Kéo thả ảnh vào đây hoặc chọn từ thiết bị<br>JPG · PNG · WEBP (Tối đa 10 MB)</div>
               </div>
 
-              <!-- Image Preview Area -->
+              <!-- Preview -->
               <div id="preview-container" class="preview-container" style="display: none;">
                 <div class="preview-image-wrapper">
-                  <img id="preview-img" src="" alt="Selected image preview">
+                  <img id="preview-img" src="" alt="Ảnh truy vấn được chọn">
                 </div>
                 <div class="preview-actions">
-                  <button type="button" id="btn-change-image" class="btn btn-secondary btn-sm">Change Image</button>
-                  <button type="button" id="btn-remove-image" class="btn btn-secondary btn-sm" style="color: var(--color-error);">Remove</button>
+                  <button type="button" id="btn-change-image" class="btn btn-secondary btn-sm">Đổi ảnh</button>
+                  <button type="button" id="btn-remove-image" class="btn btn-secondary btn-sm" style="color: var(--color-danger);">Xóa</button>
                 </div>
               </div>
             </div>
           </form>
         </div>
 
-        <div>
-          <div class="top-k-header">
-            <h2 class="section-label">2. Search Mode</h2>
-          </div>
-          <div class="top-k-group" style="margin-bottom: 1rem;">
-            <select id="mode-select" class="btn-secondary" style="width: 100%; padding: 0.5rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); font-size: var(--font-sm);" aria-label="Select retrieval search mode">
-              <option value="image" selected>🖼️ Similar Images (Top-K Images)</option>
-              <option value="class">🏷️ Fruit/Class Recognition (Top-K Species)</option>
-            </select>
-          </div>
+        <!-- 2. Search Mode -->
+        <div class="control-group">
+          <label for="mode-select" class="control-label">2. Chế độ tìm kiếm</label>
+          <select id="mode-select" class="select-control" aria-label="Chọn chế độ tìm kiếm">
+            <option value="image" selected>Ảnh tương đồng (Top-K Images)</option>
+            <option value="class">Phân loại loài (Top-K Species)</option>
+          </select>
         </div>
 
-        <div>
-          <div class="top-k-header">
-            <h2 class="section-label">3. Category Filter</h2>
-          </div>
-          <div class="top-k-group" style="margin-bottom: 1rem;">
-            <select id="category-select" class="btn-secondary" style="width: 100%; padding: 0.5rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); font-size: var(--font-sm);" aria-label="Select category filter">
-              <option value="fruit" selected>🍎 Fruits</option>
-              <option value="all">🌐 All Categories</option>
-              <option value="vegetable">🥦 Vegetables</option>
-              <option value="nut">🥜 Nuts</option>
-              <option value="seed">🌱 Seeds</option>
-            </select>
-          </div>
+        <!-- 3. Category Filter -->
+        <div class="control-group">
+          <label for="category-select" class="control-label">3. Lọc danh mục</label>
+          <select id="category-select" class="select-control" aria-label="Chọn danh mục lọc">
+            <option value="all" selected>Tất cả danh mục</option>
+            <option value="fruit">Trái cây</option>
+            <option value="vegetable">Rau củ</option>
+            <option value="nut">Hạt dinh dưỡng</option>
+            <option value="seed">Hạt giống</option>
+          </select>
         </div>
 
-        <div>
-          <div class="top-k-header">
-            <h2 class="section-label">4. Result Count (Top K)</h2>
-            <span id="top-k-display" class="top-k-value">5</span>
+        <!-- 4. Top-K Selection -->
+        <div class="control-group">
+          <div class="control-label">
+            <span>4. Số lượng kết quả (Top-K)</span>
+            <span id="top-k-display" style="font-weight: 700; color: var(--color-primary-600);">5</span>
           </div>
-          <div class="top-k-group">
-            <input type="range" id="top-k-slider" min="1" max="20" value="5" step="1" class="top-k-slider" aria-label="Select top K results count from 1 to 20">
+          <div class="top-k-segmented" role="radiogroup" aria-label="Chọn số lượng kết quả Top-K">
+            <button type="button" class="segmented-btn active" data-value="5" role="radio" aria-checked="true">5</button>
+            <button type="button" class="segmented-btn" data-value="10" role="radio" aria-checked="false">10</button>
+            <button type="button" class="segmented-btn" data-value="15" role="radio" aria-checked="false">15</button>
+            <button type="button" class="segmented-btn" data-value="20" role="radio" aria-checked="false">20</button>
           </div>
+          <input type="hidden" id="top-k-value" value="5">
         </div>
 
+        <!-- Search CTA -->
         <div>
-          <button type="button" id="btn-search" class="btn btn-primary btn-search" disabled>
+          <button type="button" id="btn-search" class="btn btn-primary btn-search btn-lg" disabled>
             <span id="search-spinner" class="spinner" style="display: none;" aria-hidden="true"></span>
-            <span id="search-text">Find Similar Images</span>
+            <span id="search-text">Tìm hình ảnh tương đồng</span>
           </button>
         </div>
       </aside>
 
-      <!-- Right Column: Results Grid & Messages -->
+      <!-- Results Column (Right) -->
       <section class="results-panel" aria-live="polite" id="results-section">
-        <!-- Comparison Header: Query Image vs Top Match -->
+        <!-- Visual Comparison (Query vs Top Match) -->
         <div id="comparison-container" class="comparison-container" style="display: none;">
           <div class="comparison-card">
-            <span class="comparison-tag">Query Image</span>
+            <span class="comparison-tag">Ảnh truy vấn</span>
             <div class="comparison-media">
-              <img id="query-comparison-img" src="" alt="Query image">
+              <img id="query-comparison-img" src="" alt="Ảnh truy vấn">
             </div>
           </div>
-          <div class="comparison-vs">VS</div>
+          <div class="comparison-divider">VS</div>
           <div class="comparison-card" id="top-match-comparison-card">
-            <span class="comparison-tag">Top #1 Match</span>
-            <div id="top-match-media" class="comparison-media">
-              <!-- Dynamically populated -->
-            </div>
+            <span class="comparison-tag">Khớp nhất #1</span>
+            <div id="top-match-media" class="comparison-media"></div>
           </div>
         </div>
 
-        <!-- Error Banner Container -->
+        <!-- Banners for Errors / Warnings -->
         <div id="error-banner-container" style="display: none;"></div>
-
-        <!-- Reliability Warning Banner Container -->
         <div id="warning-banner-container" style="display: none;"></div>
 
-        <!-- Meta info bar -->
+        <!-- Header Results Meta Bar -->
         <div id="results-header" class="results-header" style="display: none;">
-          <div class="results-meta">
-            Found <strong id="res-count">0</strong> matches in <strong id="res-time">0</strong> ms
+          <div class="results-count">
+            Kết quả tương đồng: <strong id="res-count">0</strong> mẫu · <strong id="res-time">0</strong> ms
           </div>
         </div>
 
-        <!-- Results Grid -->
+        <!-- Grid Container -->
         <div id="results-grid" class="results-grid">
           <!-- Initial Empty State -->
-          <div id="initial-empty-state" class="empty-state" style="grid-column: 1 / -1;">
-            <div class="empty-state-icon" aria-hidden="true">🔍</div>
-            <h3>No Search Performed Yet</h3>
-            <p>Upload a fruit image on the left and click "Find Similar Images" to view visual vector matches.</p>
+          <div id="initial-empty-state" class="empty-state">
+            <img src="assets/svg/empty-search.svg" alt="" class="empty-state-icon" aria-hidden="true">
+            <h3>Chưa có kết quả</h3>
+            <p>Tải ảnh lên ở cột bên trái và bấm "Tìm hình ảnh tương đồng" để bắt đầu tra cứu.</p>
           </div>
         </div>
       </section>
     </div>
   </main>
 
-  <!-- Image Modal / Lightbox -->
+  <!-- Detail Modal -->
   <div id="image-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-content">
-      <button type="button" id="modal-close" class="modal-close-btn" aria-label="Close image modal">&times;</button>
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2 id="modal-title" class="modal-title">Chi tiết mẫu trái cây</h2>
+        <button type="button" id="modal-close" class="modal-close-btn" aria-label="Đóng cửa sổ chi tiết">
+          <img src="assets/svg/close.svg" alt="" width="20" height="20" aria-hidden="true">
+        </button>
+      </div>
+
       <div id="modal-body" class="modal-body">
-        <div class="modal-media-wrapper" id="modal-media-wrapper"></div>
-        <div class="modal-info">
-          <h2 id="modal-title" class="modal-title"></h2>
-          <p id="modal-original-class" class="modal-subtitle"></p>
-          <div id="modal-similarity-box" class="modal-similarity"></div>
-          <div class="modal-meta-list">
-            <div><strong>File:</strong> <span id="modal-filename"></span></div>
-            <div><strong>Split:</strong> <span id="modal-split"></span></div>
-            <div><strong>Relative Path:</strong> <span id="modal-path"></span></div>
+        <div class="modal-media-section">
+          <div class="modal-media-wrapper" id="modal-media-wrapper"></div>
+          <div id="modal-similarity-box" class="similarity-box"></div>
+        </div>
+
+        <div class="modal-info-section">
+          <div class="modal-section-title">Thông tin hệ thống</div>
+          <div class="modal-info-grid">
+            <div class="modal-info-item">
+              <span class="modal-info-label">Tên chuẩn hóa (Canonical)</span>
+              <span id="modal-canonical-class" class="modal-info-value"></span>
+            </div>
+            <div class="modal-info-item">
+              <span class="modal-info-label">Nhãn dữ liệu gốc</span>
+              <span id="modal-original-class" class="modal-info-value"></span>
+            </div>
+            <div class="modal-info-item">
+              <span class="modal-info-label">Bộ dữ liệu (Dataset)</span>
+              <span id="modal-dataset" class="modal-info-value"></span>
+            </div>
+            <div class="modal-info-item">
+              <span class="modal-info-label">Tên tệp tin</span>
+              <span id="modal-filename" class="modal-info-value"></span>
+            </div>
+          </div>
+
+          <div class="modal-section-title">Tri thức thực vật (Canonical Knowledge)</div>
+          <div id="modal-knowledge-container" class="knowledge-section">
+            <!-- Dynamically populated or showing trustworthy fallback -->
           </div>
         </div>
       </div>
@@ -175,7 +205,7 @@
 
   <footer class="site-footer">
     <div class="container">
-      <p>© 2026 Fruvia AI. Built for fruit recognition and vector search capabilities.</p>
+      <p>© 2026 Fruvia AI. Bảo lưu mọi quyền.</p>
     </div>
   </footer>
 

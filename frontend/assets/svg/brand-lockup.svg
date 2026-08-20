@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" fill="none" width="100%" height="100%">
+  <g transform="translate(0, 0)">
+    <!-- Brand Mark Icon -->
+    <path d="M20 5C11.716 5 5 11.716 5 20C5 28.284 11.716 35 20 35C28.284 35 35 28.284 35 20C35 11.716 28.284 5 20 5Z" fill="#047857" opacity="0.12"/>
+    <path d="M20 6.5C12.544 6.5 6.5 12.544 6.5 20C6.5 27.456 12.544 33.5 20 33.5C27.456 33.5 33.5 27.456 33.5 20C33.5 12.544 27.456 6.5 20 6.5Z" stroke="#059669" stroke-width="2"/>
+    <path d="M20 6.5C20 6.5 22 2 26 3.5C25 7.5 20 6.5 20 6.5Z" fill="#059669"/>
+    <line x1="14" y1="16" x2="24" y2="14" stroke="#047857" stroke-width="1.5" opacity="0.8"/>
+    <line x1="24" y1="14" x2="27" y2="23" stroke="#047857" stroke-width="1.5" opacity="0.8"/>
+    <line x1="27" y1="23" x2="18" y2="26" stroke="#047857" stroke-width="1.5" opacity="0.8"/>
+    <line x1="18" y1="26" x2="14" y2="16" stroke="#047857" stroke-width="1.5" opacity="0.8"/>
+    <circle cx="14" cy="16" r="2.5" fill="#059669"/>
+    <circle cx="24" cy="14" r="2" fill="#10b981"/>
+    <circle cx="27" cy="23" r="3" fill="#047857"/>
+    <circle cx="18" cy="26" r="2" fill="#059669"/>
+  </g>
+  <!-- Text Lockup -->
+  <text x="46" y="26" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="20" fill="#0F172A" letter-spacing="-0.5">Fruvia <tspan fill="#059669">AI</tspan></text>
+</svg>

@@ -1,10 +1,10 @@
 /**
- * Fruvia AI — Utility Functions
+ * Fruvia AI — Utility Functions & Error Mappings
  */
 const Utils = {
   /**
    * Validate image URL to prevent XSS / malicious protocol injection.
-   * Only accepts http://, https://, or relative URLs. Rejects javascript:, data:, file:, etc.
+   * Accepts http://, https://, or relative URLs.
    * @param {string|null|undefined} url
    * @returns {boolean}
    */
@@ -20,8 +20,7 @@ const Utils = {
   },
 
   /**
-   * Format similarity score (0.0 to 1.0 or negative) into percentage text safely.
-   * Keeps negative similarity layout safe by clamping visual percentage to 0%.
+   * Format similarity score into percentage text and visual progress width.
    * @param {number} similarity
    * @returns {{percentageText: string, visualWidth: string, levelClass: string}}
    */
@@ -30,7 +29,6 @@ const Utils = {
     const percentageVal = (rawNum * 100).toFixed(2);
     const percentageText = `${percentageVal}%`;
 
-    // Clamp width percentage to 0% - 100% for layout safety
     const clampedWidth = Math.max(0, Math.min(100, rawNum * 100)).toFixed(2);
     const visualWidth = `${clampedWidth}%`;
 
@@ -45,8 +43,7 @@ const Utils = {
   },
 
   /**
-   * Map domain & API error codes into friendly user messages.
-   * Checks specific error_code prior to falling back to HTTP status codes.
+   * Map API errors into clear, professional Vietnamese user messages.
    * @param {Error} error
    * @returns {{title: string, message: string}}
    */
@@ -56,84 +53,56 @@ const Utils = {
 
     if (code === "FILE_TOO_LARGE" || status === 413) {
       return {
-        title: "File Too Large",
-        message: "The uploaded image exceeds the 10 MB size limit. Please choose a smaller image."
+        title: "Tệp hình ảnh quá lớn",
+        message: "Dung lượng ảnh vượt quá giới hạn 10 MB. Vui lòng chọn ảnh nhỏ hơn."
       };
     }
 
     if (code === "UNSUPPORTED_FORMAT" || status === 415) {
       return {
-        title: "Unsupported Format",
-        message: "Please upload a valid image in JPG, JPEG, PNG, or WEBP format."
+        title: "Định dạng không được hỗ trợ",
+        message: "Vui lòng sử dụng hình ảnh định dạng JPG, JPEG, PNG hoặc WEBP."
       };
     }
 
     if (code === "INVALID_IMAGE" || status === 400) {
       return {
-        title: "Invalid Image File",
-        message: "The selected file appears to be corrupted or invalid. Please select another image."
+        title: "Không thể xử lý hình ảnh",
+        message: "Tệp ảnh được chọn bị hỏng hoặc không hợp lệ. Vui lòng chọn tệp ảnh khác."
       };
     }
 
     if (code === "MODEL_NOT_LOADED") {
       return {
-        title: "Feature Encoder Offline",
-        message: "The DINOv2 feature encoder model is still initializing or unavailable. Please try again shortly."
-      };
-    }
-
-    if (code === "ENCODING_FAILED") {
-      return {
-        title: "Feature Extraction Failed",
-        message: "Failed to extract deep feature embeddings from the image. Please try another image."
+        title: "Hệ thống AI đang khởi tạo",
+        message: "Mô hình DINOv2 đang được tải lên bộ nhớ. Vui lòng thử lại sau giây lát."
       };
     }
 
     if (code === "QDRANT_UNAVAILABLE") {
       return {
-        title: "Vector Search Offline",
-        message: "Could not connect to Qdrant vector database. Please verify your connection."
-      };
-    }
-
-    if (code === "COLLECTION_NOT_FOUND") {
-      return {
-        title: "Search Collection Missing",
-        message: "Target vector collection is missing in Qdrant Cloud. Please verify configuration."
+        title: "Không thể kết nối Qdrant Vector DB",
+        message: "Cơ sở dữ liệu vector tạm thời không phản hồi. Vui lòng kiểm tra lại kết nối mạng."
       };
     }
 
     if (code === "TIMEOUT") {
       return {
-        title: "Request Timeout",
-        message: "The request took too long to complete. Please try again."
-      };
-    }
-
-    if (code === "INTERNAL_ERROR" || status === 500) {
-      return {
-        title: "Internal Server Error",
-        message: "An internal server error occurred while processing retrieval. Please try again later."
-      };
-    }
-
-    if (status === 503) {
-      return {
-        title: "Service Unavailable",
-        message: "The image retrieval service is currently unavailable or initializing. Please try again in a few moments."
+        title: "Yêu cầu quá thời gian xử lý",
+        message: "Thời gian phản hồi vượt quá giới hạn cho phép. Vui lòng thử lại."
       };
     }
 
     if (status === 0 || (error.message && error.message.includes("Failed to fetch"))) {
       return {
-        title: "Backend Unreachable",
-        message: "Cannot connect to Fruvia AI backend server. Please verify backend is running at " + CONFIG.API_BASE_URL
+        title: "Không thể kết nối đến máy chủ",
+        message: "Vui lòng kiểm tra dịch vụ backend đang chạy tại " + CONFIG.API_BASE_URL
       };
     }
 
     return {
-      title: "Retrieval Error",
-      message: error.message || "An unexpected error occurred while processing your request. Please try again."
+      title: "Lỗi truy vấn",
+      message: error.message || "Đã xảy ra lỗi không xác định. Vui lòng thử lại sau."
     };
   }
 };

@@ -1,5 +1,5 @@
 /**
- * Fruvia AI — Image Retrieval UI Logic
+ * Fruvia AI — Image Retrieval UI Controller
  */
 document.addEventListener("DOMContentLoaded", () => {
   // DOM Elements
@@ -11,17 +11,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnChangeImage = document.getElementById("btn-change-image");
   const btnRemoveImage = document.getElementById("btn-remove-image");
 
-  const topKSlider = document.getElementById("top-k-slider");
-  const topKDisplay = document.getElementById("top-k-display");
   const modeSelect = document.getElementById("mode-select");
   const categorySelect = document.getElementById("category-select");
+  const topKDisplay = document.getElementById("top-k-display");
+  const topKValueInput = document.getElementById("top-k-value");
+  const segmentedBtns = document.querySelectorAll(".segmented-btn");
 
   const btnSearch = document.getElementById("btn-search");
   const searchText = document.getElementById("search-text");
   const searchSpinner = document.getElementById("search-spinner");
-
-  const backendStatusBadge = document.getElementById("backend-status");
-  const statusText = document.getElementById("status-text");
 
   const comparisonContainer = document.getElementById("comparison-container");
   const queryComparisonImg = document.getElementById("query-comparison-img");
@@ -40,65 +38,58 @@ document.addEventListener("DOMContentLoaded", () => {
   const modalClose = document.getElementById("modal-close");
   const modalMediaWrapper = document.getElementById("modal-media-wrapper");
   const modalTitle = document.getElementById("modal-title");
+  const modalCanonicalClass = document.getElementById("modal-canonical-class");
   const modalOriginalClass = document.getElementById("modal-original-class");
-  const modalSimilarityBox = document.getElementById("modal-similarity-box");
+  const modalDataset = document.getElementById("modal-dataset");
   const modalFilename = document.getElementById("modal-filename");
-  const modalSplit = document.getElementById("modal-split");
-  const modalPath = document.getElementById("modal-path");
+  const modalSimilarityBox = document.getElementById("modal-similarity-box");
+  const modalKnowledgeContainer = document.getElementById("modal-knowledge-container");
 
   // State Variables
   let selectedFile = null;
   let queryDataUrl = null;
   let isSearching = false;
+  let lastFocusedElement = null;
 
-  // ---------- Health Check Polling ----------
-  async function checkBackendHealth() {
-    try {
-      const health = await ApiClient.getHealth();
-      if (health.status === "ok") {
-        backendStatusBadge.setAttribute("data-status", "online");
-        statusText.textContent = "Backend Online";
-      } else {
-        backendStatusBadge.setAttribute("data-status", "degraded");
-        statusText.textContent = "Backend Degraded";
-      }
-    } catch (err) {
-      backendStatusBadge.setAttribute("data-status", "offline");
-      statusText.textContent = "Backend Offline";
-    }
-  }
+  // ---------- Top-K Segmented Selection ----------
+  segmentedBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segmentedBtns.forEach((b) => {
+        b.classList.remove("active");
+        b.setAttribute("aria-checked", "false");
+      });
+      btn.classList.add("active");
+      btn.setAttribute("aria-checked", "true");
+      const val = btn.getAttribute("data-value");
+      topKValueInput.value = val;
+      topKDisplay.textContent = val;
+    });
+  });
 
-  // Initial check & interval polling (30s)
-  checkBackendHealth();
-  setInterval(checkBackendHealth, CONFIG.HEALTH_CHECK_INTERVAL_MS);
-
-  // ---------- File Selection & Drag-and-Drop ----------
+  // ---------- File Selection & Drag/Drop ----------
   function handleFileSelected(file) {
     if (!file) return;
 
     if (file.size > CONFIG.MAX_UPLOAD_BYTES) {
       showErrorBanner(
-        "File Too Large",
-        `Selected image (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 10 MB limit.`
+        "Tệp quá lớn",
+        `Hình ảnh đã chọn (${(file.size / (1024 * 1024)).toFixed(1)} MB) vượt quá giới hạn 10 MB.`
       );
       return;
     }
 
-    // Determine file extension (fallback to MIME type if missing filename)
     let ext = "";
     if (file.name && file.name.includes(".")) {
       ext = "." + file.name.split(".").pop().toLowerCase();
     } else if (file.type) {
       const mimeExt = file.type.split("/")[1]?.toLowerCase();
-      if (mimeExt) {
-        ext = mimeExt === "jpeg" ? ".jpg" : "." + mimeExt;
-      }
+      if (mimeExt) ext = mimeExt === "jpeg" ? ".jpg" : "." + mimeExt;
     }
 
     if (!CONFIG.ALLOWED_EXTENSIONS.includes(ext)) {
       showErrorBanner(
-        "Unsupported File Extension",
-        `File extension "${ext || "unknown"}" is not supported. Please select JPG, PNG, or WEBP.`
+        "Định dạng không được hỗ trợ",
+        `Định dạng tệp "${ext || "không xác định"}" không được hỗ trợ. Vui lòng chọn JPG, PNG hoặc WEBP.`
       );
       return;
     }
@@ -181,14 +172,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ---------- Clipboard Paste Event (Ctrl+V / Cmd+V) ----------
+  // ---------- Paste Event (Ctrl+V) ----------
   window.addEventListener("paste", (e) => {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
 
     const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
     if (!clipboardData) return;
 
-    // 1. Check for files array first (Windows Explorer copy/paste file)
     if (clipboardData.files && clipboardData.files.length > 0) {
       for (let i = 0; i < clipboardData.files.length; i++) {
         const file = clipboardData.files[i];
@@ -200,7 +190,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // 2. Check for clipboard items (Snipping Tool, Paint, Copy Image from Browser)
     const items = clipboardData.items || [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -210,52 +199,40 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!blob) continue;
 
         let ext = "png";
-        if (blob.type === "image/jpeg" || blob.type === "image/jpg") {
-          ext = "jpg";
-        } else if (blob.type === "image/webp") {
-          ext = "webp";
-        } else if (blob.type.includes("/")) {
-          ext = blob.type.split("/")[1];
-        }
+        if (blob.type === "image/jpeg" || blob.type === "image/jpg") ext = "jpg";
+        else if (blob.type === "image/webp") ext = "webp";
 
-        const rawName = blob.name && blob.name !== "image.png" && blob.name !== "blob" ? blob.name : "";
-        const fileName = rawName || `pasted-image-${Date.now()}.${ext}`;
+        const fileName = `pasted-image-${Date.now()}.${ext}`;
         const pastedFile = new File([blob], fileName, { type: blob.type || `image/${ext}` });
-
         handleFileSelected(pastedFile);
         return;
       }
     }
   });
 
-  topKSlider.addEventListener("input", (e) => {
-    topKDisplay.textContent = e.target.value;
-  });
-
-  // ---------- Banner Renderers ----------
+  // ---------- Error & Warning Banners ----------
   function showErrorBanner(title, message) {
     errorBannerContainer.innerHTML = "";
     const banner = document.createElement("div");
     banner.className = "alert-banner alert-banner-error";
     banner.setAttribute("role", "alert");
 
-    const icon = document.createElement("span");
-    icon.className = "alert-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = "⚠️";
+    const iconImg = document.createElement("img");
+    iconImg.src = "assets/svg/error-state.svg";
+    iconImg.className = "alert-icon";
+    iconImg.alt = "";
 
     const content = document.createElement("div");
     content.className = "alert-content";
 
     const h4 = document.createElement("h4");
     h4.textContent = title;
-
     const p = document.createElement("p");
     p.textContent = message;
 
     content.appendChild(h4);
     content.appendChild(p);
-    banner.appendChild(icon);
+    banner.appendChild(iconImg);
     banner.appendChild(content);
     errorBannerContainer.appendChild(banner);
     errorBannerContainer.style.display = "block";
@@ -267,23 +244,22 @@ document.addEventListener("DOMContentLoaded", () => {
     banner.className = "alert-banner alert-banner-warning";
     banner.setAttribute("role", "alert");
 
-    const icon = document.createElement("span");
-    icon.className = "alert-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = "⚠️";
+    const iconImg = document.createElement("img");
+    iconImg.src = "assets/svg/no-results.svg";
+    iconImg.className = "alert-icon";
+    iconImg.alt = "";
 
     const content = document.createElement("div");
     content.className = "alert-content";
 
     const h4 = document.createElement("h4");
     h4.textContent = title;
-
     const p = document.createElement("p");
     p.textContent = message;
 
     content.appendChild(h4);
     content.appendChild(p);
-    banner.appendChild(icon);
+    banner.appendChild(iconImg);
     banner.appendChild(content);
     warningBannerContainer.appendChild(banner);
     warningBannerContainer.style.display = "block";
@@ -296,19 +272,19 @@ document.addEventListener("DOMContentLoaded", () => {
     warningBannerContainer.style.display = "none";
   }
 
-  // ---------- Search Submission ----------
+  // ---------- Search Execution ----------
   btnSearch.addEventListener("click", async () => {
     if (!selectedFile || isSearching) return;
 
     isSearching = true;
     btnSearch.disabled = true;
     searchSpinner.style.display = "inline-block";
-    searchText.textContent = "Processing Vector Search...";
+    searchText.textContent = "Đang phân tích hình ảnh...";
     clearBanners();
 
-    const topK = parseInt(topKSlider.value, 10);
+    const topK = parseInt(topKValueInput.value, 10) || 5;
     const mode = modeSelect ? modeSelect.value : "image";
-    const category = categorySelect ? categorySelect.value : "fruit";
+    const category = categorySelect ? categorySelect.value : "all";
 
     try {
       const response = await ApiClient.retrieveImage(selectedFile, topK, mode, category);
@@ -320,11 +296,11 @@ document.addEventListener("DOMContentLoaded", () => {
       isSearching = false;
       btnSearch.disabled = !selectedFile;
       searchSpinner.style.display = "none";
-      searchText.textContent = "Find Similar Images";
+      searchText.textContent = "Tìm hình ảnh tương đồng";
     }
   });
 
-  // ---------- Render Results Cards (DOM API) ----------
+  // ---------- Render Search Results ----------
   function renderResults(response) {
     if (initialEmptyState) {
       initialEmptyState.style.display = "none";
@@ -335,284 +311,159 @@ document.addEventListener("DOMContentLoaded", () => {
     resTime.textContent = String(response.processing_time_ms || 0);
     resultsHeader.style.display = "flex";
 
-    // Setup Query Image vs Top Match comparison section
     if (queryDataUrl) {
       queryComparisonImg.src = queryDataUrl;
       comparisonContainer.style.display = "flex";
     }
 
-    // Clear previous results
     resultsGrid.innerHTML = "";
     topMatchMedia.innerHTML = "";
 
     if (results.length === 0) {
       const emptyDiv = document.createElement("div");
       emptyDiv.className = "empty-state";
-      emptyDiv.style.gridColumn = "1 / -1";
 
-      const icon = document.createElement("div");
-      icon.className = "empty-state-icon";
-      icon.textContent = "🍃";
+      const iconImg = document.createElement("img");
+      iconImg.src = "assets/svg/empty-search.svg";
+      iconImg.className = "empty-state-icon";
+      iconImg.alt = "";
 
       const h3 = document.createElement("h3");
-      h3.textContent = "No Similar Images Found";
-
+      h3.textContent = "Không tìm thấy kết quả tương đồng";
       const p = document.createElement("p");
-      p.textContent = "The vector search returned zero matches for your query image.";
+      p.textContent = "Không có mẫu trái cây nào phù hợp với bộ lọc và ảnh truy vấn của bạn.";
 
-      emptyDiv.appendChild(icon);
+      emptyDiv.appendChild(iconImg);
       emptyDiv.appendChild(h3);
       emptyDiv.appendChild(p);
       resultsGrid.appendChild(emptyDiv);
       return;
     }
 
-    // Check similarity thresholds for reliability warning
     const topResult = results[0];
     const topSim = topResult && typeof topResult.similarity === "number" ? topResult.similarity : 0;
 
     if (topSim < CONFIG.LOW_SIMILARITY_THRESHOLD) {
       showWarningBanner(
-        "No close match was found in the current dataset.",
-        "Không tìm thấy loại trái cây đủ tương đồng trong dữ liệu hiện tại."
+        "Kết quả có độ tương đồng thấp",
+        "Ảnh truy vấn có thể nằm ngoài phạm vi dữ liệu hiện tại."
       );
     }
 
-    // Populate Top Match in Comparison Container
     if (topResult) {
-      const displayName = topResult.display_name || topResult.canonical_class || "Unknown";
+      const displayNameVi = topResult.display_name_vi;
+      const displayNameEn = topResult.display_name || topResult.canonical_class;
+      const displayName = displayNameVi ? `${displayNameVi} (${displayNameEn})` : displayNameEn;
+
       if (Utils.isSafeImageUrl(topResult.image_url)) {
         const topImg = document.createElement("img");
         topImg.src = topResult.image_url;
         topImg.alt = `Top match: ${displayName}`;
         topMatchMedia.appendChild(topImg);
-      } else {
-        const topPlaceholder = document.createElement("div");
-        topPlaceholder.className = "card-placeholder";
-        const pIcon = document.createElement("span");
-        pIcon.className = "fruit-icon";
-        pIcon.textContent = "🍎";
-        const pText = document.createElement("span");
-        pText.className = "placeholder-class";
-        pText.textContent = displayName;
-        topPlaceholder.appendChild(pIcon);
-        topPlaceholder.appendChild(pText);
-        topMatchMedia.appendChild(topPlaceholder);
       }
     }
 
-    // Render individual result cards using DOM Methods (No unsafe innerHTML)
+    // Render Cards
     results.forEach((item, index) => {
       const rank = index + 1;
-      const originalClass = item.original_class || "unknown";
       const canonicalClass = item.canonical_class || "unknown";
+      const originalClass = item.original_class || "unknown";
+      const displayNameVi = item.display_name_vi;
       const displayNameEn = item.display_name || canonicalClass;
-      const displayNameVi = item.display_name_vi || null;
       const displayName = displayNameVi ? `${displayNameVi} (${displayNameEn})` : displayNameEn;
       const datasetName = item.dataset_name || "Fruits-360";
-      const hitCount = item.hit_count ? ` (${item.hit_count} hits)` : "";
-      const filename = item.filename || "unknown";
-      const originalSplit = item.original_split || "unknown";
-      const relativePath = item.relative_path || "";
       const similarityObj = Utils.formatSimilarity(item.similarity);
 
       const card = document.createElement("article");
       card.className = "result-card";
 
-      // --- Media Container ---
-      const mediaDiv = document.createElement("div");
-      mediaDiv.className = "card-media";
+      // Card Header & Image
+      const headerDiv = document.createElement("div");
+      headerDiv.className = "card-header";
 
       const rankBadge = document.createElement("span");
       rankBadge.className = "rank-badge";
       rankBadge.textContent = `#${rank}`;
-      mediaDiv.appendChild(rankBadge);
+      headerDiv.appendChild(rankBadge);
 
-      const hasSafeUrl = Utils.isSafeImageUrl(item.image_url);
+      const mediaDiv = document.createElement("div");
+      mediaDiv.className = "card-media";
 
-      if (hasSafeUrl) {
-        // Skeleton shimmer overlay
-        const skeleton = document.createElement("div");
-        skeleton.className = "card-skeleton";
-        mediaDiv.appendChild(skeleton);
-
+      if (Utils.isSafeImageUrl(item.image_url)) {
         const img = document.createElement("img");
         img.setAttribute("loading", "lazy");
         img.setAttribute("decoding", "async");
-        img.alt = `Similar fruit match: ${displayName}`;
-
-        img.addEventListener("load", () => {
-          skeleton.remove();
-          img.classList.add("loaded");
-        });
-
-        img.addEventListener("error", () => {
-          skeleton.remove();
-          img.remove();
-          mediaDiv.appendChild(createPlaceholderElement(displayName, "Image load error"));
-        });
-
+        img.alt = `Mẫu tương đồng: ${displayName}`;
         img.src = item.image_url;
         mediaDiv.appendChild(img);
-      } else {
-        mediaDiv.appendChild(createPlaceholderElement(displayName, "Preview unavailable"));
       }
+      headerDiv.appendChild(mediaDiv);
 
-      // Click media to open Modal Lightbox
-      mediaDiv.addEventListener("click", () => {
-        openModal(item, queryDataUrl);
-      });
-
-      // --- Body Container ---
+      // Card Body
       const bodyDiv = document.createElement("div");
       bodyDiv.className = "card-body";
 
-      const titleHeader = document.createElement("div");
-      const titleH3 = document.createElement("h3");
-      titleH3.className = "card-class-title";
-      titleH3.textContent = displayName;
+      const titleEl = document.createElement("h3");
+      titleEl.className = "card-title";
+      titleEl.textContent = displayName;
 
-      const rawLabelP = document.createElement("p");
-      rawLabelP.className = "card-class-original";
-      rawLabelP.textContent = `Label: ${originalClass} • ${datasetName}${hitCount}`;
+      const subtitleEl = document.createElement("p");
+      subtitleEl.className = "card-subtitle";
+      subtitleEl.textContent = `Nhãn gốc: ${originalClass} · ${datasetName}`;
 
-      titleHeader.appendChild(titleH3);
-      titleHeader.appendChild(rawLabelP);
-      bodyDiv.appendChild(titleHeader);
+      bodyDiv.appendChild(titleEl);
+      bodyDiv.appendChild(subtitleEl);
 
-      // --- Similarity Bar ---
+      // Similarity Bar
       const simBox = document.createElement("div");
       simBox.className = `similarity-box ${similarityObj.levelClass}`;
-
-      const simHeader = document.createElement("div");
-      simHeader.className = "similarity-header";
-
-      const simLabel = document.createElement("span");
-      simLabel.className = "similarity-label";
-      simLabel.textContent = "Similarity";
-
-      const simValue = document.createElement("span");
-      simValue.className = "similarity-value";
-      simValue.textContent = similarityObj.percentageText;
-
-      simHeader.appendChild(simLabel);
-      simHeader.appendChild(simValue);
-
-      const simTrack = document.createElement("div");
-      simTrack.className = "similarity-track";
-      simTrack.setAttribute("role", "progressbar");
-      simTrack.setAttribute("aria-valuenow", (item.similarity * 100).toFixed(1));
-      simTrack.setAttribute("aria-valuemin", "-100");
-      simTrack.setAttribute("aria-valuemax", "100");
-
-      const simFill = document.createElement("div");
-      simFill.className = "similarity-fill";
-      simFill.style.width = similarityObj.visualWidth;
-
-      simTrack.appendChild(simFill);
-      simBox.appendChild(simHeader);
-      simBox.appendChild(simTrack);
+      simBox.innerHTML = `
+        <div class="similarity-header">
+          <span class="similarity-label">Độ tương đồng</span>
+          <span class="similarity-value">${similarityObj.percentageText}</span>
+        </div>
+        <div class="similarity-track" role="progressbar" aria-valuenow="${(item.similarity * 100).toFixed(1)}" aria-valuemin="0" aria-valuemax="100">
+          <div class="similarity-fill" style="width: ${similarityObj.visualWidth};"></div>
+        </div>
+      `;
       bodyDiv.appendChild(simBox);
 
-      // --- Compact Metadata Summary ---
-      const summaryDiv = document.createElement("div");
-      summaryDiv.className = "card-details";
+      // Detail Button CTA
+      const actionsDiv = document.createElement("div");
+      actionsDiv.className = "card-actions";
+      const btnDetail = document.createElement("button");
+      btnDetail.type = "button";
+      btnDetail.className = "btn btn-secondary btn-sm";
+      btnDetail.textContent = "Xem chi tiết";
+      btnDetail.addEventListener("click", () => openModal(item, btnDetail));
 
-      const fileLine = document.createElement("div");
-      const fileStrong = document.createElement("strong");
-      fileStrong.textContent = "File: ";
-      fileLine.appendChild(fileStrong);
-      fileLine.appendChild(document.createTextNode(filename));
+      actionsDiv.appendChild(btnDetail);
+      bodyDiv.appendChild(actionsDiv);
 
-      const splitLine = document.createElement("div");
-      const splitStrong = document.createElement("strong");
-      splitStrong.textContent = "Split: ";
-      splitLine.appendChild(splitStrong);
-      splitLine.appendChild(document.createTextNode(originalSplit));
-
-      summaryDiv.appendChild(fileLine);
-      summaryDiv.appendChild(splitLine);
-
-      // --- Collapsible Technical Details ---
-      const detailsToggleBtn = document.createElement("button");
-      detailsToggleBtn.type = "button";
-      detailsToggleBtn.className = "card-details-toggle";
-      detailsToggleBtn.textContent = "▶ Technical Details";
-
-      const hiddenDetailsDiv = document.createElement("div");
-      hiddenDetailsDiv.style.display = "none";
-      hiddenDetailsDiv.className = "card-details";
-      hiddenDetailsDiv.style.marginTop = "0.25rem";
-
-      const pathLine = document.createElement("div");
-      const pathStrong = document.createElement("strong");
-      pathStrong.textContent = "Path: ";
-      pathLine.appendChild(pathStrong);
-      pathLine.appendChild(document.createTextNode(relativePath));
-
-      const rawSimLine = document.createElement("div");
-      const rawSimStrong = document.createElement("strong");
-      rawSimStrong.textContent = "Raw Similarity: ";
-      rawSimLine.appendChild(rawSimStrong);
-      rawSimLine.appendChild(document.createTextNode(String(item.similarity)));
-
-      hiddenDetailsDiv.appendChild(pathLine);
-      hiddenDetailsDiv.appendChild(rawSimLine);
-
-      detailsToggleBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const isHidden = hiddenDetailsDiv.style.display === "none";
-        hiddenDetailsDiv.style.display = isHidden ? "block" : "none";
-        detailsToggleBtn.textContent = isHidden ? "▼ Technical Details" : "▶ Technical Details";
-      });
-
-      bodyDiv.appendChild(summaryDiv);
-      bodyDiv.appendChild(detailsToggleBtn);
-      bodyDiv.appendChild(hiddenDetailsDiv);
-
-      card.appendChild(mediaDiv);
+      card.appendChild(headerDiv);
       card.appendChild(bodyDiv);
       resultsGrid.appendChild(card);
     });
   }
 
-  function createPlaceholderElement(displayName, noteText) {
-    const placeholder = document.createElement("div");
-    placeholder.className = "card-placeholder";
+  // ---------- Detail Modal Logic ----------
+  function openModal(item, triggerBtn) {
+    lastFocusedElement = triggerBtn || document.activeElement;
 
-    const fruitIcon = document.createElement("span");
-    fruitIcon.className = "fruit-icon";
-    fruitIcon.setAttribute("aria-hidden", "true");
-    fruitIcon.textContent = "🍇";
-
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "placeholder-class";
-    nameSpan.textContent = displayName;
-
-    const noteSpan = document.createElement("span");
-    noteSpan.className = "placeholder-note";
-    noteSpan.textContent = noteText;
-
-    placeholder.appendChild(fruitIcon);
-    placeholder.appendChild(nameSpan);
-    placeholder.appendChild(noteSpan);
-    return placeholder;
-  }
-
-  // ---------- Modal / Lightbox Logic ----------
-  function openModal(item, queryImgUrl) {
-    const displayName = item.display_name || item.canonical_class || "Unknown";
+    const canonicalClass = item.canonical_class || "unknown";
     const originalClass = item.original_class || "unknown";
+    const displayNameVi = item.display_name_vi;
+    const displayNameEn = item.display_name || canonicalClass;
+    const displayName = displayNameVi ? `${displayNameVi} (${displayNameEn})` : displayNameEn;
+    const datasetName = item.dataset_name || "Fruits-360";
     const filename = item.filename || "unknown";
-    const originalSplit = item.original_split || "unknown";
-    const relativePath = item.relative_path || "";
     const similarityObj = Utils.formatSimilarity(item.similarity);
 
     modalTitle.textContent = displayName;
-    modalOriginalClass.textContent = `Dataset label: ${originalClass}`;
+    modalCanonicalClass.textContent = canonicalClass;
+    modalOriginalClass.textContent = originalClass;
+    modalDataset.textContent = datasetName;
     modalFilename.textContent = filename;
-    modalSplit.textContent = originalSplit;
-    modalPath.textContent = relativePath;
 
     modalMediaWrapper.innerHTML = "";
     if (Utils.isSafeImageUrl(item.image_url)) {
@@ -620,14 +471,12 @@ document.addEventListener("DOMContentLoaded", () => {
       modalImg.src = item.image_url;
       modalImg.alt = displayName;
       modalMediaWrapper.appendChild(modalImg);
-    } else {
-      modalMediaWrapper.appendChild(createPlaceholderElement(displayName, "Preview unavailable"));
     }
 
     modalSimilarityBox.className = `similarity-box ${similarityObj.levelClass}`;
     modalSimilarityBox.innerHTML = `
       <div class="similarity-header">
-        <span class="similarity-label">Similarity</span>
+        <span class="similarity-label">Độ tương đồng</span>
         <span class="similarity-value">${similarityObj.percentageText}</span>
       </div>
       <div class="similarity-track">
@@ -635,13 +484,24 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
+    // Trustworthy Knowledge Base section (no fake data)
+    modalKnowledgeContainer.innerHTML = "";
+    const emptyKnowledge = document.createElement("div");
+    emptyKnowledge.className = "knowledge-empty";
+    emptyKnowledge.textContent = "Chưa có dữ liệu tri thức thực vật đáng tin cậy cho loài này trong cơ sở dữ liệu.";
+    modalKnowledgeContainer.appendChild(emptyKnowledge);
+
     imageModal.style.display = "flex";
     document.body.style.overflow = "hidden";
+    modalClose.focus();
   }
 
   function closeModal() {
     imageModal.style.display = "none";
     document.body.style.overflow = "";
+    if (lastFocusedElement) {
+      lastFocusedElement.focus();
+    }
   }
 
   modalClose.addEventListener("click", closeModal);
@@ -650,6 +510,7 @@ document.addEventListener("DOMContentLoaded", () => {
       closeModal();
     }
   });
+
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && imageModal.style.display === "flex") {
       closeModal();

@@ -1,151 +1,205 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fruvia AI — AI-Powered Fruit Recognition & Retrieval</title>
+  <title>Fruvia AI — Tìm kiếm hình ảnh trái cây bằng AI</title>
+  <meta name="description" content="Nền tảng truy vấn hình ảnh trái cây thông minh dựa trên DINOv2 Vector Embeddings và Qdrant Vector Search.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://fruvia.ai/">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Fruvia AI — Tìm kiếm hình ảnh trái cây bằng AI">
+  <meta property="og:description" content="Nền tảng truy vấn hình ảnh trái cây thông minh dựa trên DINOv2 Vector Embeddings và Qdrant Vector Search.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://fruvia.ai/">
+  <meta property="og:image" content="assets/svg/brand-lockup.svg">
+
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
-  <style>
-    .landing-hero {
-      padding: var(--space-2xl) 0;
-      text-align: center;
-      background: radial-gradient(circle at top, var(--color-primary-light) 0%, transparent 70%);
-    }
-    .landing-hero h1 {
-      font-size: 3rem;
-      font-weight: 800;
-      margin-bottom: var(--space-md);
-      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-      background-clip: text;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: var(--space-xl);
-      margin: var(--space-2xl) 0;
-    }
-    .feature-card {
-      background-color: var(--color-bg-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-xl);
-      padding: var(--space-xl);
-      box-shadow: var(--shadow-md);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-md);
-      position: relative;
-    }
-    .feature-card.coming-soon {
-      opacity: 0.85;
-      background-color: var(--color-bg-subtle);
-    }
-    .feature-badge {
-      align-self: flex-start;
-      font-size: 0.75rem;
-      font-weight: 700;
-      padding: 0.25rem 0.75rem;
-      border-radius: var(--radius-full);
-      text-transform: uppercase;
-    }
-    .badge-active {
-      background-color: var(--color-primary-light);
-      color: var(--color-primary);
-      border: 1px solid var(--color-primary-border);
-    }
-    .badge-disabled {
-      background-color: #e2e8f0;
-      color: var(--color-text-muted);
-    }
-  </style>
+  <link rel="stylesheet" href="css/home.css">
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Fruvia AI",
+    "url": "https://fruvia.ai/",
+    "description": "Nền tảng tìm kiếm hình ảnh trái cây bằng DINOv2 Embeddings và Qdrant Vector Search."
+  }
+  </script>
 </head>
 <body>
+  <!-- Header Navbar -->
   <header class="site-header">
     <div class="container header-inner">
-      <a href="index.html" class="brand-logo" aria-label="Fruvia AI Homepage">
-        <span class="logo-icon" aria-hidden="true">🍇</span>
-        <span>Fruvia AI</span>
-        <span class="brand-badge">v1.0</span>
+      <a href="/" class="brand-logo" aria-label="Fruvia AI - Trang chủ">
+        <img src="assets/svg/brand-lockup.svg" alt="Fruvia AI Logo" width="160" height="32">
       </a>
-      <div class="header-status">
-        <div id="backend-status" class="status-badge" data-status="unknown" aria-live="polite">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span id="status-text">Checking Backend...</span>
-        </div>
-        <a href="retrieval.html" class="btn btn-primary btn-sm">Try Image Search</a>
+
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <a href="#overview" class="nav-link">Tổng quan</a>
+        <a href="#how-it-works" class="nav-link">Cách hoạt động</a>
+        <a href="#technology" class="nav-link">Công nghệ</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="/search" class="btn btn-primary btn-sm">Thử tìm kiếm ảnh</a>
       </div>
     </div>
   </header>
 
-  <main class="container">
-    <section class="landing-hero">
-      <h1>AI-Powered Fruit Intelligence</h1>
-      <p class="hero-subtitle">
-        Explore visually similar fruits using deep learning feature representations (DINOv2) and Qdrant vector database search.
-      </p>
+  <main>
+    <!-- Hero Section -->
+    <section class="container hero-section" id="overview">
+      <div class="hero-content">
+        <span class="badge badge-primary hero-badge">AI-Powered Visual Retrieval</span>
+        <h1 class="hero-title">Tìm kiếm hình ảnh trái cây bằng trí tuệ nhân tạo</h1>
+        <p class="hero-subtitle">
+          Tải lên một hình ảnh và tìm các mẫu trái cây tương đồng bằng DINOv2 embeddings và Qdrant Vector Search.
+        </p>
+        <div class="hero-actions">
+          <a href="/search" class="btn btn-primary btn-lg">Thử tìm kiếm</a>
+          <a href="#how-it-works" class="btn btn-secondary btn-lg">Tìm hiểu cách hoạt động</a>
+        </div>
+      </div>
+      <div class="hero-illustration">
+        <img src="assets/svg/vector-network.svg" alt="Mô phỏng kiến trúc tìm kiếm vector DINOv2 và Qdrant" width="560" height="300">
+      </div>
     </section>
 
-    <section class="features-grid">
-      <!-- Feature 1: Image Retrieval (Active) -->
-      <article class="feature-card">
-        <span class="feature-badge badge-active">Active Capability</span>
-        <h2>Visual Image Retrieval</h2>
-        <p>
-          Upload any fruit image to find visually similar fruit samples from our dataset. Uses 768-dimensional DINOv2 embeddings and cosine similarity search.
-        </p>
-        <div style="margin-top: auto;">
-          <a href="retrieval.html" class="btn btn-primary" style="width: 100%;">
-            Try Visual Search →
-          </a>
+    <!-- System Stats Section -->
+    <section class="stats-section">
+      <div class="container">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value">328,190</span>
+            <span class="stat-label">Vector Embeddings</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">284</span>
+            <span class="stat-label">Canonical Classes</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">2</span>
+            <span class="stat-label">Image Datasets</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">768D</span>
+            <span class="stat-label">DINOv2 Features</span>
+          </div>
         </div>
-      </article>
+      </div>
+    </section>
 
-      <!-- Feature 2: Fruit Classification (Coming Soon) -->
-      <article class="feature-card coming-soon">
-        <span class="feature-badge badge-disabled">Coming Soon</span>
-        <h2>Fruit Classification</h2>
-        <p>
-          Automated fruit species identification using ConvNeXt-Tiny deep classifier models with top-3 predictions and confidence scoring.
-        </p>
-        <div style="margin-top: auto;">
-          <button class="btn btn-secondary" disabled style="width: 100%;">
-            Under Development
-          </button>
+    <!-- How It Works Section -->
+    <section class="container section-padding" id="how-it-works">
+      <div class="section-header">
+        <h2>Cách hoạt động của Fruvia AI</h2>
+        <p>Quy trình trích xuất đặc trưng thị giác và tìm kiếm vector tương đồng theo thời gian thực.</p>
+      </div>
+
+      <div class="steps-grid">
+        <article class="step-card">
+          <span class="step-num">Bước 1</span>
+          <img src="assets/svg/upload-illustration.svg" alt="" class="step-illustration" aria-hidden="true">
+          <h3>Upload ảnh</h3>
+          <p>Người dùng tải lên hoặc kéo thả một hình ảnh trái cây cần tra cứu vào hệ thống.</p>
+        </article>
+
+        <article class="step-card">
+          <span class="step-num">Bước 2</span>
+          <img src="assets/svg/dinov2-embedding.svg" alt="" class="step-illustration" aria-hidden="true">
+          <h3>Tạo embedding</h3>
+          <p>Mô hình DINOv2 trích xuất đặc trưng thị giác của ảnh thành vector 768 chiều chuẩn hóa.</p>
+        </article>
+
+        <article class="step-card">
+          <span class="step-num">Bước 3</span>
+          <img src="assets/svg/qdrant-search.svg" alt="" class="step-illustration" aria-hidden="true">
+          <h3>Vector Search</h3>
+          <p>Qdrant Cloud thực hiện thuật toán tìm kiếm Nearest Neighbors dựa trên Cosine Similarity.</p>
+        </article>
+
+        <article class="step-card">
+          <span class="step-num">Bước 4</span>
+          <img src="assets/svg/image-comparison.svg" alt="" class="step-illustration" aria-hidden="true">
+          <h3>Hiển thị kết quả</h3>
+          <p>Hệ thống trả về Top-K kết quả tương đồng nhất kèm thông tin taxonomy chi tiết.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Technology Section -->
+    <section class="tech-section section-padding" id="technology">
+      <div class="container">
+        <div class="section-header">
+          <h2>Công nghệ cốt lõi</h2>
+          <p>Khai phá sức mạnh của các mô hình nền tảng thị giác máy tính và cơ sở dữ liệu vector.</p>
         </div>
-      </article>
+
+        <div class="tech-grid">
+          <article class="tech-card">
+            <img src="assets/svg/dinov2-embedding.svg" alt="" class="tech-icon" aria-hidden="true">
+            <h3>DINOv2 Embeddings</h3>
+            <p>Trích xuất đặc trưng thị giác thành vector 768 chiều không phụ thuộc vào nhãn thủ công, giúp nắm bắt hình dáng và kết cấu quả chính xác.</p>
+          </article>
+
+          <article class="tech-card">
+            <img src="assets/svg/qdrant-search.svg" alt="" class="tech-icon" aria-hidden="true">
+            <h3>Qdrant Vector DB</h3>
+            <p>Tìm kiếm nearest neighbors bằng vector similarity search trên hàng trăm nghìn mẫu dữ liệu với độ trễ thấp ở quy mô đám mây.</p>
+          </article>
+
+          <article class="tech-card">
+            <img src="assets/svg/knowledge-base.svg" alt="" class="tech-icon" aria-hidden="true">
+            <h3>Canonical Knowledge</h3>
+            <p>Chuẩn hóa các nhãn từ nhiều dataset gốc (Fruits-360, Fruits-262) về một định danh loài sinh học chung kèm tên gọi Anh - Việt.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final Call to Action -->
+    <section class="container">
+      <div class="cta-section">
+        <h2>Sẵn sàng thử Fruvia AI?</h2>
+        <p>Trải nghiệm khả năng tìm kiếm và tra cứu hình ảnh trái cây theo thời gian thực.</p>
+        <a href="/search" class="btn btn-primary btn-lg">Tìm kiếm hình ảnh</a>
+      </div>
     </section>
   </main>
 
+  <!-- Footer -->
   <footer class="site-footer">
     <div class="container">
-      <p>© 2026 Fruvia AI. Built for fruit recognition and vector search capabilities.</p>
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <img src="assets/svg/brand-lockup.svg" alt="Fruvia AI" width="140" height="28">
+          <p>Nền tảng tìm kiếm và nhận diện hình ảnh trái cây thông minh bằng DINOv2 và Qdrant Vector Search.</p>
+        </div>
+        <div>
+          <h4 class="footer-col-title">Điều hướng</h4>
+          <ul class="footer-links">
+            <li><a href="/">Trang chủ</a></li>
+            <li><a href="/search">Tìm kiếm ảnh</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer-col-title">Công nghệ</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/facebookresearch/dinov2" target="_blank" rel="noopener noreferrer">Meta DINOv2</a></li>
+            <li><a href="https://qdrant.tech/" target="_blank" rel="noopener noreferrer">Qdrant Cloud</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 Fruvia AI. Bảo lưu mọi quyền.</p>
+      </div>
     </div>
   </footer>
-
-  <script src="js/config.js"></script>
-  <script src="js/api.js"></script>
-  <script>
-    // Header health ping
-    document.addEventListener("DOMContentLoaded", async () => {
-      const badge = document.getElementById("backend-status");
-      const statusText = document.getElementById("status-text");
-      try {
-        const health = await ApiClient.getHealth();
-        if (health.status === "ok") {
-          badge.setAttribute("data-status", "online");
-          statusText.textContent = "Backend Online";
-        } else {
-          badge.setAttribute("data-status", "degraded");
-          statusText.textContent = "Backend Degraded";
-        }
-      } catch (err) {
-        badge.setAttribute("data-status", "offline");
-        statusText.textContent = "Backend Offline";
-      }
-    });
-  </script>
 </body>
 </html>

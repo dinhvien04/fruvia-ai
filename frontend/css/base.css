@@ -1,5 +1,5 @@
 /* ============================================================
-   Fruvia AI — Base Styles & Resets
+   Fruvia AI — Base Styles & Global Resets
    ============================================================ */
 
 *, *::before, *::after {
@@ -9,7 +9,7 @@
 }
 
 html {
-  font-family: var(--font-family);
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.5;
   color: var(--color-text-main);
@@ -22,6 +22,8 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  color: var(--color-text-main);
+  background-color: var(--color-bg-base);
 }
 
 main {
@@ -31,11 +33,15 @@ main {
 /* Container */
 .container {
   width: 100%;
-  max-width: var(--max-width);
+  max-width: var(--container-max);
   margin-left: auto;
   margin-right: auto;
-  padding-left: var(--space-md);
-  padding-right: var(--space-md);
+  padding-left: var(--space-xl);
+  padding-right: var(--space-xl);
+}
+
+.container-narrow {
+  max-width: var(--container-narrow);
 }
 
 /* Typography */
@@ -43,14 +49,17 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   line-height: 1.25;
   color: var(--color-text-main);
+  letter-spacing: -0.02em;
 }
 
-h1 { font-size: 2.25rem; }
-h2 { font-size: 1.75rem; }
-h3 { font-size: 1.25rem; }
+h1 { font-size: var(--font-4xl); }
+h2 { font-size: var(--font-2xl); }
+h3 { font-size: var(--font-xl); }
+h4 { font-size: var(--font-lg); }
 
 p {
   color: var(--color-text-muted);
+  line-height: 1.6;
 }
 
 a {
@@ -63,10 +72,11 @@ a:hover {
   color: var(--color-primary-hover);
 }
 
-/* Focus styles for Accessibility */
+/* Accessibility Focus Ring */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-primary-600);
   outline-offset: 2px;
+  border-radius: var(--radius-xs);
 }
 
 button, input, select, textarea {
@@ -86,7 +96,7 @@ img, svg {
   height: auto;
 }
 
-/* Screen reader only utility */
+/* Screen reader utility */
 .sr-only {
   position: absolute;
   width: 1px;
