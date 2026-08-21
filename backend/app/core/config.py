@@ -65,11 +65,29 @@ class Settings(BaseSettings):
         default=0.65, ge=0.0, le=1.0, description="Minimum confidence to accept a prediction"
     )
 
-    # --- Qdrant ---
+    # --- Qdrant & Gallery Collections ---
     qdrant_url: str | None = Field(default=None, description="Qdrant Cloud endpoint URL")
     qdrant_api_key: str | None = Field(default=None, description="Qdrant Cloud API key")
     qdrant_collection: str = Field(default="fruvia_fruits360_original_dinov2_base_v1")
+    fruvia_gallery_collection: str | None = Field(
+        default=None,
+        description="Optional future unified gallery collection override (falls back to qdrant_collection)",
+    )
     qdrant_timeout: int = Field(default=10, description="Qdrant request timeout in seconds")
+
+    # --- Search Quality Thresholds (Provisional / Configurable) ---
+    quality_high_threshold: float = Field(
+        default=0.80,
+        ge=0.0,
+        le=1.0,
+        description="Provisional cosine similarity threshold for 'high_similarity'",
+    )
+    quality_medium_threshold: float = Field(
+        default=0.65,
+        ge=0.0,
+        le=1.0,
+        description="Provisional cosine similarity threshold for 'medium_similarity'",
+    )
 
     # --- Search Behavior ---
     class_search_candidate_multiplier: int = Field(
@@ -119,6 +137,16 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
 
     # --- Derived properties ---
+
+    @property
+    def active_gallery_collection(self) -> str:
+        """
+        Return the active gallery collection name.
+        Uses FRUVIA_GALLERY_COLLECTION if specified; otherwise safely falls back to QDRANT_COLLECTION.
+        """
+        if self.fruvia_gallery_collection and self.fruvia_gallery_collection.strip():
+            return self.fruvia_gallery_collection.strip()
+        return self.qdrant_collection
 
     @property
     def max_upload_bytes(self) -> int:

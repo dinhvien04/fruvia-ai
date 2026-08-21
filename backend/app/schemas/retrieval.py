@@ -15,6 +15,25 @@ class QueryInfo(BaseModel):
     filename: str = Field(..., description="Original filename of the query image")
 
 
+class RetrievalTiming(BaseModel):
+    """Execution timing breakdown in milliseconds."""
+
+    validation_ms: float = Field(..., description="Image validation and decoding duration in ms")
+    embedding_ms: float = Field(..., description="DINOv2 feature extraction duration in ms")
+    vector_search_ms: float = Field(..., description="Qdrant vector search duration in ms")
+    total_ms: float = Field(..., description="Total end-to-end processing duration in ms")
+
+
+class RetrievalQuality(BaseModel):
+    """Provisional search quality assessment based on top similarity score."""
+
+    top_similarity: float = Field(..., ge=-1.0, le=1.0, description="Highest similarity score among retrieved results")
+    quality: Literal["high_similarity", "medium_similarity", "low_similarity"] = Field(
+        ...,
+        description="Provisional similarity category (configured via thresholds, subject to validation calibration)",
+    )
+
+
 class RetrievalResult(BaseModel):
     """A single retrieval result from vector database."""
 
@@ -69,3 +88,9 @@ class RetrievalResponse(BaseModel):
     results: list[RetrievalResult] = Field(..., description="Retrieved similar items")
     result_count: int = Field(..., description="Number of items returned in results")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")
+    timing: RetrievalTiming | None = Field(
+        default=None, description="Detailed stage-by-stage execution timing"
+    )
+    quality_meta: RetrievalQuality | None = Field(
+        default=None, description="Provisional search quality indicator"
+    )

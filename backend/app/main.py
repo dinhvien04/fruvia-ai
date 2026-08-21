@@ -97,11 +97,13 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, generic_error_handler)  # type: ignore[arg-type]
 
     # --- API Routes ---
+    from app.api.routes_fruits import router as species_router
     from app.api.routes_health import router as health_router
     from app.api.routes_retrieval import router as retrieval_router
 
     app.include_router(health_router, prefix="/api")
     app.include_router(retrieval_router, prefix="/api")
+    app.include_router(species_router, prefix="/api")
 
     # --- Serve Frontend Web Application Pages & Static Assets ---
     if FRONTEND_DIR.exists():

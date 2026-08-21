@@ -28,6 +28,7 @@ class TaxonomyItem:
     name_vi: str | None = None
     category: str = "other"  # fruit | vegetable | nut | seed | other
     is_fruit: bool = True
+    aliases: list[str] | None = None
 
 
 class TaxonomyManager:
@@ -61,6 +62,9 @@ class TaxonomyManager:
                 for key, val in tax_dict.items():
                     if not isinstance(val, dict):
                         continue
+                    raw_aliases = val.get("aliases", [])
+                    aliases_list = [str(a).strip() for a in raw_aliases if str(a).strip()] if isinstance(raw_aliases, list) else []
+
                     item = TaxonomyItem(
                         canonical_class=key,
                         name_en=val.get("name_en", key.replace("_", " ").title()),
@@ -69,14 +73,13 @@ class TaxonomyManager:
                             "category", "fruit" if val.get("is_fruit", True) else "other"
                         ),
                         is_fruit=val.get("is_fruit", True),
+                        aliases=aliases_list,
                     )
                     self._taxonomy_items[key] = item
                     self._alias_to_canonical[key.lower()] = key
 
-                    aliases = val.get("aliases", [])
-                    if isinstance(aliases, list):
-                        for alias in aliases:
-                            self._alias_to_canonical[str(alias).lower().strip()] = key
+                    for alias in aliases_list:
+                        self._alias_to_canonical[alias.lower()] = key
             except Exception as e:
                 logger.warning("Failed to load taxonomy from %s: %s", self.taxonomy_path, e)
 
@@ -100,6 +103,37 @@ class TaxonomyManager:
         """Retrieve TaxonomyItem by canonical_class slug."""
         self.load()
         return self._taxonomy_items.get(canonical_class)
+
+    def list_items(
+        self,
+        category: str | None = None,
+        search_query: str | None = None,
+    ) -> list[TaxonomyItem]:
+        """
+        List taxonomy items with optional category filtering and keyword search.
+        Only returns verified data from configs/taxonomy.yaml.
+        """
+        self.load()
+        results: list[TaxonomyItem] = []
+
+        cat_clean = category.lower().strip() if category else "all"
+        query_clean = search_query.lower().strip() if search_query else ""
+
+        for item in self._taxonomy_items.values():
+            if cat_clean not in {"all", ""} and item.category != cat_clean:
+                continue
+
+            if query_clean:
+                id_match = query_clean in item.canonical_class.lower()
+                en_match = query_clean in item.name_en.lower()
+                vi_match = item.name_vi and query_clean in item.name_vi.lower()
+                alias_match = item.aliases and any(query_clean in a.lower() for a in item.aliases)
+                if not (id_match or en_match or vi_match or alias_match):
+                    continue
+
+            results.append(item)
+
+        return results
 
     def resolve(
         self,

@@ -74,6 +74,18 @@ async def health_check(
     return HealthResponse(**result_data)  # type: ignore[arg-type]
 
 
+@router.get("/live")
+async def liveness_check() -> JSONResponse:
+    """
+    Liveness probe endpoint for Kubernetes / process monitors.
+    Confirms the application event loop and process are alive without querying external backends.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"status": "live"},
+    )
+
+
 @router.get("/ready")
 async def readiness_check(
     encoder: Annotated[ImageEncoder, Depends(get_image_encoder)],

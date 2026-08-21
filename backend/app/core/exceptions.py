@@ -112,6 +112,14 @@ class QdrantCollectionNotFoundError(FruviaError):
     message = "The search collection is not available. Please try again later."
 
 
+class QdrantSchemaIncompatibleError(FruviaError):
+    """Raised when a Qdrant collection's schema (dimension, distance, status) is incompatible."""
+
+    status_code = 503
+    error_code = "COLLECTION_SCHEMA_INCOMPATIBLE"
+    message = "The search collection schema is incompatible with the current system."
+
+
 class LowConfidenceError(FruviaError):
     """Not really an error — used to signal low-confidence results."""
 

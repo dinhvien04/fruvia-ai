@@ -9,9 +9,14 @@ import time
 from typing import Any
 
 from qdrant_client import QdrantClient
+from qdrant_client.models import FieldCondition, Filter, MatchValue
 
 from app.core.config import Settings, get_settings
-from app.core.exceptions import QdrantCollectionNotFoundError, QdrantConnectionError
+from app.core.exceptions import (
+    QdrantCollectionNotFoundError,
+    QdrantConnectionError,
+    QdrantSchemaIncompatibleError,
+)
 from app.core.logging import get_logger
 from app.schemas.retrieval import RetrievalResult
 from app.utils.taxonomy import get_taxonomy_manager
@@ -23,6 +28,7 @@ MAX_TOP_K = 20
 MAX_RETRIES = 2
 RETRY_DELAY_SEC = 1.0
 EXPECTED_VECTOR_SIZE = 768
+EXPECTED_DISTANCE_METRIC = "Cosine"
 
 
 class QdrantRepository:
@@ -30,7 +36,8 @@ class QdrantRepository:
     Data repository for Qdrant Cloud vector search.
 
     Manages Qdrant client connection, health verification, collection validation,
-    and cosine similarity vector search with automatic payload mapping to RetrievalResult.
+    native payload filtering, and cosine similarity vector search with automatic
+    payload mapping to RetrievalResult.
     """
 
     def __init__(
@@ -40,7 +47,7 @@ class QdrantRepository:
     ) -> None:
         self.settings = settings or get_settings()
         self._client: Any = client
-        self.collection_name = self.settings.qdrant_collection
+        self.collection_name = self.settings.active_gallery_collection
 
     @property
     def client(self) -> QdrantClient:
@@ -95,6 +102,95 @@ class QdrantRepository:
             )
             return False
 
+    def validate_collection_schema(
+        self, collection_name: str | None = None
+    ) -> dict[str, Any]:
+        """
+        Validate target Qdrant collection schema for vector size (768),
+        distance metric (Cosine), status, and point counts.
+
+        Returns
+        -------
+        dict[str, Any]
+            Collection metadata summary including points_count and vector_size.
+
+        Raises
+        ------
+        QdrantCollectionNotFoundError
+            If collection does not exist.
+        QdrantSchemaIncompatibleError
+            If vector size or distance metric does not match expected DINOv2 configuration.
+        """
+        target = collection_name or self.collection_name
+        try:
+            info = self.client.get_collection(collection_name=target)
+        except Exception as e:
+            err_str = str(e).lower()
+            if "not found" in err_str or "404" in err_str:
+                raise QdrantCollectionNotFoundError(
+                    message=f"Collection '{target}' is not available.",
+                    detail=str(e),
+                ) from e
+            raise QdrantConnectionError(
+                message="Failed to connect to vector database.",
+                detail=str(e),
+            ) from e
+
+        config = getattr(info, "config", None)
+        params = getattr(config, "params", None)
+        vectors_config = getattr(params, "vectors", None)
+
+        vector_size: int | None = None
+        distance_metric: str | None = None
+
+        if vectors_config is not None:
+            # Single vector configuration
+            if hasattr(vectors_config, "size"):
+                vector_size = getattr(vectors_config, "size", None)
+                distance_metric = str(getattr(vectors_config, "distance", ""))
+            # Named vectors dictionary configuration
+            elif isinstance(vectors_config, dict):
+                first_vec = next(iter(vectors_config.values()), None)
+                if first_vec:
+                    vector_size = getattr(first_vec, "size", None)
+                    distance_metric = str(getattr(first_vec, "distance", ""))
+
+        if vector_size is not None and vector_size != EXPECTED_VECTOR_SIZE:
+            raise QdrantSchemaIncompatibleError(
+                message=f"Collection '{target}' vector size {vector_size} is incompatible with expected {EXPECTED_VECTOR_SIZE}D.",
+                detail=f"Expected {EXPECTED_VECTOR_SIZE}, found {vector_size}.",
+            )
+
+        if distance_metric and EXPECTED_DISTANCE_METRIC.lower() not in distance_metric.lower():
+            raise QdrantSchemaIncompatibleError(
+                message=f"Collection '{target}' distance '{distance_metric}' is incompatible with expected '{EXPECTED_DISTANCE_METRIC}'.",
+                detail=f"Expected {EXPECTED_DISTANCE_METRIC}, found {distance_metric}.",
+            )
+
+        points_count = (
+            getattr(info, "points_count", None)
+            or getattr(info, "vectors_count", None)
+            or 0
+        )
+        status_str = str(getattr(info, "status", "unknown"))
+
+        logger.info(
+            "Validated Qdrant collection '%s': status=%s, points=%s, vector_size=%s, distance=%s",
+            target,
+            status_str,
+            points_count,
+            vector_size,
+            distance_metric,
+        )
+
+        return {
+            "collection_name": target,
+            "status": status_str,
+            "points_count": points_count,
+            "vector_size": vector_size or EXPECTED_VECTOR_SIZE,
+            "distance": distance_metric or EXPECTED_DISTANCE_METRIC,
+        }
+
     def get_health_status(self) -> tuple[bool, bool]:
         """
         Check Qdrant connectivity and collection availability in a single API call.
@@ -113,15 +209,58 @@ class QdrantRepository:
             logger.warning("Single Qdrant health check failed: %s", e)
             return False, False
 
+    def build_qdrant_filter(
+        self,
+        category: str | None = None,
+        canonical_class: str | None = None,
+        source_dataset: str | None = None,
+        dataset_name: str | None = None,
+    ) -> Filter | None:
+        """
+        Build a native Qdrant Filter object if any filter parameters are provided.
+        Safe for collections with indexed payload fields.
+        """
+        conditions: list[FieldCondition] = []
+
+        if category and category.lower().strip() not in {"all", ""}:
+            conditions.append(
+                FieldCondition(key="category", match=MatchValue(value=category.lower().strip()))
+            )
+
+        if canonical_class and canonical_class.strip():
+            conditions.append(
+                FieldCondition(key="canonical_class", match=MatchValue(value=canonical_class.strip()))
+            )
+
+        if source_dataset and source_dataset.strip():
+            conditions.append(
+                FieldCondition(key="source_dataset", match=MatchValue(value=source_dataset.strip()))
+            )
+
+        if dataset_name and dataset_name.strip():
+            conditions.append(
+                FieldCondition(key="dataset_name", match=MatchValue(value=dataset_name.strip()))
+            )
+
+        if not conditions:
+            return None
+
+        return Filter(must=conditions)  # type: ignore[arg-type]
+
     def query_similar(
         self,
         vector: list[float],
         top_k: int = 5,
         mode: str = "image",
         category: str = "all",
+        canonical_class: str | None = None,
+        source_dataset: str | None = None,
+        dataset_name: str | None = None,
+        use_native_filter: bool = True,
     ) -> list[RetrievalResult]:
         """
-        Execute vector similarity search in Qdrant Cloud.
+        Execute vector similarity search in Qdrant Cloud with native filtering
+        and graceful Python-level fallback for unindexed/legacy payloads.
 
         Parameters
         ----------
@@ -133,6 +272,14 @@ class QdrantRepository:
             "image" for individual top images, or "class" for deduplicated top classes.
         category : str
             Category filter ("all", "fruit", "vegetable", "nut", "seed", "other").
+        canonical_class : str | None
+            Optional canonical class filter.
+        source_dataset : str | None
+            Optional source dataset filter.
+        dataset_name : str | None
+            Optional dataset name filter.
+        use_native_filter : bool
+            Whether to attempt native Qdrant filtering first.
 
         Returns
         -------
@@ -159,14 +306,26 @@ class QdrantRepository:
 
         initial_limit = min(initial_limit, max_cap)
 
+        qdrant_filter = (
+            self.build_qdrant_filter(
+                category=category,
+                canonical_class=canonical_class,
+                source_dataset=source_dataset,
+                dataset_name=dataset_name,
+            )
+            if use_native_filter
+            else None
+        )
+
         logger.info(
-            "Querying Qdrant collection '%s' (top_k=%d, initial_limit=%d, max_cap=%d, mode=%s, category=%s)...",
+            "Querying Qdrant collection '%s' (top_k=%d, initial_limit=%d, max_cap=%d, mode=%s, category=%s, native_filter=%s)...",
             self.collection_name,
             top_k,
             initial_limit,
             max_cap,
             mode,
             category,
+            bool(qdrant_filter),
         )
 
         tax_mgr = get_taxonomy_manager()
@@ -177,23 +336,37 @@ class QdrantRepository:
                 candidate_limit = initial_limit
                 while True:
                     # Request payload only, skip vector retrieval for efficiency
-                    if hasattr(self.client, "query_points"):
-                        query_response = self.client.query_points(
-                            collection_name=self.collection_name,
-                            query=vector,
-                            limit=candidate_limit,
-                            with_payload=True,
-                            with_vectors=False,
-                        )
-                        hits = query_response.points
-                    else:
-                        hits = self.client.search(
-                            collection_name=self.collection_name,
-                            query_vector=vector,
-                            limit=candidate_limit,
-                            with_payload=True,
-                            with_vectors=False,
-                        )
+                    hits: list[Any] = []
+                    try:
+                        if hasattr(self.client, "query_points"):
+                            query_response = self.client.query_points(
+                                collection_name=self.collection_name,
+                                query=vector,
+                                query_filter=qdrant_filter,
+                                limit=candidate_limit,
+                                with_payload=True,
+                                with_vectors=False,
+                            )
+                            hits = query_response.points
+                        else:
+                            hits = self.client.search(
+                                collection_name=self.collection_name,
+                                query_vector=vector,
+                                query_filter=qdrant_filter,
+                                limit=candidate_limit,
+                                with_payload=True,
+                                with_vectors=False,
+                            )
+                    except Exception as query_err:
+                        # If native filter failed (e.g. unindexed field in legacy collection), retry without filter
+                        if qdrant_filter is not None:
+                            logger.warning(
+                                "Native Qdrant filter query failed (%s). Falling back to client-side filtering.",
+                                query_err,
+                            )
+                            qdrant_filter = None
+                            continue
+                        raise query_err
 
                     raw_results: list[tuple[RetrievalResult, str]] = []
                     for hit in hits:
@@ -213,16 +386,18 @@ class QdrantRepository:
                         )
 
                         # Backward-compatible dataset resolution
-                        ds_name = payload.get("dataset_name")
+                        ds_name = payload.get("dataset_name") or payload.get("source_dataset")
                         if not ds_name:
                             img_url = str(payload.get("image_url", ""))
                             if "fruits262" in img_url or "fruits-262" in img_url:
                                 ds_name = "fruits262_full_original_v7"
+                            elif "packeat" in img_url:
+                                ds_name = "packeat_dinov2_base_v1"
                             else:
                                 ds_name = "fruits360_original"
 
                         ds_version = payload.get("dataset_version") or (
-                            "7" if "262" in ds_name else "1"
+                            "7" if "262" in str(ds_name) else "1"
                         )
 
                         res = RetrievalResult(
@@ -243,17 +418,28 @@ class QdrantRepository:
                         )
                         raw_results.append((res, cat_cls))
 
-                    # Apply Category Filtering
-                    category_filtered: list[RetrievalResult] = []
+                    # Apply Payload Filtering (if native filter was absent or fallback occurred)
+                    filtered_results: list[RetrievalResult] = []
                     target_cat = category.lower().strip()
+                    target_canon = canonical_class.lower().strip() if canonical_class else None
+                    target_source = source_dataset.lower().strip() if source_dataset else None
+                    target_ds = dataset_name.lower().strip() if dataset_name else None
+
                     for res, item_cat in raw_results:
-                        if target_cat == "all" or item_cat == target_cat:
-                            category_filtered.append(res)
+                        if target_cat not in {"all", ""} and item_cat != target_cat:
+                            continue
+                        if target_canon and res.canonical_class.lower() != target_canon:
+                            continue
+                        if target_source and target_source not in res.dataset_name.lower():
+                            continue
+                        if target_ds and target_ds not in res.dataset_name.lower():
+                            continue
+                        filtered_results.append(res)
 
                     # Check exit criteria or need for candidate expansion
                     if mode == "class":
                         grouped: dict[str, list[RetrievalResult]] = {}
-                        for item in category_filtered:
+                        for item in filtered_results:
                             grouped.setdefault(item.canonical_class, []).append(item)
 
                         distinct_count = len(grouped)
@@ -273,11 +459,11 @@ class QdrantRepository:
                     else:
                         # mode == "image"
                         if (
-                            len(category_filtered) >= top_k
+                            len(filtered_results) >= top_k
                             or candidate_limit >= max_cap
                             or len(hits) < candidate_limit
                         ):
-                            return category_filtered[:top_k]
+                            return filtered_results[:top_k]
 
                     # Expand candidate pool if top_k criteria not yet met
                     next_limit = min(candidate_limit * 2, max_cap)
@@ -285,7 +471,7 @@ class QdrantRepository:
                         # Cannot expand further
                         if mode == "class":
                             grouped = {}
-                            for item in category_filtered:
+                            for item in filtered_results:
                                 grouped.setdefault(item.canonical_class, []).append(item)
                             final_results = []
                             for items in grouped.values():
@@ -295,8 +481,7 @@ class QdrantRepository:
                                 if len(final_results) >= top_k:
                                     break
                             return final_results
-                        else:
-                            return category_filtered[:top_k]
+                        return filtered_results[:top_k]
 
                     logger.debug(
                         "Expanding Qdrant candidate pool from %d to %d...",
@@ -313,6 +498,9 @@ class QdrantRepository:
                         message=f"Collection '{self.collection_name}' is not available.",
                         detail=str(e),
                     ) from e
+
+                if isinstance(e, QdrantSchemaIncompatibleError):
+                    raise e
 
                 last_exception = e
                 logger.warning(

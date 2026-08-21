@@ -1,9 +1,13 @@
 """
 Rate limiting and concurrency control middleware.
+
+Provides an abstract BaseRateLimiter interface allowing single-instance
+in-memory rate limiting with future seamless Redis / Distributed backends.
 """
 
 from __future__ import annotations
 
+import abc
 import asyncio
 import time
 from collections import defaultdict
@@ -19,34 +23,101 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
+class BaseRateLimiter(abc.ABC):
+    """Abstract interface for rate limiters."""
+
+    @abc.abstractmethod
+    def check_rate_limit(self, client_key: str, limit: int, window_seconds: float = 60.0) -> tuple[bool, int]:
+        """
+        Check if request is allowed under rate limit.
+
+        Parameters
+        ----------
+        client_key : str
+            Unique client identifier (e.g. IP address or API token).
+        limit : int
+            Max permitted requests per window.
+        window_seconds : float
+            Window length in seconds.
+
+        Returns
+        -------
+        tuple[bool, int]
+            (is_allowed, remaining_requests)
+        """
+        ...
+
+
+class InMemorySlidingWindowRateLimiter(BaseRateLimiter):
     """
-    Simple in-memory IP rate limiter for API endpoints.
-    Tracks request timestamps in sliding 60-second windows.
+    In-memory rate limiter using sliding timestamp windows.
+    Suitable for single-instance deployments.
     """
 
-    def __init__(self, app: Any) -> None:  # type: ignore[name-defined]
-        super().__init__(app)
+    def __init__(self) -> None:
         self.requests: dict[str, list[float]] = defaultdict(list)
+
+    def check_rate_limit(
+        self, client_key: str, limit: int, window_seconds: float = 60.0
+    ) -> tuple[bool, int]:
+        now = time.time()
+        window_start = now - window_seconds
+
+        # Prune older timestamps
+        self.requests[client_key] = [t for t in self.requests[client_key] if t > window_start]
+
+        count = len(self.requests[client_key])
+        if count >= limit:
+            return False, 0
+
+        self.requests[client_key].append(now)
+        remaining = max(0, limit - count - 1)
+        return True, remaining
+
+
+_global_rate_limiter: BaseRateLimiter | None = None
+
+
+def get_rate_limiter() -> BaseRateLimiter:
+    """Return singleton rate limiter backend instance."""
+    global _global_rate_limiter
+    if _global_rate_limiter is None:
+        _global_rate_limiter = InMemorySlidingWindowRateLimiter()
+    return _global_rate_limiter
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Rate limiter middleware for API endpoints.
+    Protects POST /api/retrieve from traffic surges.
+    """
+
+    def __init__(self, app: Any, limiter: BaseRateLimiter | None = None) -> None:
+        super().__init__(app)
+        self.limiter = limiter or get_rate_limiter()
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Only rate limit POST /api/retrieve
         if request.method == "POST" and request.url.path.endswith("/retrieve"):
             settings = get_settings()
-            client_ip = request.client.host if request.client else "127.0.0.1"
-            now = time.time()
-            window_start = now - 60.0
+            # Extract client IP (respecting direct connection or standard proxy headers if present)
+            client_ip = (
+                request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                or (request.client.host if request.client else "127.0.0.1")
+            )
 
-            # Prune old timestamps
-            self.requests[client_ip] = [t for t in self.requests[client_ip] if t > window_start]
+            is_allowed, remaining = self.limiter.check_rate_limit(
+                client_key=client_ip,
+                limit=settings.rate_limit_per_minute,
+                window_seconds=60.0,
+            )
 
-            remaining = max(0, settings.rate_limit_per_minute - len(self.requests[client_ip]) - 1)
-
-            if len(self.requests[client_ip]) >= settings.rate_limit_per_minute:
-                logger.warning("Rate limit exceeded for IP: %s", client_ip)
+            if not is_allowed:
+                logger.warning("Rate limit exceeded for client: %s", client_ip)
                 return JSONResponse(
                     status_code=429,
                     content={
+                        "error": True,
                         "error_code": "RATE_LIMIT_EXCEEDED",
                         "message": "Too many requests. Please try again in a minute.",
                         "detail": f"Rate limit of {settings.rate_limit_per_minute} req/min exceeded.",
@@ -57,8 +128,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                         "X-RateLimit-Remaining": "0",
                     },
                 )
-
-            self.requests[client_ip].append(now)
 
             response = await call_next(request)
             response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_per_minute)

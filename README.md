@@ -222,11 +222,101 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ---
 
-## 📦 Collection Naming & Migration Strategy
+## 📦 Collection Architecture & Migration Roadmap
 
-- **Current Production Collection**: `fruvia_fruits360_original_dinov2_base_v1`
-  - Note: This collection name is preserved for backward compatibility and contains both Fruits-360 (~102.5k vectors) and Fruits-262 (~225.6k vectors) embeddings.
-- **Recommended Collection Name for Next Index Refresh**: `fruvia_gallery_dinov2_base_v2`
+### 1. CURRENT Architecture (Production State)
+- **Active Production Collection**: `fruvia_fruits360_original_dinov2_base_v1`
+- **Embedding Dimensions & Metric**: 768-dim CLS token vectors (`facebook/dinov2-base`), Cosine distance.
+- **Indexed Datasets**: Fruits-360 (~102,551 vectors) + Fruits-262 (~225,639 vectors) = **~328,190 vectors**.
+- **Collection Configuration**: Dynamically overrideable via `FRUVIA_GALLERY_COLLECTION` environment variable, safely defaulting to `QDRANT_COLLECTION`.
+- **Hybrid Filtering**: Native payload filtering on indexed fields (`category`, `canonical_class`, `source_dataset`, `dataset_name`) with automated fallback to Python-level filtering for legacy collections.
+
+### 2. IN PROGRESS (External Processing & Staging)
+- **PackEat Dataset Processing**: High-resolution fruit variety imagery thumbnails being processed and mirrored to Cloudflare R2 object storage (`pub-r2.fruvia.ai/thumbnails/...`).
+- **Taxonomy Alignment**: `scripts/build_packeat_taxonomy_mapping.py` maps PackEat classes to `configs/taxonomy.yaml` canonical taxonomy.
+- **Migration & Payload Tooling**: 
+  - `scripts/create_qdrant_payload_indexes.py` (Payload index automation).
+  - `scripts/prepare_gallery_v2.py` (Resumable batch migration pipeline with `--dry-run`).
+
+### 3. FUTURE (Unified Gallery V2 Deployment)
+- **Unified Target Collection**: `fruvia_gallery_dinov2_base_v2`
+- **Standardized Payload Schema**:
+  ```json
+  {
+    "canonical_class": "apple",
+    "display_name_en": "Apple",
+    "display_name_vi": "Táo",
+    "category": "fruit",
+    "source_dataset": "fruits360",
+    "dataset_name": "fruits360_original",
+    "image_url": "https://pub-r2.fruvia.ai/thumbnails/apple_001.webp",
+    "thumbnail_url": "https://pub-r2.fruvia.ai/thumbnails/apple_001.webp",
+    "original_class": "apple_crimson_snow_1",
+    "attributes": {}
+  }
+  ```
+- **Live Cutover Process**: Zero-downtime transition via `FRUVIA_GALLERY_COLLECTION=fruvia_gallery_dinov2_base_v2` after full vector validation.
+
+---
+
+## 🔍 Search Modes & API Contract
+
+### `POST /api/retrieve`
+Send a `multipart/form-data` request with an image file.
+
+#### Parameters
+- `file` (UploadFile, required): Image file (JPG, PNG, WEBP, max 10 MB).
+- `top_k` (int, optional, default: 5): Number of items to return (1 to 20).
+- `mode` (str, optional, default: `"image"`):
+  - `"image"`: Returns Top-K nearest individual gallery images.
+  - `"class"`: Groups results by canonical species class, returning Top-K distinct species with candidate expansion.
+- `category` (str, optional, default: `"all"`): Filter results by category: `"fruit"`, `"vegetable"`, `"nut"`, `"seed"`, or `"all"`.
+
+#### Response Body (Full Backward Compatibility + V2 Telemetry)
+```json
+{
+  "query": {
+    "filename": "query_durian.jpg"
+  },
+  "mode": "class",
+  "category": "fruit",
+  "results": [
+    {
+      "original_class": "durian",
+      "canonical_class": "durian",
+      "display_name": "Durian",
+      "display_name_vi": "Sầu riêng",
+      "category": "fruit",
+      "dataset_name": "fruits262_full_original_v7",
+      "dataset_version": "7",
+      "filename": "durian_001.jpg",
+      "relative_path": "gallery/durian/durian_001.jpg",
+      "original_split": "gallery",
+      "similarity": 0.8432,
+      "image_url": "https://pub-r2.fruvia.ai/thumbnails/durian_001.webp",
+      "hit_count": 8
+    }
+  ],
+  "result_count": 1,
+  "processing_time_ms": 112.4,
+  "timing": {
+    "validation_ms": 1.2,
+    "embedding_ms": 78.4,
+    "vector_search_ms": 32.8,
+    "total_ms": 112.4
+  },
+  "quality_meta": {
+    "top_similarity": 0.8432,
+    "quality": "high_similarity"
+  }
+}
+```
+
+### Additional Backend V2 Endpoints
+- `GET /api/live`: Lightweight process liveness probe for Kubernetes / health monitors.
+- `GET /api/ready`: Full readiness probe verifying DINOv2 model state and Qdrant cluster connectivity.
+- `GET /api/species`: Taxonomy lookup endpoint listing canonical species with category filtering and keyword search.
+- `GET /api/species/{canonical_class}`: Detailed canonical species metadata, English/Vietnamese names, and aliases.
 
 ---
 
