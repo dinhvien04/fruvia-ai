@@ -3,15 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fruvia AI — Tìm kiếm hình ảnh trái cây bằng AI</title>
-  <meta name="description" content="Nền tảng truy vấn hình ảnh trái cây thông minh dựa trên DINOv2 Vector Embeddings và Qdrant Vector Search.">
+  <title>Fruvia AI — Nhận diện & Tìm kiếm Trái cây bằng AI</title>
+  <meta name="description" content="Tải ảnh trái cây lên để tra cứu và tìm những mẫu tương đồng nhất. Khám phá các loài trái cây với trải nghiệm thông minh và thân thiện.">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="https://fruvia.ai/">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#059669">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Fruvia AI — Tìm kiếm hình ảnh trái cây bằng AI">
-  <meta property="og:description" content="Nền tảng truy vấn hình ảnh trái cây thông minh dựa trên DINOv2 Vector Embeddings và Qdrant Vector Search.">
+  <meta property="og:title" content="Fruvia AI — Tìm kiếm Trái cây bằng AI">
+  <meta property="og:description" content="Tải ảnh trái cây lên để tra cứu và tìm những mẫu tương đồng nhất bằng công nghệ nhận diện AI.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://fruvia.ai/">
   <meta property="og:image" content="assets/svg/brand-lockup.svg">
@@ -21,19 +23,19 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/home.css">
 
-  <!-- JSON-LD Structured Data -->
+  <!-- Structured Data -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Fruvia AI",
     "url": "https://fruvia.ai/",
-    "description": "Nền tảng tìm kiếm hình ảnh trái cây bằng DINOv2 Embeddings và Qdrant Vector Search."
+    "description": "Nền tảng nhận diện và tra cứu thông minh trái cây từ hình ảnh."
   }
   </script>
 </head>
 <body>
-  <!-- Header Navbar -->
+  <!-- Desktop Header Navbar -->
   <header class="site-header">
     <div class="container header-inner">
       <a href="/" class="brand-logo" aria-label="Fruvia AI - Trang chủ">
@@ -41,123 +43,170 @@
       </a>
 
       <nav class="main-nav" aria-label="Điều hướng chính">
-        <a href="#overview" class="nav-link">Tổng quan</a>
-        <a href="#how-it-works" class="nav-link">Cách hoạt động</a>
-        <a href="#technology" class="nav-link">Công nghệ</a>
+        <a href="/" class="nav-link active" aria-current="page">Trang chủ</a>
+        <a href="/search" class="nav-link">Tìm bằng ảnh</a>
+        <a href="/explore" class="nav-link">Khám phá</a>
       </nav>
 
       <div class="header-actions">
-        <a href="/search" class="btn btn-primary btn-sm">Thử tìm kiếm ảnh</a>
+        <a href="/search" class="btn btn-primary btn-sm">Tìm ngay</a>
       </div>
     </div>
   </header>
 
   <main>
-    <!-- Hero Section -->
-    <section class="container hero-section" id="overview">
-      <div class="hero-content">
-        <span class="badge badge-primary hero-badge">AI-Powered Visual Retrieval</span>
-        <h1 class="hero-title">Tìm kiếm hình ảnh trái cây bằng trí tuệ nhân tạo</h1>
-        <p class="hero-subtitle">
-          Tải lên một hình ảnh và tìm các mẫu trái cây tương đồng bằng DINOv2 embeddings và Qdrant Vector Search.
-        </p>
-        <div class="hero-actions">
-          <a href="/search" class="btn btn-primary btn-lg">Thử tìm kiếm</a>
-          <a href="#how-it-works" class="btn btn-secondary btn-lg">Tìm hiểu cách hoạt động</a>
+    <!-- Hero Section with Integrated Search Widget -->
+    <section class="hero-section">
+      <div class="container hero-grid">
+        <!-- Hero Text -->
+        <div class="hero-content">
+          <span class="badge badge-primary hero-badge">Tìm kiếm thị giác AI</span>
+          <h1 class="hero-title">Tìm hiểu trái cây chỉ từ một bức ảnh</h1>
+          <p class="hero-subtitle">
+            Chụp hoặc tải ảnh lên. Fruvia sẽ tìm những mẫu gần giống nhất và giúp bạn khám phá thông tin loài trái cây phù hợp.
+          </p>
+          <div class="hero-actions">
+            <a href="/search" class="btn btn-primary btn-lg">Tìm bằng hình ảnh</a>
+            <a href="/explore" class="btn btn-secondary btn-lg">Khám phá trái cây</a>
+          </div>
         </div>
-      </div>
-      <div class="hero-illustration">
-        <img src="assets/svg/vector-network.svg" alt="Mô phỏng kiến trúc tìm kiếm vector DINOv2 và Qdrant" width="560" height="300">
+
+        <!-- Hero Upload Search Widget -->
+        <div class="hero-widget-card card" id="hero-widget">
+          <h3 class="widget-title">Thử tra cứu ngay</h3>
+          <p class="widget-desc">Kéo thả ảnh vào đây hoặc chọn ảnh từ thiết bị</p>
+
+          <!-- Hidden File Inputs -->
+          <input type="file" id="file-input" accept="image/jpeg,image/jpg,image/png,image/webp" class="sr-only">
+          <input type="file" id="camera-input" accept="image/*" capture="environment" class="sr-only">
+
+          <!-- Dropzone -->
+          <div id="dropzone" class="dropzone hero-dropzone" tabindex="0" role="button" aria-label="Tải ảnh trái cây để tìm kiếm">
+            <div id="dropzone-prompt">
+              <img src="assets/svg/upload-illustration.svg" alt="" class="dropzone-icon" aria-hidden="true">
+              <div class="dropzone-text">Tải ảnh trái cây lên</div>
+              <div class="dropzone-hint">JPG · PNG · WEBP (Tối đa 10 MB)</div>
+            </div>
+
+            <!-- Preview -->
+            <div id="preview-container" class="preview-container" style="display: none;">
+              <div class="preview-image-wrapper">
+                <img id="preview-img" src="" alt="Ảnh truy vấn preview">
+              </div>
+              <div class="preview-actions">
+                <button type="button" id="btn-change-image" class="btn btn-secondary btn-sm">Đổi ảnh</button>
+                <button type="button" id="btn-remove-image" class="btn btn-secondary btn-sm" style="color: var(--color-danger);">Xóa</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mobile Action Quick Buttons -->
+          <div class="mobile-camera-actions">
+            <button type="button" class="btn btn-secondary btn-camera" onclick="document.getElementById('camera-input').click();">
+              <img src="assets/svg/camera.svg" alt="" class="btn-icon" aria-hidden="true">
+              <span>Chụp ảnh</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-gallery" onclick="document.getElementById('file-input').click();">
+              <img src="assets/svg/gallery.svg" alt="" class="btn-icon" aria-hidden="true">
+              <span>Thư viện</span>
+            </button>
+          </div>
+
+          <!-- Direct Search Action CTA -->
+          <button type="button" id="btn-hero-search" class="btn btn-primary btn-block btn-lg" disabled>
+            <span>Tìm kiếm mẫu tương đồng</span>
+          </button>
+        </div>
       </div>
     </section>
 
-    <!-- System Stats Section -->
+    <!-- Dynamic Stats Section -->
     <section class="stats-section">
       <div class="container">
         <div class="stats-grid">
           <div class="stat-item">
-            <span class="stat-value">328,190</span>
-            <span class="stat-label">Vector Embeddings</span>
+            <span class="stat-value" id="stat-vector-count">Hàng trăm nghìn</span>
+            <span class="stat-label">Hình ảnh tham khảo</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">284</span>
-            <span class="stat-label">Canonical Classes</span>
+            <span class="stat-value" id="stat-species-count">284+</span>
+            <span class="stat-label">Loại chuẩn hóa</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">2</span>
-            <span class="stat-label">Image Datasets</span>
+            <span class="stat-value" id="stat-dataset-count">Multi-dataset</span>
+            <span class="stat-label">Dữ liệu thực tế</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">768D</span>
-            <span class="stat-label">DINOv2 Features</span>
+            <span class="stat-value" id="stat-feature-dim">768D</span>
+            <span class="stat-label">Đặc trưng thị giác</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- How It Works Section -->
-    <section class="container section-padding" id="how-it-works">
+    <!-- Capabilities Section -->
+    <section class="container section-padding" id="capabilities">
       <div class="section-header">
-        <h2>Cách hoạt động của Fruvia AI</h2>
-        <p>Quy trình trích xuất đặc trưng thị giác và tìm kiếm vector tương đồng theo thời gian thực.</p>
+        <h2>Khả năng của Fruvia AI</h2>
+        <p>Tra cứu nhanh chóng, chính xác và khám phá thế giới trái cây dựa trên hình ảnh thực tế.</p>
       </div>
 
       <div class="steps-grid">
         <article class="step-card">
-          <span class="step-num">Bước 1</span>
-          <img src="assets/svg/upload-illustration.svg" alt="" class="step-illustration" aria-hidden="true">
-          <h3>Upload ảnh</h3>
-          <p>Người dùng tải lên hoặc kéo thả một hình ảnh trái cây cần tra cứu vào hệ thống.</p>
+          <span class="step-num">01</span>
+          <img src="assets/svg/search-illustration.svg" alt="" class="step-illustration" aria-hidden="true">
+          <h3>Tìm bằng hình ảnh</h3>
+          <p>Tải ảnh lên hoặc chụp trực tiếp để hệ thống đối chiếu và tìm những mẫu gần nhất trong dữ liệu.</p>
         </article>
 
         <article class="step-card">
-          <span class="step-num">Bước 2</span>
-          <img src="assets/svg/dinov2-embedding.svg" alt="" class="step-illustration" aria-hidden="true">
-          <h3>Tạo embedding</h3>
-          <p>Mô hình DINOv2 trích xuất đặc trưng thị giác của ảnh thành vector 768 chiều chuẩn hóa.</p>
+          <span class="step-num">02</span>
+          <img src="assets/svg/knowledge-base.svg" alt="" class="step-illustration" aria-hidden="true">
+          <h3>Khám phá trái cây</h3>
+          <p>Duyệt danh sách các loài trái cây và nông sản đã chuẩn hóa với tên tiếng Việt và tiếng Anh.</p>
         </article>
 
         <article class="step-card">
-          <span class="step-num">Bước 3</span>
-          <img src="assets/svg/qdrant-search.svg" alt="" class="step-illustration" aria-hidden="true">
-          <h3>Vector Search</h3>
-          <p>Qdrant Cloud thực hiện thuật toán tìm kiếm Nearest Neighbors dựa trên Cosine Similarity.</p>
+          <span class="step-num">03</span>
+          <img src="assets/svg/file-image.svg" alt="" class="step-illustration" aria-hidden="true">
+          <h3>Xem thông tin chi tiết</h3>
+          <p>Hiển thị chi tiết từng mẫu hình ảnh, độ tương đồng thị giác và bộ dữ liệu nguồn.</p>
         </article>
 
         <article class="step-card">
-          <span class="step-num">Bước 4</span>
+          <span class="step-num">04</span>
           <img src="assets/svg/image-comparison.svg" alt="" class="step-illustration" aria-hidden="true">
-          <h3>Hiển thị kết quả</h3>
-          <p>Hệ thống trả về Top-K kết quả tương đồng nhất kèm thông tin taxonomy chi tiết.</p>
+          <h3>So sánh trực quan</h3>
+          <p>Đặt ảnh của bạn bên cạnh kết quả khớp nhất để dễ dàng kiểm tra và đối chiếu.</p>
         </article>
       </div>
     </section>
 
-    <!-- Technology Section -->
+    <!-- Technology Section (Plain Vietnamese) -->
     <section class="tech-section section-padding" id="technology">
       <div class="container">
         <div class="section-header">
-          <h2>Công nghệ cốt lõi</h2>
-          <p>Khai phá sức mạnh của các mô hình nền tảng thị giác máy tính và cơ sở dữ liệu vector.</p>
+          <h2>Công nghệ phía sau Fruvia</h2>
+          <p>Ứng dụng các mô hình thị giác máy tính và cơ sở dữ liệu vector tiên tiến.</p>
         </div>
 
         <div class="tech-grid">
           <article class="tech-card">
             <img src="assets/svg/dinov2-embedding.svg" alt="" class="tech-icon" aria-hidden="true">
-            <h3>DINOv2 Embeddings</h3>
-            <p>Trích xuất đặc trưng thị giác thành vector 768 chiều không phụ thuộc vào nhãn thủ công, giúp nắm bắt hình dáng và kết cấu quả chính xác.</p>
+            <h3>DINOv2 Deep Embeddings</h3>
+            <p>Trích xuất đặc trưng thị giác thành vector 768 chiều. Mô hình phân tích hình dạng, màu sắc và kết cấu vỏ quả một cách tự nhiên mà không phụ thuộc vào nhãn thủ công.</p>
           </article>
 
           <article class="tech-card">
             <img src="assets/svg/qdrant-search.svg" alt="" class="tech-icon" aria-hidden="true">
-            <h3>Qdrant Vector DB</h3>
-            <p>Tìm kiếm nearest neighbors bằng vector similarity search trên hàng trăm nghìn mẫu dữ liệu với độ trễ thấp ở quy mô đám mây.</p>
+            <h3>Qdrant Vector Database</h3>
+            <p>So sánh độ tương đồng vector Cosine với tốc độ cực nhanh trên hàng trăm nghìn mẫu dữ liệu ở quy mô đám mây.</p>
           </article>
 
           <article class="tech-card">
             <img src="assets/svg/knowledge-base.svg" alt="" class="tech-icon" aria-hidden="true">
-            <h3>Canonical Knowledge</h3>
-            <p>Chuẩn hóa các nhãn từ nhiều dataset gốc (Fruits-360, Fruits-262) về một định danh loài sinh học chung kèm tên gọi Anh - Việt.</p>
+            <h3>Taxonomy chuẩn hóa</h3>
+            <p>Hợp nhất hơn 410 nhãn dữ liệu thô từ nhiều bộ dữ liệu (Fruits-360, Fruits-262) về các loài sinh học chuẩn kèm tên gọi Anh - Việt chính xác.</p>
           </article>
         </div>
       </div>
@@ -166,12 +215,28 @@
     <!-- Final Call to Action -->
     <section class="container">
       <div class="cta-section">
-        <h2>Sẵn sàng thử Fruvia AI?</h2>
-        <p>Trải nghiệm khả năng tìm kiếm và tra cứu hình ảnh trái cây theo thời gian thực.</p>
-        <a href="/search" class="btn btn-primary btn-lg">Tìm kiếm hình ảnh</a>
+        <h2>Sẵn sàng trải nghiệm Fruvia?</h2>
+        <p>Bắt đầu tìm kiếm loài trái cây của bạn chỉ với một thao tác tải ảnh đơn giản.</p>
+        <a href="/search" class="btn btn-primary btn-lg">Bắt đầu tìm kiếm ngay</a>
       </div>
     </section>
   </main>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav" aria-label="Điều hướng di động">
+    <a href="/" class="mobile-nav-item active" aria-current="page">
+      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Trang chủ</span>
+    </a>
+    <a href="/search" class="mobile-nav-item">
+      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Tìm kiếm</span>
+    </a>
+    <a href="/explore" class="mobile-nav-item">
+      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Khám phá</span>
+    </a>
+  </nav>
 
   <!-- Footer -->
   <footer class="site-footer">
@@ -179,13 +244,14 @@
       <div class="footer-grid">
         <div class="footer-brand">
           <img src="assets/svg/brand-lockup.svg" alt="Fruvia AI" width="140" height="28">
-          <p>Nền tảng tìm kiếm và nhận diện hình ảnh trái cây thông minh bằng DINOv2 và Qdrant Vector Search.</p>
+          <p>Nền tảng tìm kiếm và nhận diện hình ảnh trái cây thông minh dựa trên DINOv2 và Qdrant Vector Search.</p>
         </div>
         <div>
           <h4 class="footer-col-title">Điều hướng</h4>
           <ul class="footer-links">
             <li><a href="/">Trang chủ</a></li>
             <li><a href="/search">Tìm kiếm ảnh</a></li>
+            <li><a href="/explore">Khám phá loài</a></li>
           </ul>
         </div>
         <div>
@@ -201,5 +267,54 @@
       </div>
     </div>
   </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/pwa.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Single Source Stats Populate
+      if (typeof CONFIG !== 'undefined' && CONFIG.STATS) {
+        const vCount = document.getElementById('stat-vector-count');
+        const sCount = document.getElementById('stat-species-count');
+        const dCount = document.getElementById('stat-dataset-count');
+        const fDim = document.getElementById('stat-feature-dim');
+
+        if (vCount) vCount.textContent = CONFIG.STATS.VECTOR_COUNT_TEXT;
+        if (sCount) sCount.textContent = CONFIG.STATS.SPECIES_COUNT_LABEL;
+        if (dCount) dCount.textContent = CONFIG.STATS.DATASET_COUNT_LABEL;
+        if (fDim) fDim.textContent = CONFIG.STATS.FEATURE_DIM_LABEL;
+      }
+
+      // 2. Initialize Upload Manager for Hero Widget
+      UploadManager.init({
+        dropzoneId: 'dropzone',
+        fileInputId: 'file-input',
+        cameraInputId: 'camera-input',
+        previewContainerId: 'preview-container',
+        previewImgId: 'preview-img'
+      });
+
+      const btnHeroSearch = document.getElementById('btn-hero-search');
+
+      UploadManager.onSelected(() => {
+        if (btnHeroSearch) btnHeroSearch.disabled = false;
+      });
+
+      UploadManager.onCleared(() => {
+        if (btnHeroSearch) btnHeroSearch.disabled = true;
+      });
+
+      if (btnHeroSearch) {
+        btnHeroSearch.addEventListener('click', () => {
+          if (UploadManager.transferToSearchPage()) {
+            window.location.href = '/search';
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>

@@ -82,7 +82,10 @@ class Settings(BaseSettings):
         default=30, ge=10, le=200, description="Minimum candidate pool size for class search mode"
     )
     class_search_max_candidates: int = Field(
-        default=300, ge=50, le=1000, description="Maximum candidate cap for iterative pool expansion"
+        default=300,
+        ge=50,
+        le=1000,
+        description="Maximum candidate cap for iterative pool expansion",
     )
 
     # --- Rate Limiting & Concurrency ---

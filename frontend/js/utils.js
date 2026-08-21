@@ -1,10 +1,25 @@
 /**
- * Fruvia AI — Utility Functions & Error Mappings
+ * Fruvia AI — Utility Functions & Security Helpers
  */
 const Utils = {
   /**
+   * Escape HTML special characters to prevent XSS.
+   * @param {string} str
+   * @returns {string}
+   */
+  escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  },
+
+  /**
    * Validate image URL to prevent XSS / malicious protocol injection.
-   * Accepts http://, https://, or relative URLs.
+   * Accepts http://, https://, data:, or relative URLs.
    * @param {string|null|undefined} url
    * @returns {boolean}
    */
@@ -15,35 +30,71 @@ const Utils = {
       trimmed.startsWith("https://") ||
       trimmed.startsWith("http://localhost") ||
       trimmed.startsWith("http://127.0.0.1") ||
+      trimmed.startsWith("data:image/") ||
       trimmed.startsWith("/")
     );
   },
 
   /**
-   * Format similarity score into percentage text and visual progress width.
-   * @param {number} similarity
-   * @returns {{percentageText: string, visualWidth: string, levelClass: string}}
+   * Safe image URL fallback handler
+   * @param {string|null|undefined} url
+   * @param {string} fallback
+   * @returns {string}
    */
-  formatSimilarity(similarity) {
-    const rawNum = typeof similarity === "number" ? similarity : 0.0;
-    const percentageVal = (rawNum * 100).toFixed(2);
-    const percentageText = `${percentageVal}%`;
-
-    const clampedWidth = Math.max(0, Math.min(100, rawNum * 100)).toFixed(2);
-    const visualWidth = `${clampedWidth}%`;
-
-    let levelClass = "level-low";
-    if (rawNum >= CONFIG.HIGH_SIMILARITY_THRESHOLD) {
-      levelClass = "level-high";
-    } else if (rawNum >= CONFIG.LOW_SIMILARITY_THRESHOLD) {
-      levelClass = "level-moderate";
+  getSafeImageUrl(url, fallback = "assets/svg/fruit-placeholder.svg") {
+    if (this.isSafeImageUrl(url)) {
+      return url;
     }
-
-    return { percentageText, visualWidth, levelClass };
+    return fallback;
   },
 
   /**
-   * Map API errors into clear, professional Vietnamese user messages.
+   * Format similarity score into user-facing percentage text and progress visual width.
+   * User-facing label: "Mức độ tương đồng"
+   * @param {number} similarity
+   * @returns {{percentageText: string, visualWidth: string, levelClass: string, labelVi: string}}
+   */
+  formatSimilarity(similarity) {
+    const rawNum = typeof similarity === "number" ? similarity : 0.0;
+    const percentageVal = (rawNum * 100).toFixed(1);
+    const percentageText = `${percentageVal}%`;
+    const clampedWidth = Math.max(0, Math.min(100, rawNum * 100)).toFixed(1);
+    const visualWidth = `${clampedWidth}%`;
+
+    let levelClass = "level-low";
+    let labelVi = "Tương đồng thấp";
+
+    if (rawNum >= 0.75) {
+      levelClass = "level-high";
+      labelVi = "Rất tương đồng";
+    } else if (rawNum >= CONFIG.LOW_SIMILARITY_THRESHOLD) {
+      levelClass = "level-moderate";
+      labelVi = "Tương đồng khá";
+    }
+
+    return { percentageText, visualWidth, levelClass, labelVi };
+  },
+
+  /**
+   * Format relative timestamp (e.g., "5 phút trước", "Hôm nay")
+   * @param {number|string} timestamp
+   * @returns {string}
+   */
+  formatRelativeTime(timestamp) {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "";
+
+    const now = new Date();
+    const diffSec = Math.floor((now - date) / 1000);
+
+    if (diffSec < 60) return "Vừa xong";
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} phút trước`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} giờ trước`;
+    return date.toLocaleDateString("vi-VN", { day: "numeric", month: "numeric", year: "numeric" });
+  },
+
+  /**
+   * Map API errors into clear, non-technical Vietnamese user messages.
    * @param {Error} error
    * @returns {{title: string, message: string}}
    */
@@ -53,56 +104,59 @@ const Utils = {
 
     if (code === "FILE_TOO_LARGE" || status === 413) {
       return {
-        title: "Tệp hình ảnh quá lớn",
+        title: "Tệp ảnh quá lớn",
         message: "Dung lượng ảnh vượt quá giới hạn 10 MB. Vui lòng chọn ảnh nhỏ hơn."
       };
     }
 
     if (code === "UNSUPPORTED_FORMAT" || status === 415) {
       return {
-        title: "Định dạng không được hỗ trợ",
-        message: "Vui lòng sử dụng hình ảnh định dạng JPG, JPEG, PNG hoặc WEBP."
+        title: "Định dạng không hỗ trợ",
+        message: "Vui lòng chọn ảnh định dạng JPG, JPEG, PNG hoặc WEBP."
       };
     }
 
     if (code === "INVALID_IMAGE" || status === 400) {
       return {
-        title: "Không thể xử lý hình ảnh",
-        message: "Tệp ảnh được chọn bị hỏng hoặc không hợp lệ. Vui lòng chọn tệp ảnh khác."
+        title: "Ảnh không hợp lệ",
+        message: "Tệp được chọn bị hỏng hoặc không phải là hình ảnh hợp lệ. Vui lòng thử ảnh khác."
       };
     }
 
     if (code === "MODEL_NOT_LOADED") {
       return {
-        title: "Hệ thống AI đang khởi tạo",
-        message: "Mô hình DINOv2 đang được tải lên bộ nhớ. Vui lòng thử lại sau giây lát."
+        title: "Hệ thống AI đang khởi động",
+        message: "Mô hình xử lý hình ảnh đang sẵn sàng. Vui lòng thử lại sau vài giây."
       };
     }
 
     if (code === "QDRANT_UNAVAILABLE") {
       return {
-        title: "Không thể kết nối Qdrant Vector DB",
-        message: "Cơ sở dữ liệu vector tạm thời không phản hồi. Vui lòng kiểm tra lại kết nối mạng."
+        title: "Dịch vụ tìm kiếm đang bận",
+        message: "Hệ thống tạm thời không phản hồi. Vui lòng kiểm tra lại kết nối mạng."
       };
     }
 
     if (code === "TIMEOUT") {
       return {
-        title: "Yêu cầu quá thời gian xử lý",
-        message: "Thời gian phản hồi vượt quá giới hạn cho phép. Vui lòng thử lại."
+        title: "Hết thời gian chờ",
+        message: "Quá trình tìm kiếm mất nhiều thời gian hơn dự kiến. Vui lòng thử lại."
       };
     }
 
     if (status === 0 || (error.message && error.message.includes("Failed to fetch"))) {
       return {
-        title: "Không thể kết nối đến máy chủ",
-        message: "Vui lòng kiểm tra dịch vụ backend đang chạy tại " + CONFIG.API_BASE_URL
+        title: "Không có kết nối máy chủ",
+        message: "Vui lòng đảm bảo hệ thống Fruvia backend đang hoạt động."
       };
     }
 
     return {
-      title: "Lỗi truy vấn",
-      message: error.message || "Đã xảy ra lỗi không xác định. Vui lòng thử lại sau."
+      title: "Chưa thể thực hiện tìm kiếm",
+      message: error.message || "Đã xảy ra sự cố không xác định. Vui lòng thử lại sau."
     };
   }
 };
+
+// Freeze Utils
+Object.freeze(Utils);

@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tìm kiếm hình ảnh trái cây | Fruvia AI</title>
-  <meta name="description" content="Tải ảnh trái cây lên để truy vấn các mẫu tương đồng bằng DINOv2 Vector Embeddings và Qdrant Vector Search.">
+  <title>Tìm kiếm bằng hình ảnh | Fruvia AI</title>
+  <meta name="description" content="Tải ảnh hoặc chụp ảnh trực tiếp để tìm kiếm những loại trái cây tương đồng nhất trong dữ liệu Fruvia AI.">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="https://fruvia.ai/search">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#059669">
 
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/base.css">
@@ -24,37 +26,39 @@
 
       <nav class="main-nav" aria-label="Điều hướng chính">
         <a href="/" class="nav-link">Trang chủ</a>
-        <a href="/search" class="nav-link active">Tìm kiếm ảnh</a>
+        <a href="/search" class="nav-link active" aria-current="page">Tìm bằng ảnh</a>
+        <a href="/explore" class="nav-link">Khám phá</a>
       </nav>
 
       <div class="header-actions">
-        <a href="/" class="btn btn-secondary btn-sm">Về trang chủ</a>
+        <a href="/" class="btn btn-secondary btn-sm">Trang chủ</a>
       </div>
     </div>
   </header>
 
-  <main class="container">
-    <!-- Page Header -->
+  <main class="container main-content">
+    <!-- Page Title & Header -->
     <header class="retrieval-header">
-      <h1>Truy vấn hình ảnh tương đồng</h1>
-      <p>Trích xuất đặc trưng thị giác bằng <strong>DINOv2</strong> và tìm kiếm vector gần nhất trên <strong>Qdrant Cloud</strong> dựa trên Cosine Similarity.</p>
+      <h1>Tìm kiếm bằng hình ảnh</h1>
+      <p>Chụp hoặc tải ảnh trái cây lên để Fruvia đối chiếu và tìm những mẫu gần nhất trong dữ liệu.</p>
     </header>
 
-    <!-- Master Grid -->
+    <!-- Master Grid Layout -->
     <div class="retrieval-grid">
       <!-- Controls Column (Left) -->
       <aside class="controls-card" aria-label="Bộ điều khiển tìm kiếm">
-        <!-- 1. Dropzone Upload -->
+        <!-- 1. Dropzone / Upload Panel -->
         <div class="control-group">
-          <span class="section-label">1. Tải ảnh hình học</span>
+          <span class="section-label">1. Tải ảnh trái cây</span>
           <form id="upload-form" onsubmit="return false;">
-            <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Tải ảnh trái cây. Kéo thả hoặc click để chọn tệp">
-              <input type="file" id="file-input" accept="image/jpeg,image/jpg,image/png,image/webp" class="sr-only">
+            <input type="file" id="file-input" accept="image/jpeg,image/jpg,image/png,image/webp" class="sr-only">
+            <input type="file" id="camera-input" accept="image/*" capture="environment" class="sr-only">
 
+            <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Tải ảnh trái cây. Kéo thả hoặc click để chọn ảnh">
               <div id="dropzone-prompt">
                 <img src="assets/svg/upload-illustration.svg" alt="" class="dropzone-icon" aria-hidden="true">
-                <div class="dropzone-text">Tải ảnh trái cây</div>
-                <div class="dropzone-hint">Kéo thả ảnh vào đây hoặc chọn từ thiết bị<br>JPG · PNG · WEBP (Tối đa 10 MB)</div>
+                <div class="dropzone-text">Chọn hoặc kéo thả ảnh vào đây</div>
+                <div class="dropzone-hint">Hỗ trợ JPG · PNG · WEBP (Tối đa 10 MB)<br><span class="desktop-hint">(Hoặc dán ảnh với Ctrl+V)</span></div>
               </div>
 
               <!-- Preview -->
@@ -68,67 +72,100 @@
                 </div>
               </div>
             </div>
+
+            <!-- Mobile Dedicated Camera / Gallery Tap Controls -->
+            <div class="mobile-camera-actions">
+              <button type="button" class="btn btn-secondary btn-camera" onclick="document.getElementById('camera-input').click();">
+                <img src="assets/svg/camera.svg" alt="" class="btn-icon" aria-hidden="true">
+                <span>Chụp ảnh</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-gallery" onclick="document.getElementById('file-input').click();">
+                <img src="assets/svg/gallery.svg" alt="" class="btn-icon" aria-hidden="true">
+                <span>Chọn ảnh</span>
+              </button>
+            </div>
           </form>
         </div>
 
-        <!-- 2. Search Mode -->
-        <div class="control-group">
-          <label for="mode-select" class="control-label">2. Chế độ tìm kiếm</label>
-          <select id="mode-select" class="select-control" aria-label="Chọn chế độ tìm kiếm">
-            <option value="image" selected>Ảnh tương đồng (Top-K Images)</option>
-            <option value="class">Phân loại loài (Top-K Species)</option>
-          </select>
-        </div>
-
-        <!-- 3. Category Filter -->
-        <div class="control-group">
-          <label for="category-select" class="control-label">3. Lọc danh mục</label>
-          <select id="category-select" class="select-control" aria-label="Chọn danh mục lọc">
-            <option value="all" selected>Tất cả danh mục</option>
-            <option value="fruit">Trái cây</option>
-            <option value="vegetable">Rau củ</option>
-            <option value="nut">Hạt dinh dưỡng</option>
-            <option value="seed">Hạt giống</option>
-          </select>
-        </div>
-
-        <!-- 4. Top-K Selection -->
-        <div class="control-group">
-          <div class="control-label">
-            <span>4. Số lượng kết quả (Top-K)</span>
-            <span id="top-k-display" style="font-weight: 700; color: var(--color-primary-600);">5</span>
-          </div>
-          <div class="top-k-segmented" role="radiogroup" aria-label="Chọn số lượng kết quả Top-K">
-            <button type="button" class="segmented-btn active" data-value="5" role="radio" aria-checked="true">5</button>
-            <button type="button" class="segmented-btn" data-value="10" role="radio" aria-checked="false">10</button>
-            <button type="button" class="segmented-btn" data-value="15" role="radio" aria-checked="false">15</button>
-            <button type="button" class="segmented-btn" data-value="20" role="radio" aria-checked="false">20</button>
-          </div>
-          <input type="hidden" id="top-k-value" value="5">
-        </div>
-
-        <!-- Search CTA -->
+        <!-- Primary Search Button -->
         <div>
           <button type="button" id="btn-search" class="btn btn-primary btn-search btn-lg" disabled>
             <span id="search-spinner" class="spinner" style="display: none;" aria-hidden="true"></span>
             <span id="search-text">Tìm hình ảnh tương đồng</span>
           </button>
         </div>
+
+        <!-- Collapsible Advanced Search Options -->
+        <div class="advanced-options-card">
+          <button type="button" id="btn-toggle-options" class="advanced-toggle-btn" aria-expanded="false" aria-controls="advanced-options-content">
+            <span class="toggle-title">Tùy chọn tìm kiếm nâng cao</span>
+            <img src="assets/svg/chevron-down.svg" alt="" class="toggle-icon" aria-hidden="true">
+          </button>
+
+          <div id="advanced-options-content" class="advanced-options-content">
+            <!-- Search Mode -->
+            <div class="control-group">
+              <label for="mode-select" class="control-label">Chế độ kết quả</label>
+              <select id="mode-select" class="select-control" aria-label="Chọn chế độ kết quả">
+                <option value="image" selected>Ảnh giống nhất</option>
+                <option value="class">Các loại phù hợp nhất</option>
+              </select>
+            </div>
+
+            <!-- Category Filter -->
+            <div class="control-group">
+              <label for="category-select" class="control-label">Danh mục lọc</label>
+              <select id="category-select" class="select-control" aria-label="Chọn danh mục lọc">
+                <option value="all" selected>Tất cả danh mục</option>
+                <option value="fruit">Trái cây</option>
+                <option value="vegetable">Rau củ</option>
+                <option value="nut">Hạt dinh dưỡng</option>
+                <option value="seed">Hạt giống</option>
+              </select>
+            </div>
+
+            <!-- Top-K Selection -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>Số lượng kết quả</span>
+                <span id="top-k-display" style="font-weight: 700; color: var(--color-primary-600);">5</span>
+              </div>
+              <div class="top-k-segmented" role="radiogroup" aria-label="Chọn số lượng kết quả">
+                <button type="button" class="segmented-btn active" data-value="5" role="radio" aria-checked="true">5</button>
+                <button type="button" class="segmented-btn" data-value="10" role="radio" aria-checked="false">10</button>
+                <button type="button" class="segmented-btn" data-value="15" role="radio" aria-checked="false">15</button>
+                <button type="button" class="segmented-btn" data-value="20" role="radio" aria-checked="false">20</button>
+              </div>
+              <input type="hidden" id="top-k-value" value="5">
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Search History Section -->
+        <div id="recent-history-section" class="recent-history-section">
+          <div class="history-header">
+            <span class="history-title">Lịch sử tìm kiếm gần đây</span>
+            <button type="button" id="btn-clear-history" class="btn-clear-history" onclick="SearchHistory.clearHistory(); renderHistoryUI();">Xóa</button>
+          </div>
+          <div id="history-items-container" class="history-items-container">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
       </aside>
 
       <!-- Results Column (Right) -->
       <section class="results-panel" aria-live="polite" id="results-section">
-        <!-- Visual Comparison (Query vs Top Match) -->
+        <!-- Visual Comparison (Query vs Top Result) -->
         <div id="comparison-container" class="comparison-container" style="display: none;">
           <div class="comparison-card">
-            <span class="comparison-tag">Ảnh truy vấn</span>
+            <span class="comparison-tag">Ảnh của bạn</span>
             <div class="comparison-media">
-              <img id="query-comparison-img" src="" alt="Ảnh truy vấn">
+              <img id="query-comparison-img" src="" alt="Ảnh của bạn">
             </div>
           </div>
           <div class="comparison-divider">VS</div>
           <div class="comparison-card" id="top-match-comparison-card">
-            <span class="comparison-tag">Khớp nhất #1</span>
+            <span class="comparison-tag">Kết quả gần nhất #1</span>
             <div id="top-match-media" class="comparison-media"></div>
           </div>
         </div>
@@ -140,7 +177,7 @@
         <!-- Header Results Meta Bar -->
         <div id="results-header" class="results-header" style="display: none;">
           <div class="results-count">
-            Kết quả tương đồng: <strong id="res-count">0</strong> mẫu · <strong id="res-time">0</strong> ms
+            Kết quả tương đồng: <strong id="res-count">0</strong> mẫu · Thời gian xử lý: <strong id="res-time">0</strong> ms
           </div>
         </div>
 
@@ -161,7 +198,10 @@
   <div id="image-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-container">
       <div class="modal-header">
-        <h2 id="modal-title" class="modal-title">Chi tiết mẫu trái cây</h2>
+        <div>
+          <h2 id="modal-title" class="modal-title">Chi tiết mẫu trái cây</h2>
+          <span id="modal-subtitle" style="font-size: var(--font-xs); color: var(--color-text-muted);"></span>
+        </div>
         <button type="button" id="modal-close" class="modal-close-btn" aria-label="Đóng cửa sổ chi tiết">
           <img src="assets/svg/close.svg" alt="" width="20" height="20" aria-hidden="true">
         </button>
@@ -174,7 +214,19 @@
         </div>
 
         <div class="modal-info-section">
-          <div class="modal-section-title">Thông tin hệ thống</div>
+          <div class="modal-section-title">Thông tin tổng quan</div>
+          <div class="modal-info-grid">
+            <div class="modal-info-item">
+              <span class="modal-info-label">Danh mục</span>
+              <span id="modal-category" class="modal-info-value">Trái cây</span>
+            </div>
+            <div class="modal-info-item">
+              <span class="modal-info-label">Tần suất mẫu</span>
+              <span id="modal-hit-count" class="modal-info-value">—</span>
+            </div>
+          </div>
+
+          <div class="modal-section-title">Thông tin dữ liệu (Technical Data)</div>
           <div class="modal-info-grid">
             <div class="modal-info-item">
               <span class="modal-info-label">Tên chuẩn hóa (Canonical)</span>
@@ -193,16 +245,28 @@
               <span id="modal-filename" class="modal-info-value"></span>
             </div>
           </div>
-
-          <div class="modal-section-title">Tri thức thực vật (Canonical Knowledge)</div>
-          <div id="modal-knowledge-container" class="knowledge-section">
-            <!-- Dynamically populated or showing trustworthy fallback -->
-          </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav" aria-label="Điều hướng di động">
+    <a href="/" class="mobile-nav-item">
+      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Trang chủ</span>
+    </a>
+    <a href="/search" class="mobile-nav-item active" aria-current="page">
+      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Tìm kiếm</span>
+    </a>
+    <a href="/explore" class="mobile-nav-item">
+      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Khám phá</span>
+    </a>
+  </nav>
+
+  <!-- Footer -->
   <footer class="site-footer">
     <div class="container">
       <p>© 2026 Fruvia AI. Bảo lưu mọi quyền.</p>
@@ -212,6 +276,33 @@
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/utils.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/modal.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/results.js"></script>
   <script src="js/retrieval.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/pwa.js"></script>
+  <script>
+    function renderHistoryUI() {
+      const container = document.getElementById("history-items-container");
+      if (!container) return;
+      const history = SearchHistory.getHistory();
+      if (!history || history.length === 0) {
+        container.innerHTML = `<span class="history-empty">Chưa có lịch sử tìm kiếm.</span>`;
+        return;
+      }
+      container.innerHTML = history.map(item => `
+        <div class="history-pill">
+          ${item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" class="history-thumb">` : ""}
+          <span class="history-name">${Utils.escapeHtml(item.topResultNameVi || item.filename)}</span>
+          <span class="history-time">${Utils.formatRelativeTime(item.timestamp)}</span>
+          <button type="button" class="history-remove-btn" onclick="SearchHistory.removeEntry('${item.id}'); renderHistoryUI();" aria-label="Xóa">×</button>
+        </div>
+      `).join("");
+    }
+
+    document.addEventListener("DOMContentLoaded", () => renderHistoryUI());
+  </script>
 </body>
 </html>

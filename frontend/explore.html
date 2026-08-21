@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Khám phá Danh mục Trái cây & Nông sản | Fruvia AI</title>
+  <meta name="description" content="Tra cứu và khám phá các loài trái cây, rau củ và hạt dinh dưỡng đã được chuẩn hóa trong hệ thống Fruvia AI.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://fruvia.ai/explore">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#059669">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/explore.css">
+</head>
+<body>
+  <!-- Header Navbar -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="brand-logo" aria-label="Fruvia AI - Trang chủ">
+        <img src="assets/svg/brand-lockup.svg" alt="Fruvia AI Logo" width="160" height="32">
+      </a>
+
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <a href="/" class="nav-link">Trang chủ</a>
+        <a href="/search" class="nav-link">Tìm bằng ảnh</a>
+        <a href="/explore" class="nav-link active" aria-current="page">Khám phá</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="/search" class="btn btn-primary btn-sm">Tìm bằng ảnh</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <header class="explore-header">
+      <h1>Khám phá Danh mục Trái cây</h1>
+      <p>Danh mục tổng hợp các loài trái cây và nông sản được chuẩn hóa từ các bộ dữ liệu gallery của Fruvia AI.</p>
+    </header>
+
+    <!-- Search & Filter Controls -->
+    <div class="explore-controls-bar">
+      <div class="search-input-wrapper">
+        <input type="text" id="explore-search-input" placeholder="Tìm theo tên tiếng Việt hoặc tiếng Anh (ví dụ: Táo, Apple, Durian)..." aria-label="Tìm kiếm loài trái cây">
+      </div>
+
+      <div class="filter-select-wrapper">
+        <select id="explore-category-select" class="select-control" aria-label="Lọc theo danh mục">
+          <option value="all" selected>Tất cả danh mục</option>
+          <option value="fruit">Trái cây</option>
+          <option value="vegetable">Rau củ</option>
+          <option value="nut">Hạt dinh dưỡng</option>
+          <option value="seed">Hạt giống</option>
+        </select>
+      </div>
+
+      <div class="explore-meta-count">
+        <span id="explore-count">0 loài</span>
+      </div>
+    </div>
+
+    <!-- Responsive Grid -->
+    <div id="species-grid" class="species-grid">
+      <!-- Loaded dynamically via explore.js -->
+    </div>
+  </main>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav" aria-label="Điều hướng di động">
+    <a href="/" class="mobile-nav-item">
+      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Trang chủ</span>
+    </a>
+    <a href="/search" class="mobile-nav-item">
+      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Tìm kiếm</span>
+    </a>
+    <a href="/explore" class="mobile-nav-item active" aria-current="page">
+      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Khám phá</span>
+    </a>
+  </nav>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 Fruvia AI. Bảo lưu mọi quyền.</p>
+    </div>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/explore.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/pwa.js"></script>
+</body>
+</html>

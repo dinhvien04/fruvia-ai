@@ -2,17 +2,33 @@
  * Fruvia AI — Frontend Configuration
  */
 const CONFIG = {
-  // Dynamically resolve same-origin production deployment vs local dev fallback
-  API_BASE_URL:
-    window.FRUVIA_API_BASE_URL ||
-    (location.origin && location.origin !== "null" && !location.origin.includes("file://")
-      ? location.origin
-      : "http://localhost:8000"),
-  API_TIMEOUT_MS: 60000,
-  MAX_UPLOAD_MB: 10,
-  MAX_UPLOAD_BYTES: 10 * 1024 * 1024,
-  LOW_SIMILARITY_THRESHOLD: 0.55,
-  HIGH_SIMILARITY_THRESHOLD: 0.70,
-  ALLOWED_EXTENSIONS: [".jpg", ".jpeg", ".png", ".webp"],
-  ALLOWED_MIME_TYPES: ["image/jpeg", "image/png", "image/webp"]
+  // Base API Endpoint
+  API_BASE_URL: "", // Same origin default for production/ FastAPI deployment
+
+  // Search Defaults
+  DEFAULT_TOP_K: 5,
+  DEFAULT_MODE: "image", // "image" | "class"
+  DEFAULT_CATEGORY: "all", // "all" | "fruit" | "vegetable" | "nut" | "seed"
+
+  // Timeout settings
+  API_TIMEOUT_MS: 30000,
+
+  // Thresholds
+  LOW_SIMILARITY_THRESHOLD: 0.60,
+
+  // LocalStorage Keys
+  STORAGE_HISTORY_KEY: "fruvia_recent_searches_v2",
+  MAX_HISTORY_ITEMS: 10,
+
+  // Product Stats (Single source of truth to avoid scattered hardcoded numbers)
+  STATS: {
+    VECTOR_COUNT_TEXT: "Hàng trăm nghìn",
+    VECTOR_EXACT_LABEL: "328,190+",
+    SPECIES_COUNT_LABEL: "284+",
+    DATASET_COUNT_LABEL: "2 datasets",
+    FEATURE_DIM_LABEL: "768D DINOv2"
+  }
 };
+
+// Freeze config to avoid accidental runtime mutations
+Object.freeze(CONFIG);

@@ -15,8 +15,23 @@ AI-powered multi-dataset fruit recognition, taxonomy resolution, and visual imag
 | **Taxonomy & Translation** | ✅ Implemented | 410 raw dataset classes normalized to canonical species with Vietnamese + English display names |
 | **Dual Search Modes** | ✅ Implemented | `mode=image` (Top-K images) & `mode=class` (Top-K deduplicated species with hit count) |
 | **Category Filtering** | ✅ Implemented | Filter retrieval by `fruit`, `vegetable`, `nut`, `seed`, or `all` |
-| **Frontend Retrieval Web UI** | ✅ Implemented | Responsive web app with drag & drop, clipboard paste (Ctrl+V), lightbox, skeleton loading, and health status |
+| **Fruvia Web V2 (Frontend)** | ✅ Implemented | Mobile-first visual search UX, Hero Search Widget, PWA/Offline support, Explore taxonomy browser & Search History |
 | **Fruit Classifier (ConvNeXt)** | 🔄 Planned / In Progress | Model training scripts present in notebooks; classification API in progress |
+
+---
+
+## 📱 Fruvia Web V2 Frontend Architecture
+
+The Fruvia Web V2 frontend is a competition-quality visual search web application built with vanilla HTML5, modern modular CSS (Design Tokens), and vanilla ES6 JavaScript modules:
+
+- **Hero Search Widget (`/`)**: Directly select or drop an image on the homepage to start searching. Seamless client-side state transfer to `/search`.
+- **Mobile-First Touch & Camera Support**: Dedicated camera input trigger (`capture="environment"`) and gallery selection touch buttons (≥44px target sizes).
+- **Mobile Bottom Navigation Bar**: Fixed bottom navigation bar for mobile viewports (`Trang chủ`, `Tìm kiếm`, `Khám phá`) respecting iOS `safe-area-inset-bottom`.
+- **Collapsible Search Controls**: Technical controls (search mode, category filter, Top-K slider) collapsed under an intuitive "Tùy chọn tìm kiếm" accordion.
+- **Visual Comparison (Query vs Top Match)**: Side-by-side thumbnail comparison with clear non-jargon labels ("Ảnh của bạn" vs "Kết quả gần nhất #1").
+- **Client-Only Recent History**: `localStorage`-based search history capped at 10 items with thumbnail previews, relative timestamps, and one-tap restore/clear.
+- **Taxonomy Explorer (`/explore`)**: Browse ground-truth canonical species from `configs/taxonomy.yaml` with search & category filters.
+- **PWA & Offline Capability**: Web App Manifest (`manifest.webmanifest`), Service Worker (`service-worker.js`), and offline fallback UI (`offline.html`).
 
 ---
 
@@ -36,9 +51,10 @@ Fruvia AI indexes multiple datasets within a unified 768-dimensional embedding s
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Frontend Web UI                      │
-│            retrieval.html (Vanilla JS + CSS)            │
-│    Drag-and-Drop │ Clipboard Paste │ Lightbox Modal      │
+│               Fruvia Web V2 Frontend                    │
+│     index.html (Home) │ retrieval.html (/search)        │
+│     explore.html (/explore) │ species.html              │
+│    Modular JS │ PWA SW │ Mobile Bottom Nav │ SVG Assets   │
 └────────────────────────────┬────────────────────────────┘
                              │ HTTP Multipart (POST /api/retrieve)
 ┌────────────────────────────▼────────────────────────────┐
@@ -128,7 +144,7 @@ Send a `multipart/form-data` request with an image file.
 fruvia-ai/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                 # FastAPI application & lifecycle
+│   │   ├── main.py                 # FastAPI app, static mounts & clean URL routes
 │   │   ├── api/                    # Route handlers (/health, /ready, /retrieve)
 │   │   ├── core/                   # Config, rate limiting, logging, exceptions
 │   │   ├── ml/                     # DINOv2 ImageEncoder (768D L2)
@@ -136,20 +152,26 @@ fruvia-ai/
 │   │   ├── repositories/           # QdrantRepository (Vector DB access)
 │   │   ├── schemas/                # Multi-dataset Pydantic models
 │   │   └── utils/                  # TaxonomyManager, class_resolver, image_validation
-│   ├── tests/
-│   │   ├── unit/                   # Unit tests (mock Qdrant & DINOv2)
-│   │   └── integration/            # FastAPI TestClient endpoint integration tests
+│   ├── tests/                      # 155 unit & integration tests
 │   ├── requirements.txt
-│   └── Dockerfile                  # Production container with HEALTHCHECK on /api/ready
-├── frontend/                       # Web Application UI
-│   ├── retrieval.html              # Image Retrieval search page
-│   ├── css/                        # Responsive CSS styles
-│   └── js/                         # API client, UI controller, utilities
+│   └── Dockerfile
+├── frontend/                       # Fruvia Web V2 Application UI
+│   ├── index.html                  # Homepage with Hero Search Widget
+│   ├── retrieval.html              # Search page (/search)
+│   ├── explore.html                # Species taxonomy browser (/explore)
+│   ├── species.html                # Single species view
+│   ├── offline.html                # PWA offline fallback page
+│   ├── manifest.webmanifest        # PWA Web App Manifest
+│   ├── service-worker.js           # PWA static asset caching service worker
+│   ├── css/                        # Responsive CSS design system (variables, base, components, home, retrieval, explore)
+│   ├── js/                         # Modular JS (config, api, utils, upload, results, modal, history, explore, navigation, pwa, retrieval)
+│   ├── data/
+│   │   └── species.json            # Generated ground-truth taxonomy species export
+│   └── assets/svg/                 # Custom brand, SVG icons, and illustrations
 ├── configs/                        # System Configurations
-│   ├── taxonomy.yaml               # 410-class taxonomy (EN/VI names + categories)
-│   ├── class_mapping.yaml          # Legacy Fruits-360 class mapping
-│   └── classes.yaml                # Target classification classes
+│   └── taxonomy.yaml               # 410-class taxonomy (EN/VI names + categories)
 ├── scripts/                        # Utility & Evaluation Scripts
+│   ├── export_taxonomy_frontend.py # Export taxonomy.yaml to frontend/data/species.json
 │   ├── evaluate_retrieval.py       # Retrieval precision & recall evaluator
 │   └── audit_dataset.py            # Dataset integrity auditor
 ├── .github/workflows/ci.yml        # GitHub Actions automated test & lint pipeline
@@ -182,44 +204,30 @@ cd fruvia-ai
 pip install -r backend/requirements.txt
 ```
 
-### Environment Configuration
+### Export Taxonomy Data
 
-Copy `.env.example` to `.env` and provide your Qdrant Cloud credentials:
-
-```ini
-APP_ENV=development
-QDRANT_URL=https://your-cluster.qdrant.io:6333
-QDRANT_API_KEY=your-api-key
-QDRANT_COLLECTION=fruvia_fruits360_original_dinov2_base_v1
-DINOV2_REVISION=main
-RATE_LIMIT_PER_MINUTE=60
-MAX_CONCURRENT_INFERENCES=4
+```bash
+python scripts/export_taxonomy_frontend.py
 ```
 
 ### Running the Application
 
 ```bash
-# Start FastAPI backend
+# Start FastAPI backend & serve integrated Web V2 frontend
 cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-In a separate terminal, serve the frontend:
-
-```bash
-python -m http.server 3000 --directory frontend
-```
-
-Open [http://localhost:3000/retrieval.html](http://localhost:3000/retrieval.html) in your browser.
+Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ---
 
 ## 🧪 Testing & Code Quality
 
-Run the test suite and linters locally before pushing:
+Run the test suite and linters locally:
 
 ```bash
-# Run pytest (154 unit & integration tests)
+# Run pytest (155 unit & integration tests)
 python -m pytest
 
 # Run Ruff linter
@@ -228,25 +236,6 @@ python -m ruff check backend/ configs/ scripts/
 # Run Ruff format check
 python -m ruff format --check backend/ configs/ scripts/
 ```
-
----
-
-## 📦 Collection Naming & Migration Strategy
-
-- Current Production Collection: `fruvia_fruits360_original_dinov2_base_v1`
-  - Note: This collection name is preserved for backward compatibility and contains both Fruits-360 and Fruits-262 embeddings.
-- Recommended Collection Name for Next Index Refresh: `fruvia_gallery_dinov2_base_v2`
-
----
-
-## 🔒 Security & Performance Features
-
-1. **Decompression Bomb Protection**: Pillow pixel limits capped at 25,000,000 pixels.
-2. **Bounded File Streaming**: Maximum file uploads strictly enforced in RAM before decoding.
-3. **In-Memory Rate Limiting**: Capped per IP to prevent search endpoint abuse.
-4. **Concurrency Limiter**: Global semaphore prevents GPU/CPU memory overflow under high concurrency.
-5. **No Vector Over-Fetching**: Qdrant queries request payload only (`with_vectors=False`).
-6. **Container Health Readiness**: Docker `HEALTHCHECK` queries `/api/ready` to ensure ML model & Qdrant are fully online.
 
 ---
 

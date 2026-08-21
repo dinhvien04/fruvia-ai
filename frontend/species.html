@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chi tiết loài | Fruvia AI</title>
+  <meta name="description" content="Thông tin chuẩn hóa và danh mục loài trái cây trong hệ thống Fruvia AI.">
+  <meta name="robots" content="index,follow">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#059669">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/explore.css">
+</head>
+<body>
+  <!-- Header Navbar -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="brand-logo" aria-label="Fruvia AI - Trang chủ">
+        <img src="assets/svg/brand-lockup.svg" alt="Fruvia AI Logo" width="160" height="32">
+      </a>
+
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <a href="/" class="nav-link">Trang chủ</a>
+        <a href="/search" class="nav-link">Tìm bằng ảnh</a>
+        <a href="/explore" class="nav-link active">Khám phá</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="/explore" class="btn btn-secondary btn-sm">Quay lại danh mục</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content" style="padding-top: var(--space-4xl); padding-bottom: var(--space-5xl);">
+    <div id="species-detail-container" class="card container-narrow" style="margin: 0 auto;">
+      <!-- Dynamic populated -->
+      <div class="empty-state">
+        <span class="spinner" style="margin: 0 auto 16px;"></span>
+        <p>Đang tải thông tin loài...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav" aria-label="Điều hướng di động">
+    <a href="/" class="mobile-nav-item">
+      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Trang chủ</span>
+    </a>
+    <a href="/search" class="mobile-nav-item">
+      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Tìm kiếm</span>
+    </a>
+    <a href="/explore" class="mobile-nav-item active">
+      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <span>Khám phá</span>
+    </a>
+  </nav>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 Fruvia AI. Bảo lưu mọi quyền.</p>
+    </div>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/pwa.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const container = document.getElementById('species-detail-container');
+      const params = new URLSearchParams(window.location.search);
+      const speciesId = params.get('id');
+
+      if (!speciesId) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <h3>Không tìm thấy loài</h3>
+            <p>Vui lòng chọn một loài từ trang khám phá.</p>
+            <a href="/explore" class="btn btn-primary btn-sm" style="margin-top: 16px;">Về trang khám phá</a>
+          </div>
+        `;
+        return;
+      }
+
+      try {
+        const response = await fetch('data/species.json');
+        const list = await response.json();
+        const item = list.find(s => s.id === speciesId);
+
+        if (!item) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <h3>Không tìm thấy thông tin loài "${Utils.escapeHtml(speciesId)}"</h3>
+              <a href="/explore" class="btn btn-primary btn-sm" style="margin-top: 16px;">Về trang khám phá</a>
+            </div>
+          `;
+          return;
+        }
+
+        document.title = `${item.name_vi} (${item.name_en}) | Fruvia AI`;
+
+        const catMap = { fruit: 'Trái cây', vegetable: 'Rau củ', nut: 'Hạt dinh dưỡng', seed: 'Hạt giống', other: 'Khác' };
+        const catLabel = catMap[item.category] || item.category;
+
+        container.innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: var(--space-xl);">
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-lg);">
+              <div>
+                <h1 style="font-size: var(--font-3xl); color: var(--color-text-main);">${Utils.escapeHtml(item.name_vi)}</h1>
+                <p style="font-size: var(--font-lg); color: var(--color-text-muted);">${Utils.escapeHtml(item.name_en)}</p>
+              </div>
+              <span class="badge badge-primary">${Utils.escapeHtml(catLabel)}</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
+              <div class="card" style="background-color: var(--color-bg-subtle);">
+                <span style="font-size: var(--font-xs); color: var(--color-text-muted); display: block;">Mã định danh loài (Canonical Key)</span>
+                <strong style="font-size: var(--font-base); color: var(--color-text-main);">${Utils.escapeHtml(item.id)}</strong>
+              </div>
+              <div class="card" style="background-color: var(--color-bg-subtle);">
+                <span style="font-size: var(--font-xs); color: var(--color-text-muted); display: block;">Phân loại</span>
+                <strong style="font-size: var(--font-base); color: var(--color-text-main);">${item.is_fruit ? 'Trái cây' : 'Nông sản khác'}</strong>
+              </div>
+            </div>
+
+            ${item.aliases && item.aliases.length > 0 ? `
+              <div>
+                <h4 style="font-size: var(--font-base); margin-bottom: var(--space-sm);">Các biến thể nhãn trong dữ liệu (Dataset Aliases)</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                  ${item.aliases.map(a => `<span class="badge badge-neutral">${Utils.escapeHtml(a)}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            <div style="margin-top: var(--space-lg); padding-top: var(--space-lg); border-top: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center;">
+              <a href="/explore" class="btn btn-secondary btn-sm">← Xem danh mục loài</a>
+              <a href="/search" class="btn btn-primary btn-sm">Tìm kiếm ảnh loài này →</a>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        container.innerHTML = `<div class="empty-state"><h3>Lỗi tải thông tin loài</h3></div>`;
+      }
+    });
+  </script>
+</body>
+</html>

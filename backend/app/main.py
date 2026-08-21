@@ -114,6 +114,10 @@ def create_app() -> FastAPI:
         async def serve_search_page() -> FileResponse:
             return FileResponse(FRONTEND_DIR / "retrieval.html")
 
+        @app.get("/explore", include_in_schema=False)
+        async def serve_explore_page() -> FileResponse:
+            return FileResponse(FRONTEND_DIR / "explore.html")
+
         # Compatibility redirects for .html paths
         @app.get("/index.html", include_in_schema=False)
         async def redirect_index() -> RedirectResponse:
@@ -123,7 +127,11 @@ def create_app() -> FastAPI:
         async def redirect_retrieval() -> RedirectResponse:
             return RedirectResponse(url="/search", status_code=301)
 
-        # SEO files
+        @app.get("/explore.html", include_in_schema=False)
+        async def redirect_explore() -> RedirectResponse:
+            return RedirectResponse(url="/explore", status_code=301)
+
+        # SEO & PWA files
         @app.get("/robots.txt", include_in_schema=False)
         async def serve_robots() -> FileResponse:
             return FileResponse(FRONTEND_DIR / "robots.txt")
@@ -136,11 +144,32 @@ def create_app() -> FastAPI:
         async def serve_favicon() -> FileResponse:
             return FileResponse(FRONTEND_DIR / "favicon.svg")
 
+        @app.get("/manifest.webmanifest", include_in_schema=False)
+        async def serve_manifest() -> FileResponse:
+            return FileResponse(FRONTEND_DIR / "manifest.webmanifest")
+
+        @app.get("/service-worker.js", include_in_schema=False)
+        async def serve_sw() -> FileResponse:
+            return FileResponse(
+                FRONTEND_DIR / "service-worker.js",
+                media_type="application/javascript",
+            )
+
+        @app.get("/offline.html", include_in_schema=False)
+        async def serve_offline() -> FileResponse:
+            return FileResponse(FRONTEND_DIR / "offline.html")
+
+        @app.get("/species.html", include_in_schema=False)
+        async def serve_species_detail() -> FileResponse:
+            return FileResponse(FRONTEND_DIR / "species.html")
+
         # Static assets directories
         if (FRONTEND_DIR / "css").exists():
             app.mount("/css", StaticFiles(directory=FRONTEND_DIR / "css"), name="css")
         if (FRONTEND_DIR / "js").exists():
             app.mount("/js", StaticFiles(directory=FRONTEND_DIR / "js"), name="js")
+        if (FRONTEND_DIR / "data").exists():
+            app.mount("/data", StaticFiles(directory=FRONTEND_DIR / "data"), name="data")
         if (FRONTEND_DIR / "assets").exists():
             app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
 

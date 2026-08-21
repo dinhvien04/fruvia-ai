@@ -1,0 +1,814 @@
+[
+  {
+    "id": "almond",
+    "name_en": "Almond",
+    "name_vi": "Hạt hạnh nhân",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "apple",
+    "name_en": "Apple",
+    "name_vi": "Táo",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "apple",
+      "apple_braeburn",
+      "apple_crimson_snow",
+      "apple_golden",
+      "apple_granny_smith",
+      "apple_pink_lady",
+      "apple_red",
+      "apple_red_delicious",
+      "apple_red_yellow",
+      "apple_hit"
+    ]
+  },
+  {
+    "id": "apricot",
+    "name_en": "Apricot",
+    "name_vi": "Mơ",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "avocado",
+    "name_en": "Avocado",
+    "name_vi": "Bơ",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "avocado_ripe"
+    ]
+  },
+  {
+    "id": "banana",
+    "name_en": "Banana",
+    "name_vi": "Chuối",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "banana_lady_finger",
+      "banana_red"
+    ]
+  },
+  {
+    "id": "beetroot",
+    "name_en": "Beetroot",
+    "name_vi": "Củ dền",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "blackberry",
+    "name_en": "Blackberry",
+    "name_vi": "Quả mâm xôi đen",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "blueberry",
+    "name_en": "Blueberry",
+    "name_vi": "Việt quất",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "cabbage",
+    "name_en": "Cabbage",
+    "name_vi": "Bắp cải",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "cactus_fruit",
+    "name_en": "Cactus Fruit",
+    "name_vi": "Trái xương rồng",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "cantaloupe",
+    "name_en": "Cantaloupe",
+    "name_vi": "Dưa lưới",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "carambola",
+    "name_en": "Carambola / Starfruit",
+    "name_vi": "Khế",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "carambula",
+      "starfruit",
+      "star_fruit"
+    ]
+  },
+  {
+    "id": "carrot",
+    "name_en": "Carrot",
+    "name_vi": "Cà rốt",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "cashew",
+    "name_en": "Cashew",
+    "name_vi": "Hạt điều",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "cauliflower",
+    "name_en": "Cauliflower",
+    "name_vi": "Súp lơ",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "cherry",
+    "name_en": "Cherry",
+    "name_vi": "Anh đào",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "cherry_rainier",
+      "cherry_wax_black",
+      "cherry_wax_red",
+      "cherry_wax_yellow"
+    ]
+  },
+  {
+    "id": "chestnut",
+    "name_en": "Chestnut",
+    "name_vi": "Hạt dẻ",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "chili_pepper",
+    "name_en": "Chili Pepper",
+    "name_vi": "Ớt hiểm",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "chili"
+    ]
+  },
+  {
+    "id": "clementine",
+    "name_en": "Clementine",
+    "name_vi": "Quýt Clementine",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "coconut",
+    "name_en": "Coconut",
+    "name_vi": "Dừa",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "cocos"
+    ]
+  },
+  {
+    "id": "corn",
+    "name_en": "Corn",
+    "name_vi": "Bắp / Ngô",
+    "category": "seed",
+    "is_fruit": false,
+    "aliases": [
+      "corn_husk"
+    ]
+  },
+  {
+    "id": "cucumber",
+    "name_en": "Cucumber",
+    "name_vi": "Dưa leo",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "cucumber_ripe"
+    ]
+  },
+  {
+    "id": "custard_apple",
+    "name_en": "Custard Apple",
+    "name_vi": "Mãng cầu / Na",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "sugar_apple"
+    ]
+  },
+  {
+    "id": "dates",
+    "name_en": "Dates",
+    "name_vi": "Chà là",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "dragon_fruit",
+    "name_en": "Dragon Fruit",
+    "name_vi": "Thanh long",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "dragonfruit",
+      "pitahaya",
+      "pitahaya_red"
+    ]
+  },
+  {
+    "id": "duku",
+    "name_en": "Duku / Langsat",
+    "name_vi": "Bòn bon",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "langsat"
+    ]
+  },
+  {
+    "id": "durian",
+    "name_en": "Durian",
+    "name_vi": "Sầu riêng",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "eggplant",
+    "name_en": "Eggplant",
+    "name_vi": "Cà tím",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "fig",
+    "name_en": "Fig",
+    "name_vi": "Sung",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "garlic",
+    "name_en": "Garlic",
+    "name_vi": "Tỏi",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "ginger",
+    "name_en": "Ginger",
+    "name_vi": "Gừng",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "ginger_root"
+    ]
+  },
+  {
+    "id": "granadilla",
+    "name_en": "Granadilla",
+    "name_vi": "Chanh dây ngọt",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "grape",
+    "name_en": "Grape",
+    "name_vi": "Nho",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "grape_blue",
+      "grape_pink",
+      "grape_white"
+    ]
+  },
+  {
+    "id": "grapefruit",
+    "name_en": "Grapefruit",
+    "name_vi": "Bưởi chùm",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "grapefruit_pink",
+      "grapefruit_white"
+    ]
+  },
+  {
+    "id": "guava",
+    "name_en": "Guava",
+    "name_vi": "Ổi",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "hazelnut",
+    "name_en": "Hazelnut",
+    "name_vi": "Hạt phỉ",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "huckleberry",
+    "name_en": "Huckleberry",
+    "name_vi": "Việt quất dại",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "jackfruit",
+    "name_en": "Jackfruit",
+    "name_vi": "Mít",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "kaki",
+    "name_en": "Kaki / Persimmon",
+    "name_vi": "Hồng",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "persimmon"
+    ]
+  },
+  {
+    "id": "kiwi",
+    "name_en": "Kiwi",
+    "name_vi": "Kiwi",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "kohlrabi",
+    "name_en": "Kohlrabi",
+    "name_vi": "Su hào",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "kumquat",
+    "name_en": "Kumquat",
+    "name_vi": "Tắc / Quất",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "lemon",
+    "name_en": "Lemon",
+    "name_vi": "Chanh vàng",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "lemon_meyer"
+    ]
+  },
+  {
+    "id": "lime",
+    "name_en": "Lime",
+    "name_vi": "Chanh xanh",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "limes"
+    ]
+  },
+  {
+    "id": "longan",
+    "name_en": "Longan",
+    "name_vi": "Nhãn",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "lotus_seed",
+    "name_en": "Lotus Seed",
+    "name_vi": "Hạt sen",
+    "category": "seed",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "lychee",
+    "name_en": "Lychee",
+    "name_vi": "Vải",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "mandarin",
+    "name_en": "Mandarin",
+    "name_vi": "Quýt",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "mandarine"
+    ]
+  },
+  {
+    "id": "mango",
+    "name_en": "Mango",
+    "name_vi": "Xoài",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "mango_red"
+    ]
+  },
+  {
+    "id": "mangosteen",
+    "name_en": "Mangosteen",
+    "name_vi": "Măng cụt",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "melon",
+    "name_en": "Melon",
+    "name_vi": "Dưa",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "melon_piel_de_sapo"
+    ]
+  },
+  {
+    "id": "mushroom",
+    "name_en": "Mushroom",
+    "name_vi": "Nấm",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "nectarine",
+    "name_en": "Nectarine",
+    "name_vi": "Đào trơn",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "nectarine_flat"
+    ]
+  },
+  {
+    "id": "nut",
+    "name_en": "Nut",
+    "name_vi": "Hạt tổng hợp",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": [
+      "nut_forest",
+      "nut_pecan"
+    ]
+  },
+  {
+    "id": "onion",
+    "name_en": "Onion",
+    "name_vi": "Hành tây",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "onion_red",
+      "onion_red_peeled",
+      "onion_white"
+    ]
+  },
+  {
+    "id": "orange",
+    "name_en": "Orange",
+    "name_vi": "Cam",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "papaya",
+    "name_en": "Papaya",
+    "name_vi": "Đu đủ",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "passion_fruit",
+    "name_en": "Passion Fruit",
+    "name_vi": "Chanh dây",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "peach",
+    "name_en": "Peach",
+    "name_vi": "Đào",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "peach_flat"
+    ]
+  },
+  {
+    "id": "peanut",
+    "name_en": "Peanut",
+    "name_vi": "Đậu phụng / Lạc",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "pear",
+    "name_en": "Pear",
+    "name_vi": "Lê",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "pear_abate",
+      "pear_forelle",
+      "pear_kaiser",
+      "pear_monster",
+      "pear_red",
+      "pear_stone",
+      "pear_williams"
+    ]
+  },
+  {
+    "id": "peas",
+    "name_en": "Peas",
+    "name_vi": "Đậu Hà Lan",
+    "category": "seed",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "pepino",
+    "name_en": "Pepino",
+    "name_vi": "Dưa Pepino",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "pepper",
+    "name_en": "Bell Pepper",
+    "name_vi": "Ớt chuông",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "pepper_green",
+      "pepper_red",
+      "pepper_yellow"
+    ]
+  },
+  {
+    "id": "physalis",
+    "name_en": "Physalis",
+    "name_vi": "Tầm bóp",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "physalis_with_husk"
+    ]
+  },
+  {
+    "id": "pineapple",
+    "name_en": "Pineapple",
+    "name_vi": "Dứa / Thơm",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "pineapple_mini"
+    ]
+  },
+  {
+    "id": "pistachio",
+    "name_en": "Pistachio",
+    "name_vi": "Hạt dẻ cười",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "plum",
+    "name_en": "Plum",
+    "name_vi": "Mận",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "pomegranate",
+    "name_en": "Pomegranate",
+    "name_vi": "Lựu",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "pomelo",
+    "name_en": "Pomelo",
+    "name_vi": "Bưởi",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "pomelo_sweetie"
+    ]
+  },
+  {
+    "id": "potato",
+    "name_en": "Potato",
+    "name_vi": "Khoai tây",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "potato_red",
+      "potato_red_washed",
+      "potato_sweet",
+      "potato_white"
+    ]
+  },
+  {
+    "id": "pumpkin",
+    "name_en": "Pumpkin",
+    "name_vi": "Bí đỏ",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "quince",
+    "name_en": "Quince",
+    "name_vi": "Mộc qua",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "radish",
+    "name_en": "Radish",
+    "name_vi": "Củ cải",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "rambutan",
+    "name_en": "Rambutan",
+    "name_vi": "Chôm chôm",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "raspberry",
+    "name_en": "Raspberry",
+    "name_vi": "Mâm xôi",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "redcurrant",
+    "name_en": "Redcurrant",
+    "name_vi": "Chuỗi ngọc đỏ",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "salak",
+    "name_en": "Salak / Snake Fruit",
+    "name_vi": "Quả mây",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "snake_fruit"
+    ]
+  },
+  {
+    "id": "sapodilla",
+    "name_en": "Sapodilla",
+    "name_vi": "Hồng xiêm",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "soursop",
+    "name_en": "Soursop",
+    "name_vi": "Mãng cầu gai",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "spinach",
+    "name_en": "Spinach",
+    "name_vi": "Rau bina / Cải bó xôi",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "strawberry",
+    "name_en": "Strawberry",
+    "name_vi": "Dâu tây",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": [
+      "strawberry_wedge"
+    ]
+  },
+  {
+    "id": "tamarillo",
+    "name_en": "Tamarillo",
+    "name_vi": "Cà chua thân gỗ",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "tangelo",
+    "name_en": "Tangelo",
+    "name_vi": "Cam Tangelo",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "tomato",
+    "name_en": "Tomato",
+    "name_vi": "Cà chua",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "tomato_cherry_red",
+      "tomato_heart",
+      "tomato_maroon",
+      "tomato_yellow"
+    ]
+  },
+  {
+    "id": "walnut",
+    "name_en": "Walnut",
+    "name_vi": "Óc chó",
+    "category": "nut",
+    "is_fruit": false,
+    "aliases": []
+  },
+  {
+    "id": "watermelon",
+    "name_en": "Watermelon",
+    "name_vi": "Dưa hấu",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "zucchini",
+    "name_en": "Zucchini",
+    "name_vi": "Bí ngòi",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "zucchini_dark",
+      "zucchini_green"
+    ]
+  }
+]

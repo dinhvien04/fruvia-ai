@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ngoại tuyến | Fruvia AI</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    .offline-page {
+      min-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: var(--space-2xl);
+    }
+    .offline-icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: var(--space-xl);
+    }
+  </style>
+</head>
+<body>
+  <main class="container offline-page">
+    <img src="assets/svg/no-results.svg" alt="" class="offline-icon" aria-hidden="true">
+    <h1>Bạn đang ngoại tuyến</h1>
+    <p style="max-width: 480px; margin: 16px auto 24px;">Không có kết nối Internet. Vui lòng kiểm tra lại mạng của bạn để tiếp tục sử dụng các tính năng tìm kiếm hình ảnh AI của Fruvia.</p>
+    <button type="button" class="btn btn-primary btn-lg" onclick="window.location.reload();">Thử lại</button>
+  </main>
+</body>
+</html>
