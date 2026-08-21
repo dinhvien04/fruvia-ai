@@ -30,7 +30,15 @@
     <img src="assets/svg/no-results.svg" alt="" class="offline-icon" aria-hidden="true">
     <h1>Bạn đang ngoại tuyến</h1>
     <p style="max-width: 480px; margin: 16px auto 24px;">Không có kết nối Internet. Vui lòng kiểm tra lại mạng của bạn để tiếp tục sử dụng các tính năng tìm kiếm hình ảnh AI của Fruvia.</p>
-    <button type="button" class="btn btn-primary btn-lg" onclick="window.location.reload();">Thử lại</button>
+    <button type="button" id="btn-retry-offline" class="btn btn-primary btn-lg">Thử lại</button>
   </main>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById("btn-retry-offline");
+      if (btn) {
+        btn.addEventListener("click", () => window.location.reload());
+      }
+    });
+  </script>
 </body>
 </html>

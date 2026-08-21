@@ -50,7 +50,7 @@
         <!-- 1. Dropzone / Upload Panel -->
         <div class="control-group">
           <span class="section-label">1. Tải ảnh trái cây</span>
-          <form id="upload-form" onsubmit="return false;">
+          <form id="upload-form">
             <input type="file" id="file-input" accept="image/jpeg,image/jpg,image/png,image/webp" class="sr-only">
             <input type="file" id="camera-input" accept="image/*" capture="environment" class="sr-only">
 
@@ -75,12 +75,12 @@
 
             <!-- Mobile Dedicated Camera / Gallery Tap Controls -->
             <div class="mobile-camera-actions">
-              <button type="button" class="btn btn-secondary btn-camera" onclick="document.getElementById('camera-input').click();">
-                <img src="assets/svg/camera.svg" alt="" class="btn-icon" aria-hidden="true">
+              <button type="button" id="btn-quick-camera" class="btn btn-secondary btn-camera">
+                <img src="assets/svg/camera.svg" alt="" class="btn-icon" width="20" height="20" aria-hidden="true">
                 <span>Chụp ảnh</span>
               </button>
-              <button type="button" class="btn btn-secondary btn-gallery" onclick="document.getElementById('file-input').click();">
-                <img src="assets/svg/gallery.svg" alt="" class="btn-icon" aria-hidden="true">
+              <button type="button" id="btn-quick-gallery" class="btn btn-secondary btn-gallery">
+                <img src="assets/svg/gallery.svg" alt="" class="btn-icon" width="20" height="20" aria-hidden="true">
                 <span>Chọn ảnh</span>
               </button>
             </div>
@@ -145,7 +145,7 @@
         <div id="recent-history-section" class="recent-history-section">
           <div class="history-header">
             <span class="history-title">Lịch sử tìm kiếm gần đây</span>
-            <button type="button" id="btn-clear-history" class="btn-clear-history" onclick="SearchHistory.clearHistory(); renderHistoryUI();">Xóa</button>
+            <button type="button" id="btn-clear-history" class="btn-clear-history">Xóa</button>
           </div>
           <div id="history-items-container" class="history-items-container">
             <!-- Dynamically populated -->
@@ -253,15 +253,15 @@
   <!-- Mobile Bottom Navigation Bar -->
   <nav class="mobile-bottom-nav" aria-label="Điều hướng di động">
     <a href="/" class="mobile-nav-item">
-      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Trang chủ</span>
     </a>
     <a href="/search" class="mobile-nav-item active" aria-current="page">
-      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Tìm kiếm</span>
     </a>
     <a href="/explore" class="mobile-nav-item">
-      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Khám phá</span>
     </a>
   </nav>
@@ -297,12 +297,37 @@
           ${item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" class="history-thumb">` : ""}
           <span class="history-name">${Utils.escapeHtml(item.topResultNameVi || item.filename)}</span>
           <span class="history-time">${Utils.formatRelativeTime(item.timestamp)}</span>
-          <button type="button" class="history-remove-btn" onclick="SearchHistory.removeEntry('${item.id}'); renderHistoryUI();" aria-label="Xóa">×</button>
+          <button type="button" class="history-remove-btn" data-history-id="${item.id}" aria-label="Xóa">×</button>
         </div>
       `).join("");
+
+      container.querySelectorAll(".history-remove-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-history-id");
+          if (id) {
+            SearchHistory.removeEntry(id);
+            renderHistoryUI();
+          }
+        });
+      });
     }
 
-    document.addEventListener("DOMContentLoaded", () => renderHistoryUI());
+    document.addEventListener("DOMContentLoaded", () => {
+      const uploadForm = document.getElementById("upload-form");
+      if (uploadForm) {
+        uploadForm.addEventListener("submit", (e) => e.preventDefault());
+      }
+
+      const btnClearHistory = document.getElementById("btn-clear-history");
+      if (btnClearHistory) {
+        btnClearHistory.addEventListener("click", () => {
+          SearchHistory.clearHistory();
+          renderHistoryUI();
+        });
+      }
+
+      renderHistoryUI();
+    });
   </script>
 </body>
 </html>

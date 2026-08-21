@@ -101,7 +101,7 @@ const ExplorePage = {
         const aliasCount = item.aliases ? item.aliases.length : 0;
 
         return `
-        <article class="species-card card" tabindex="0" role="button" onclick="window.location.href='species.html?id=${item.id}'">
+        <article class="species-card card" tabindex="0" role="button" data-species-id="${item.id}">
           <div class="species-card-media">
             <img src="assets/svg/brand-mark.svg" alt="" class="species-placeholder-icon" aria-hidden="true">
           </div>
@@ -117,6 +117,20 @@ const ExplorePage = {
       `;
       })
       .join("");
+
+    gridEl.querySelectorAll(".species-card").forEach((card) => {
+      const speciesId = card.getAttribute("data-species-id");
+      const navigate = () => {
+        if (speciesId) window.location.href = `species.html?id=${speciesId}`;
+      };
+      card.addEventListener("click", navigate);
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate();
+        }
+      });
+    });
   },
 
   renderError(container) {

@@ -165,11 +165,17 @@ const ResultsRenderer = {
           <h4>Fruvia chưa tìm thấy kết quả đủ gần (${percent}%)</h4>
           <p>Ảnh có thể không thuộc các nhóm hiện được hỗ trợ hoặc chưa có mẫu tương tự trong dữ liệu gallery.</p>
           <div class="alert-actions" style="margin-top: 8px;">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="UploadManager.clear()">Thử chọn ảnh khác</button>
+            <button type="button" id="btn-low-sim-clear" class="btn btn-secondary btn-sm">Thử chọn ảnh khác</button>
           </div>
         </div>
       </div>
     `;
+
+    const clearBtn = container.querySelector("#btn-low-sim-clear");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => UploadManager.clear());
+    }
+
     container.style.display = "block";
   },
 

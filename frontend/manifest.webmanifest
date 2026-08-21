@@ -1,7 +1,7 @@
 {
-  "name": "Fruvia AI — Nhận diện & Tìm kiếm Trái cây",
+  "name": "Fruvia AI — Tìm kiếm & Khám phá Trái cây",
   "short_name": "Fruvia AI",
-  "description": "Nền tảng nhận diện và tra cứu thông minh hình ảnh trái cây bằng AI.",
+  "description": "Nền tảng tra cứu và tìm kiếm hình ảnh trái cây tương đồng bằng công nghệ AI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

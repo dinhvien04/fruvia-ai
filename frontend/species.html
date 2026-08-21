@@ -35,8 +35,8 @@
     </div>
   </header>
 
-  <main class="container main-content" style="padding-top: var(--space-4xl); padding-bottom: var(--space-5xl);">
-    <div id="species-detail-container" class="card container-narrow" style="margin: 0 auto;">
+  <main class="container main-content species-detail-main">
+    <div id="species-detail-container" class="card container-narrow species-detail-container">
       <!-- Dynamic populated -->
       <div class="empty-state">
         <span class="spinner" style="margin: 0 auto 16px;"></span>
@@ -48,15 +48,15 @@
   <!-- Mobile Bottom Navigation Bar -->
   <nav class="mobile-bottom-nav" aria-label="Điều hướng di động">
     <a href="/" class="mobile-nav-item">
-      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Trang chủ</span>
     </a>
     <a href="/search" class="mobile-nav-item">
-      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Tìm kiếm</span>
     </a>
-    <a href="/explore" class="mobile-nav-item active">
-      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+    <a href="/explore" class="mobile-nav-item active" aria-current="page">
+      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Khám phá</span>
     </a>
   </nav>
@@ -110,36 +110,36 @@
         const catLabel = catMap[item.category] || item.category;
 
         container.innerHTML = `
-          <div style="display: flex; flex-direction: column; gap: var(--space-xl);">
-            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-lg);">
+          <div class="species-detail-content">
+            <div class="species-detail-header">
               <div>
-                <h1 style="font-size: var(--font-3xl); color: var(--color-text-main);">${Utils.escapeHtml(item.name_vi)}</h1>
-                <p style="font-size: var(--font-lg); color: var(--color-text-muted);">${Utils.escapeHtml(item.name_en)}</p>
+                <h1 class="species-detail-title">${Utils.escapeHtml(item.name_vi)}</h1>
+                <p class="species-detail-subtitle">${Utils.escapeHtml(item.name_en)}</p>
               </div>
               <span class="badge badge-primary">${Utils.escapeHtml(catLabel)}</span>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
-              <div class="card" style="background-color: var(--color-bg-subtle);">
-                <span style="font-size: var(--font-xs); color: var(--color-text-muted); display: block;">Mã định danh loài (Canonical Key)</span>
-                <strong style="font-size: var(--font-base); color: var(--color-text-main);">${Utils.escapeHtml(item.id)}</strong>
+            <div class="species-detail-grid">
+              <div class="card species-info-card">
+                <span class="species-info-label">Mã định danh loài (Canonical Key)</span>
+                <strong class="species-info-value">${Utils.escapeHtml(item.id)}</strong>
               </div>
-              <div class="card" style="background-color: var(--color-bg-subtle);">
-                <span style="font-size: var(--font-xs); color: var(--color-text-muted); display: block;">Phân loại</span>
-                <strong style="font-size: var(--font-base); color: var(--color-text-main);">${item.is_fruit ? 'Trái cây' : 'Nông sản khác'}</strong>
+              <div class="card species-info-card">
+                <span class="species-info-label">Phân loại</span>
+                <strong class="species-info-value">${item.is_fruit ? 'Trái cây' : 'Nông sản khác'}</strong>
               </div>
             </div>
 
             ${item.aliases && item.aliases.length > 0 ? `
-              <div>
-                <h4 style="font-size: var(--font-base); margin-bottom: var(--space-sm);">Các biến thể nhãn trong dữ liệu (Dataset Aliases)</h4>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <div class="species-aliases-section">
+                <h4 class="species-aliases-title">Các biến thể nhãn trong dữ liệu (Dataset Aliases)</h4>
+                <div class="species-aliases-list">
                   ${item.aliases.map(a => `<span class="badge badge-neutral">${Utils.escapeHtml(a)}</span>`).join('')}
                 </div>
               </div>
             ` : ''}
 
-            <div style="margin-top: var(--space-lg); padding-top: var(--space-lg); border-top: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center;">
+            <div class="species-detail-actions">
               <a href="/explore" class="btn btn-secondary btn-sm">← Xem danh mục loài</a>
               <a href="/search" class="btn btn-primary btn-sm">Tìm kiếm ảnh loài này →</a>
             </div>

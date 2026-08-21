@@ -411,7 +411,8 @@
 .top-match-overlay {
   position: absolute;
   bottom: 0;
-  inset-x: 0;
+  left: 0;
+  right: 0;
   background: rgba(15, 23, 42, 0.75);
   color: var(--color-white);
   padding: 4px 8px;

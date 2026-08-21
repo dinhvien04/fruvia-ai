@@ -8,18 +8,37 @@ const PwaManager = {
   },
 
   registerServiceWorker() {
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/service-worker.js")
-          .then((registration) => {
-            console.log("Fruvia: ServiceWorker registered successfully:", registration.scope);
-          })
-          .catch((error) => {
-            console.warn("Fruvia: ServiceWorker registration failed:", error);
+    if (!("serviceWorker" in navigator)) return;
+
+    // Check if running on local development host
+    const isLocalhost = Boolean(
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "[::1]" ||
+      window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
+    );
+
+    if (isLocalhost) {
+      // Unregister any active service worker during local development to avoid stale caching
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister().then(() => {
+            console.log("Fruvia Dev: Unregistered ServiceWorker on localhost");
           });
+        }
       });
+      return;
     }
+
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("/service-worker.js")
+        .then((registration) => {
+          console.log("Fruvia: ServiceWorker registered successfully:", registration.scope);
+        })
+        .catch((error) => {
+          console.warn("Fruvia: ServiceWorker registration failed:", error);
+        });
+    });
   },
 
   initOfflineBanner() {

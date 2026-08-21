@@ -4,12 +4,11 @@
 const Navigation = {
   init() {
     this.highlightActiveLinks();
-    this.initMobileNav();
   },
 
   highlightActiveLinks() {
     const currentPath = window.location.pathname;
-    const navLinks = document.querySelectorAll(".nav-link, .mobile-nav-link");
+    const navLinks = document.querySelectorAll(".nav-link, .mobile-nav-item");
 
     navLinks.forEach((link) => {
       const href = link.getAttribute("href");
@@ -27,19 +26,6 @@ const Navigation = {
         link.removeAttribute("aria-current");
       }
     });
-  },
-
-  initMobileNav() {
-    const toggleBtn = document.getElementById("mobile-menu-toggle");
-    const mobileDrawer = document.getElementById("mobile-menu-drawer");
-
-    if (toggleBtn && mobileDrawer) {
-      toggleBtn.addEventListener("click", () => {
-        const expanded = toggleBtn.getAttribute("aria-expanded") === "true";
-        toggleBtn.setAttribute("aria-expanded", !expanded);
-        mobileDrawer.classList.toggle("is-open", !expanded);
-      });
-    }
   }
 };
 

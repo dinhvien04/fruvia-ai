@@ -102,12 +102,12 @@
 
           <!-- Mobile Action Quick Buttons -->
           <div class="mobile-camera-actions">
-            <button type="button" class="btn btn-secondary btn-camera" onclick="document.getElementById('camera-input').click();">
-              <img src="assets/svg/camera.svg" alt="" class="btn-icon" aria-hidden="true">
+            <button type="button" id="btn-quick-camera" class="btn btn-secondary btn-camera">
+              <img src="assets/svg/camera.svg" alt="" class="btn-icon" width="20" height="20" aria-hidden="true">
               <span>Chụp ảnh</span>
             </button>
-            <button type="button" class="btn btn-secondary btn-gallery" onclick="document.getElementById('file-input').click();">
-              <img src="assets/svg/gallery.svg" alt="" class="btn-icon" aria-hidden="true">
+            <button type="button" id="btn-quick-gallery" class="btn btn-secondary btn-gallery">
+              <img src="assets/svg/gallery.svg" alt="" class="btn-icon" width="20" height="20" aria-hidden="true">
               <span>Thư viện</span>
             </button>
           </div>
@@ -225,15 +225,15 @@
   <!-- Mobile Bottom Navigation Bar -->
   <nav class="mobile-bottom-nav" aria-label="Điều hướng di động">
     <a href="/" class="mobile-nav-item active" aria-current="page">
-      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-home.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Trang chủ</span>
     </a>
     <a href="/search" class="mobile-nav-item">
-      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-search.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Tìm kiếm</span>
     </a>
     <a href="/explore" class="mobile-nav-item">
-      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" aria-hidden="true">
+      <img src="assets/svg/nav-explore.svg" alt="" class="mobile-nav-icon" width="20" height="20" aria-hidden="true">
       <span>Khám phá</span>
     </a>
   </nav>
@@ -296,6 +296,18 @@
         previewContainerId: 'preview-container',
         previewImgId: 'preview-img'
       });
+
+      const btnQuickCamera = document.getElementById('btn-quick-camera');
+      const btnQuickGallery = document.getElementById('btn-quick-gallery');
+      const cameraInput = document.getElementById('camera-input');
+      const fileInput = document.getElementById('file-input');
+
+      if (btnQuickCamera && cameraInput) {
+        btnQuickCamera.addEventListener('click', () => cameraInput.click());
+      }
+      if (btnQuickGallery && fileInput) {
+        btnQuickGallery.addEventListener('click', () => fileInput.click());
+      }
 
       const btnHeroSearch = document.getElementById('btn-hero-search');
 

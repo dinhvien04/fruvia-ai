@@ -43,6 +43,19 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Quick Camera & Gallery Buttons
+  const btnQuickCamera = document.getElementById("btn-quick-camera");
+  const btnQuickGallery = document.getElementById("btn-quick-gallery");
+  const cameraInput = document.getElementById("camera-input");
+  const fileInput = document.getElementById("file-input");
+
+  if (btnQuickCamera && cameraInput) {
+    btnQuickCamera.addEventListener("click", () => cameraInput.click());
+  }
+  if (btnQuickGallery && fileInput) {
+    btnQuickGallery.addEventListener("click", () => fileInput.click());
+  }
+
   // 2. Top-K Segmented Buttons
   segmentedBtns.forEach((btn) => {
     btn.addEventListener("click", () => {

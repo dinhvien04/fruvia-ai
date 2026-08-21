@@ -222,6 +222,25 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ---
 
+## 📦 Collection Naming & Migration Strategy
+
+- **Current Production Collection**: `fruvia_fruits360_original_dinov2_base_v1`
+  - Note: This collection name is preserved for backward compatibility and contains both Fruits-360 (~102.5k vectors) and Fruits-262 (~225.6k vectors) embeddings.
+- **Recommended Collection Name for Next Index Refresh**: `fruvia_gallery_dinov2_base_v2`
+
+---
+
+## 🔒 Security & Performance Features
+
+1. **Decompression Bomb Protection**: Pillow pixel limits capped at 25,000,000 pixels (`Image.MAX_IMAGE_PIXELS`).
+2. **Bounded File Streaming**: Maximum file uploads strictly enforced at 10 MB in RAM before decoding.
+3. **In-Memory Rate Limiting**: Capped per client IP (`RateLimitMiddleware`) to prevent endpoint abuse.
+4. **Concurrency Limiter**: Global semaphore prevents GPU/CPU memory overflow under high concurrent inference.
+5. **No Vector Over-Fetching**: Qdrant search requests payload only (`with_vectors=False`).
+6. **Container Health Readiness**: Docker `HEALTHCHECK` queries `/api/ready` to ensure ML model & Qdrant are fully online before traffic routing.
+
+---
+
 ## 🧪 Testing & Code Quality
 
 Run the test suite and linters locally:
