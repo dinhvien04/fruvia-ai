@@ -1,21 +1,23 @@
 """
 PackEat Taxonomy Mapping & Alignment Tool.
 
-Compares PackEat taxonomy/variety CSV records against Fruvia canonical taxonomy
-(configs/taxonomy.yaml) to identify exact matches, alias matches, normalized
-matches, and unmapped classes.
+Parses structured PackEat CSV datasets (e.g. taxonomy.csv, variety_classification.csv),
+validates known schema headers, aligns varieties/species against Fruvia canonical taxonomy
+(configs/taxonomy.yaml), and generates an approved mapping dictionary and Markdown alignment report.
 
-Generates:
-1. Mapping JSON/YAML dictionary for ingest pipelines.
-2. Markdown alignment report with coverage statistics.
+Output mapping format contains ONLY high-confidence matches:
+- EXACT
+- ALIAS
+- NORMALIZED_EXACT
+
+Never automatically approves MANUAL_REVIEW, UNMATCHED, prefix, or heuristic matches.
 
 USAGE:
     python scripts/build_packeat_taxonomy_mapping.py \\
         --packeat-taxonomy path/to/taxonomy.csv \\
         --variety-csv path/to/variety_classification.csv \\
         --output-mapping configs/packeat_mapping.json \\
-        --output-report reports/packeat_alignment_report.md \\
-        --dry-run
+        --output-report reports/packeat_alignment_report.md
 """
 
 from __future__ import annotations
@@ -25,18 +27,31 @@ import csv
 import json
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from app.utils.file_utils import load_yaml_config
 
 
+@dataclass
+class PackEatRecord:
+    """Structured record model for PackEat biological taxonomy items."""
+
+    raw_label: str
+    variety: str | None
+    species: str | None
+    source: str = "packeat"
+    taxonomy_row: dict[str, str] | None = None
+    variety_row: dict[str, str] | None = None
+
+
 def normalize_label(label: str) -> str:
-    """Normalize string to slug format (lowercase, underscores)."""
+    """Normalize string to slug format (lowercase, underscores, trailing numbers stripped)."""
     if not label:
         return ""
     clean = re.sub(r"[_\-\s]+", " ", str(label).lower()).strip()
-    clean = re.sub(r"\s+\d+$", "", clean).strip()  # Strip trailing variant numbers
+    clean = re.sub(r"\s+\d+$", "", clean).strip()
     return clean.replace(" ", "_")
 
 
@@ -44,7 +59,7 @@ def build_taxonomy_index(
     taxonomy_yaml_path: Path,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """
-    Build index of canonical classes and alias lookup dictionary.
+    Build index of canonical classes and alias lookup dictionary from configs/taxonomy.yaml.
     Returns: (canonical_items, alias_to_canonical_map)
     """
     if not taxonomy_yaml_path.exists():
@@ -73,124 +88,202 @@ def build_taxonomy_index(
     return canonical_items, alias_map
 
 
-def match_label(
-    label: str,
+def match_packeat_record(
+    record: PackEatRecord,
     canonical_items: dict[str, dict[str, Any]],
     alias_map: dict[str, str],
 ) -> tuple[str, str | None, str]:
     """
-    Attempt to match a raw label against the canonical taxonomy index.
-    Returns: (match_status, canonical_class, match_reason)
-    Match statuses: EXACT_MATCH | ALIAS_MATCH | NORM_MATCH | MANUAL_REVIEW | UNMAPPED
+    Strict alignment of PackEat structured record against canonical taxonomy.
+    Priority:
+    1. Exact match on raw_label or species or variety.
+    2. Registered alias match.
+    3. Normalized exact match.
+    4. Heuristic prefix (Flagged as MANUAL_REVIEW - never auto-approved).
+    5. UNMATCHED.
     """
-    if not label or not label.strip():
-        return "UNMAPPED", None, "Empty label"
+    candidates = [c for c in [record.raw_label, record.species, record.variety] if c and c.strip()]
+    if not candidates:
+        return "UNMATCHED", None, "No valid label or species in record"
 
-    raw_clean = label.strip().lower()
-    norm_clean = normalize_label(raw_clean)
+    # 1. Exact match
+    for cand in candidates:
+        cand_clean = cand.strip().lower()
+        if cand_clean in canonical_items:
+            return "EXACT", cand_clean, f"Exact match on '{cand}'"
 
-    # 1. Exact match with canonical class
-    if raw_clean in canonical_items:
-        return "EXACT", raw_clean, f"Exact match with canonical key '{raw_clean}'"
+    # 2. Registered alias match
+    for cand in candidates:
+        cand_clean = cand.strip().lower()
+        if cand_clean in alias_map:
+            canon = alias_map[cand_clean]
+            return "ALIAS", canon, f"Alias match for '{canon}' from candidate '{cand}'"
 
-    # 2. Match in alias map
-    if raw_clean in alias_map:
-        canon = alias_map[raw_clean]
-        return "ALIAS", canon, f"Matches registered alias for '{canon}'"
+    # 3. Normalized exact match
+    for cand in candidates:
+        norm = normalize_label(cand)
+        if norm in alias_map:
+            canon = alias_map[norm]
+            return "NORMALIZED_EXACT", canon, f"Normalized match for '{canon}' from '{cand}'"
 
-    # 3. Normalized slug match
-    if norm_clean in alias_map:
-        canon = alias_map[norm_clean]
-        return "NORMALIZED_EXACT", canon, f"Matches normalized slug '{norm_clean}' -> '{canon}'"
+    # 4. Prefix heuristic check -> MANUAL_REVIEW only
+    for cand in candidates:
+        norm = normalize_label(cand)
+        for canon_key in canonical_items:
+            canon_norm = canon_key.replace("_", " ")
+            if norm.replace("_", " ").startswith(canon_norm):
+                return (
+                    "MANUAL_REVIEW",
+                    canon_key,
+                    f"Prefix match '{cand}' -> '{canon_key}' (requires human verification)",
+                )
 
-    # 4. Prefix / Substring heuristics (Flagged for manual review, never auto-assigned)
-    for canon_key in canonical_items:
-        canon_norm = canon_key.replace("_", " ")
-        if norm_clean.replace("_", " ").startswith(canon_norm):
-            return (
-                "MANUAL_REVIEW",
-                canon_key,
-                f"Prefix heuristic match with '{canon_key}' (requires human verification)",
+    return "UNMATCHED", None, f"No match found for candidates: {candidates}"
+
+
+def parse_packeat_csvs(
+    taxonomy_csv_path: Path | None,
+    variety_csv_path: Path | None,
+) -> list[PackEatRecord]:
+    """
+    Parse PackEat CSV files into structured PackEatRecord objects.
+    Validates headers fail-closed against known schemas.
+    """
+    records: list[PackEatRecord] = []
+
+    # Valid recognized schemas for PackEat taxonomy & variety CSVs
+    valid_tax_headers = {"species", "label", "class", "fruit", "name", "id", "code"}
+    valid_var_headers = {"variety", "label", "species", "name", "variety_name", "class_name"}
+
+    tax_rows: dict[str, dict[str, str]] = {}
+    if taxonomy_csv_path and taxonomy_csv_path.exists():
+        with open(taxonomy_csv_path, encoding="utf-8-sig", errors="replace") as f:
+            reader = csv.DictReader(f)
+            headers = set(h.lower().strip() for h in (reader.fieldnames or []))
+            if not headers.intersection(valid_tax_headers):
+                raise ValueError(
+                    f"Unsupported PackEat CSV schema in '{taxonomy_csv_path}'. Detected columns: {reader.fieldnames}"
+                )
+            for row in reader:
+                cleaned_row = {k.strip(): (v.strip() if v else "") for k, v in row.items()}
+                # Identifier key: id / species / label / name
+                key = (
+                    cleaned_row.get("id")
+                    or cleaned_row.get("species")
+                    or cleaned_row.get("label")
+                    or cleaned_row.get("name")
+                )
+                if key:
+                    tax_rows[key.lower()] = cleaned_row
+
+    if variety_csv_path and variety_csv_path.exists():
+        with open(variety_csv_path, encoding="utf-8-sig", errors="replace") as f:
+            reader = csv.DictReader(f)
+            headers = set(h.lower().strip() for h in (reader.fieldnames or []))
+            if not headers.intersection(valid_var_headers):
+                raise ValueError(
+                    f"Unsupported PackEat CSV schema in '{variety_csv_path}'. Detected columns: {reader.fieldnames}"
+                )
+            for row in reader:
+                cleaned_row = {k.strip(): (v.strip() if v else "") for k, v in row.items()}
+                raw_label = (
+                    cleaned_row.get("label")
+                    or cleaned_row.get("variety")
+                    or cleaned_row.get("class_name")
+                    or cleaned_row.get("name")
+                    or "unknown"
+                )
+                variety_val = cleaned_row.get("variety") or cleaned_row.get("variety_name")
+                species_val = cleaned_row.get("species")
+
+                # Attempt join with taxonomy rows
+                matched_tax_row = None
+                if species_val and species_val.lower() in tax_rows:
+                    matched_tax_row = tax_rows[species_val.lower()]
+                elif raw_label.lower() in tax_rows:
+                    matched_tax_row = tax_rows[raw_label.lower()]
+
+                records.append(
+                    PackEatRecord(
+                        raw_label=raw_label,
+                        variety=variety_val,
+                        species=species_val,
+                        source="packeat",
+                        taxonomy_row=matched_tax_row,
+                        variety_row=cleaned_row,
+                    )
+                )
+
+    # If only taxonomy CSV was provided
+    elif taxonomy_csv_path and taxonomy_csv_path.exists():
+        for key, row in tax_rows.items():
+            raw_label = row.get("label") or row.get("species") or row.get("name") or key
+            records.append(
+                PackEatRecord(
+                    raw_label=raw_label,
+                    variety=None,
+                    species=row.get("species") or raw_label,
+                    source="packeat",
+                    taxonomy_row=row,
+                    variety_row=None,
+                )
             )
 
-    return "UNMATCHED", None, "No match found in current taxonomy.yaml"
-
-
-def parse_csv_labels(csv_path: Path) -> list[dict[str, str]]:
-    """Parse labels and metadata from a given CSV file."""
-    if not csv_path.exists():
-        return []
-
-    records: list[dict[str, str]] = []
-    with open(csv_path, encoding="utf-8-sig", errors="replace") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            records.append({k.strip(): (v.strip() if v else "") for k, v in row.items()})
     return records
 
 
-def analyze_packeat(
-    packeat_taxonomy_path: Path | None,
-    variety_csv_path: Path | None,
+def analyze_packeat_records(
+    records: list[PackEatRecord],
     canonical_items: dict[str, dict[str, Any]],
     alias_map: dict[str, str],
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """
-    Analyze PackEat records and produce mapping and alignment results.
+    Align structured PackEat records against canonical taxonomy.
+    Outputs:
+    1. Approved mapping dictionary (EXACT, ALIAS, NORMALIZED_EXACT only).
+    2. Detailed review list including MANUAL_REVIEW and UNMATCHED entries.
     """
-    results: list[dict[str, Any]] = []
-    mapping: dict[str, str] = {}
+    approved_mapping: dict[str, str] = {}
+    review_entries: list[dict[str, Any]] = []
 
-    labels_to_evaluate: set[str] = set()
-
-    if packeat_taxonomy_path and packeat_taxonomy_path.exists():
-        records = parse_csv_labels(packeat_taxonomy_path)
-        for r in records:
-            for field in ["label", "class", "name", "species", "fruit", "category"]:
-                if field in r and r[field]:
-                    labels_to_evaluate.add(r[field])
-
-    if variety_csv_path and variety_csv_path.exists():
-        records = parse_csv_labels(variety_csv_path)
-        for r in records:
-            for field in ["variety", "label", "class_name", "name"]:
-                if field in r and r[field]:
-                    labels_to_evaluate.add(r[field])
-
-    # If no files provided, evaluate sample placeholder list or empty
-    if not labels_to_evaluate:
-        print(
-            "[INFO] No external PackEat CSV files found/provided. Generating empty baseline alignment."
-        )
-
-    for label in sorted(labels_to_evaluate):
-        status, canon, reason = match_label(label, canonical_items, alias_map)
-        item_entry = {
-            "source_label": label,
-            "status": status,
+    for rec in records:
+        status, canon, reason = match_packeat_record(rec, canonical_items, alias_map)
+        entry = {
+            "raw_label": rec.raw_label,
+            "variety": rec.variety,
+            "species": rec.species,
             "canonical_class": canon,
-            "reason": reason,
+            "match_status": status,
+            "match_reason": reason,
+            "source": rec.source,
+            "source_rows": {
+                "taxonomy_row": rec.taxonomy_row,
+                "variety_row": rec.variety_row,
+            },
         }
-        # Only automatically map high-confidence matches (EXACT, ALIAS, NORMALIZED_EXACT)
-        if canon and status in {"EXACT", "ALIAS", "NORMALIZED_EXACT"}:
-            mapping[label] = canon
-        results.append(item_entry)
+        review_entries.append(entry)
 
-    return mapping, results
+        # Machine-approved mapping file may contain ONLY high-confidence matches
+        if canon and status in {"EXACT", "ALIAS", "NORMALIZED_EXACT"}:
+            approved_mapping[rec.raw_label] = canon
+            if rec.variety:
+                approved_mapping[rec.variety] = canon
+
+    return approved_mapping, review_entries
 
 
 def generate_markdown_report(
-    results: list[dict[str, Any]],
+    review_entries: list[dict[str, Any]],
     canonical_count: int,
     output_path: Path | None,
 ) -> str:
     """Generate Markdown alignment summary report."""
-    total = len(results)
-    exact = sum(1 for r in results if r["status"] == "EXACT")
-    alias = sum(1 for r in results if r["status"] == "ALIAS")
-    norm = sum(1 for r in results if r["status"] == "NORMALIZED_EXACT")
-    manual = sum(1 for r in results if r["status"] == "MANUAL_REVIEW")
-    unmapped = sum(1 for r in results if r["status"] == "UNMATCHED")
+    total = len(review_entries)
+    exact = sum(1 for r in review_entries if r["match_status"] == "EXACT")
+    alias = sum(1 for r in review_entries if r["match_status"] == "ALIAS")
+    norm = sum(1 for r in review_entries if r["match_status"] == "NORMALIZED_EXACT")
+    manual = sum(1 for r in review_entries if r["match_status"] == "MANUAL_REVIEW")
+    unmatched = sum(1 for r in review_entries if r["match_status"] == "UNMATCHED")
 
     mapped = exact + alias + norm
     coverage_pct = (mapped / total * 100) if total > 0 else 0.0
@@ -200,23 +293,25 @@ def generate_markdown_report(
         "",
         "## Summary Statistics",
         f"- **Canonical Taxonomy Species**: {canonical_count}",
-        f"- **Evaluated Source Labels**: {total}",
-        f"- **Auto-Mapped Labels**: {mapped} ({coverage_pct:.1f}%)",
+        f"- **Evaluated Source Records**: {total}",
+        f"- **Auto-Approved Mappings**: {mapped} ({coverage_pct:.1f}%)",
         f"  - **Exact Matches**: {exact}",
         f"  - **Alias Matches**: {alias}",
-        f"  - **Normalized Heuristic Matches**: {norm}",
+        f"  - **Normalized Matches**: {norm}",
         f"- **Manual Review Required**: {manual}",
-        f"- **Unmapped Labels (Action Required)**: {unmapped}",
+        f"- **Unmatched Records**: {unmatched}",
         "",
         "## Alignment Details",
-        "| Source Label | Match Status | Canonical Class | Notes |",
-        "| :--- | :--- | :--- | :--- |",
+        "| Raw Label | Variety | Species | Match Status | Canonical Class | Reason |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- |",
     ]
 
-    for r in results:
+    for r in review_entries:
         canon_display = r["canonical_class"] or "*None*"
+        var_display = r["variety"] or "-"
+        spec_display = r["species"] or "-"
         lines.append(
-            f"| `{r['source_label']}` | **{r['status']}** | `{canon_display}` | {r['reason']} |"
+            f"| `{r['raw_label']}` | {var_display} | {spec_display} | **{r['match_status']}** | `{canon_display}` | {r['match_reason']} |"
         )
 
     content = "\n".join(lines) + "\n"
@@ -231,7 +326,9 @@ def generate_markdown_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="PackEat Taxonomy Mapping and Alignment Tool")
+    parser = argparse.ArgumentParser(
+        description="Structured PackEat Taxonomy Mapping & Alignment Tool"
+    )
     parser.add_argument(
         "--packeat-taxonomy", type=Path, default=None, help="Path to PackEat taxonomy.csv"
     )
@@ -248,7 +345,7 @@ def main() -> None:
         "--output-mapping",
         type=Path,
         default=Path("configs/packeat_mapping.json"),
-        help="Output JSON mapping path",
+        help="Output approved JSON mapping path",
     )
     parser.add_argument(
         "--output-report",
@@ -276,24 +373,26 @@ def main() -> None:
         canonical_items, alias_map = build_taxonomy_index(args.taxonomy_yaml)
         print(f"[OK] Loaded {len(canonical_items)} canonical species from taxonomy.yaml.")
 
-        mapping, results = analyze_packeat(
-            args.packeat_taxonomy,
-            args.variety_csv,
-            canonical_items,
-            alias_map,
+        records = parse_packeat_csvs(args.packeat_taxonomy, args.variety_csv)
+        print(f"[OK] Parsed {len(records)} structured PackEat records.")
+
+        approved_mapping, review_entries = analyze_packeat_records(
+            records, canonical_items, alias_map
         )
 
-        if not args.dry_run and results:
+        if not args.dry_run and review_entries:
             args.output_mapping.parent.mkdir(parents=True, exist_ok=True)
             with open(args.output_mapping, "w", encoding="utf-8") as f:
-                json.dump(mapping, f, indent=2, ensure_ascii=False)
-            print(f"[SUCCESS] Mapping saved to {args.output_mapping}")
+                json.dump(approved_mapping, f, indent=2, ensure_ascii=False)
+            print(
+                f"[SUCCESS] Approved mapping ({len(approved_mapping)} entries) saved to {args.output_mapping}"
+            )
 
-            generate_markdown_report(results, len(canonical_items), args.output_report)
+            generate_markdown_report(review_entries, len(canonical_items), args.output_report)
         else:
-            report_text = generate_markdown_report(results, len(canonical_items), None)
+            report_text = generate_markdown_report(review_entries, len(canonical_items), None)
             if args.dry_run:
-                print("\n[DRY-RUN OUTPUT]")
+                print("\n[DRY-RUN OUTPUT REPORT]")
                 print(report_text[:1000] + ("\n..." if len(report_text) > 1000 else ""))
 
     except Exception as e:

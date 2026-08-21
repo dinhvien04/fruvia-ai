@@ -128,8 +128,12 @@ def extract_client_ip(request: Request) -> str:
         try:
             parsed = str(ipaddress.ip_address(raw_ip))
         except ValueError:
-            logger.warning("Invalid IP '%s' in X-Forwarded-For header; ignoring entry", raw_ip)
-            continue
+            logger.warning(
+                "Invalid IP '%s' in X-Forwarded-For header; failing closed to peer IP %s",
+                raw_ip,
+                peer_ip,
+            )
+            return peer_ip
 
         if parsed in trusted_set:
             continue

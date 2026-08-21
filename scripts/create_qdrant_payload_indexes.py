@@ -7,14 +7,17 @@ Supports payload indexing for:
 - source_dataset  -> keyword
 - dataset_name    -> keyword
 
+Two-phase execution model:
+PHASE 1 (Read-Only Preflight):
+    Inspects all fields across target collection.
+    Classifies every field as EXISTS, MISSING, or INCOMPATIBLE.
+    If ANY field is INCOMPATIBLE, aborts immediately before performing ANY writes.
+PHASE 2 (Execution):
+    Only executes if Phase 1 discovered zero incompatibilities.
+    Creates missing indexes.
+
 USAGE (DRY RUN):
     python scripts/create_qdrant_payload_indexes.py --collection fruvia_fruits360_original_dinov2_base_v1 --dry-run
-
-IMPORTANT:
-- Requires QDRANT_URL and QDRANT_API_KEY environment variables.
-- Never hardcodes credentials.
-- Idempotent and safe.
-- Returns non-zero exit code (1) if any index has an incompatible data type schema.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import PayloadSchemaType
@@ -34,15 +38,31 @@ INDEX_FIELDS: dict[str, PayloadSchemaType] = {
 }
 
 
+def is_keyword_index_type(schema_info: Any) -> bool:
+    """
+    Check if schema_info represents an exact keyword payload index in Qdrant.
+    Rejects text, integer, float, geo, bool, or None schemas.
+    """
+    if schema_info is None:
+        return False
+    data_type = (
+        getattr(schema_info, "data_type", None) or getattr(schema_info, "type", None) or schema_info
+    )
+    if hasattr(data_type, "value"):
+        data_type = data_type.value
+    dt_str = str(data_type).lower().strip()
+    return dt_str in {"keyword", "payloadschematype.keyword"}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create payload indexes on a target Qdrant collection."
+        description="Safely create payload indexes on a target Qdrant collection."
     )
     parser.add_argument(
         "--collection",
         type=str,
         required=True,
-        help="Target Qdrant collection name (e.g. fruvia_fruits360_original_dinov2_base_v1)",
+        help="Target Qdrant collection name (e.g. fruvia_gallery_dinov2_base_v2)",
     )
     parser.add_argument(
         "--dry-run",
@@ -59,6 +79,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def inspect_collection_indexes(
+    client: QdrantClient,
+    collection_name: str,
+) -> dict[str, tuple[str, str]]:
+    """
+    Phase 1: Read-only inspection of required fields on target collection.
+    Returns mapping: field_name -> (status, details)
+    Status values: 'EXISTS', 'MISSING', 'INCOMPATIBLE', 'ERROR'
+    """
+    collection_info = client.get_collection(collection_name=collection_name)
+    existing_schema = getattr(collection_info, "payload_schema", {}) or {}
+
+    results: dict[str, tuple[str, str]] = {}
+
+    for field_name in INDEX_FIELDS:
+        if field_name in existing_schema:
+            schema_info = existing_schema[field_name]
+            if is_keyword_index_type(schema_info):
+                results[field_name] = ("EXISTS", "Keyword index already exists")
+            else:
+                data_type = (
+                    getattr(schema_info, "data_type", None)
+                    or getattr(schema_info, "type", None)
+                    or str(schema_info)
+                )
+                results[field_name] = (
+                    "INCOMPATIBLE",
+                    f"Found incompatible schema type '{data_type}' (expected KEYWORD)",
+                )
+        else:
+            results[field_name] = ("MISSING", "Field has no payload index")
+
+    return results
+
+
 def main() -> None:
     args = parse_args()
 
@@ -71,10 +126,10 @@ def main() -> None:
         )
         sys.exit(1)
 
-    print("=== Qdrant Payload Index Creator ===")
+    print("=== Qdrant Payload Index Creator (Two-Phase Safety) ===")
     print(f"Target Collection : {args.collection}")
     print(f"Dry Run Mode      : {args.dry_run}")
-    print(f"Indexed Fields    : {list(INDEX_FIELDS.keys())}")
+    print(f"Required Fields   : {list(INDEX_FIELDS.keys())}")
     print("-" * 50)
 
     try:
@@ -92,64 +147,58 @@ def main() -> None:
 
         print(f"[OK] Collection '{args.collection}' found on Qdrant cluster.")
 
-        collection_info = client.get_collection(collection_name=args.collection)
-        existing_schema = getattr(collection_info, "payload_schema", {}) or {}
+        # --- PHASE 1: READ-ONLY PREFLIGHT ---
+        print("\n--- Phase 1: Read-Only Schema Preflight ---")
+        preflight_results = inspect_collection_indexes(client, args.collection)
 
         has_incompatible = False
+        missing_fields: list[str] = []
 
-        for field_name, schema_type in INDEX_FIELDS.items():
-            expected_type_str = str(
-                schema_type.value if hasattr(schema_type, "value") else schema_type
-            ).lower()
+        for field_name, (status, detail) in preflight_results.items():
+            if status == "INCOMPATIBLE":
+                print(f"  [INCOMPATIBLE] {field_name}: {detail}", file=sys.stderr)
+                has_incompatible = True
+            elif status == "EXISTS":
+                print(f"  [EXISTS] {field_name}: {detail}")
+            elif status == "MISSING":
+                print(f"  [MISSING] {field_name}: {detail}")
+                missing_fields.append(field_name)
 
-            if field_name in existing_schema:
-                existing_info = existing_schema[field_name]
-                data_type = (
-                    getattr(existing_info, "data_type", None)
-                    or getattr(existing_info, "type", None)
-                    or str(existing_info)
-                )
-                data_type_str = str(
-                    data_type.value if hasattr(data_type, "value") else data_type
-                ).lower()
-
-                if "keyword" in data_type_str and "text" not in data_type_str:
-                    print(
-                        f"[EXISTS] Payload index for field='{field_name}' already exists (type='{data_type_str}')."
-                    )
-                else:
-                    print(
-                        f"[INCOMPATIBLE] Payload index for field='{field_name}' exists with incompatible type '{data_type_str}' (expected '{expected_type_str}').",
-                        file=sys.stderr,
-                    )
-                    has_incompatible = True
-            else:
-                if args.dry_run:
-                    print(
-                        f"[WOULD_CREATE] Payload index: field='{field_name}', type='{expected_type_str}'"
-                    )
-                else:
-                    print(
-                        f"[CREATE] Creating payload index: field='{field_name}', type='{expected_type_str}'..."
-                    )
-                    client.create_payload_index(
-                        collection_name=args.collection,
-                        field_name=field_name,
-                        field_schema=schema_type,
-                    )
-                    print(f"[SUCCESS] Index created for '{field_name}'.")
-
-        print("-" * 50)
         if has_incompatible:
             print(
-                "[FAILED] One or more payload indexes have incompatible schemas.", file=sys.stderr
+                "\n[FAIL] Phase 1 failed: One or more fields have incompatible schemas. Performing ZERO writes.",
+                file=sys.stderr,
             )
             sys.exit(1)
 
+        print("[OK] Phase 1 passed: No schema incompatibilities found.")
+
+        # --- PHASE 2: MUTATION (OR DRY RUN) ---
+        print("\n--- Phase 2: Execution ---")
+        if not missing_fields:
+            print("[OK] All required payload indexes already exist. Nothing to create.")
+            print("-" * 50)
+            print("Payload indexing check completed successfully.")
+            return
+
+        for field_name in missing_fields:
+            schema_type = INDEX_FIELDS[field_name]
+            if args.dry_run:
+                print(f"  [WOULD_CREATE] {field_name} -> KEYWORD")
+            else:
+                print(f"  [CREATING] {field_name} -> KEYWORD...")
+                client.create_payload_index(
+                    collection_name=args.collection,
+                    field_name=field_name,
+                    field_schema=schema_type,
+                )
+                print(f"  [CREATED] {field_name} -> KEYWORD")
+
+        print("-" * 50)
         print("Payload indexing operation completed successfully.")
 
     except Exception as e:
-        print(f"[ERROR] Failed to create payload indexes: {e}", file=sys.stderr)
+        print(f"[ERROR] Failed to execute payload indexing: {e}", file=sys.stderr)
         sys.exit(1)
 
 

@@ -1,12 +1,18 @@
 """
-Gallery V2 Pre-Flight Validation Tool (Read-Only).
+Gallery V2 Pre-Flight Validation & Activation Gate Tool (Read-Only).
 
-Inspects a target Qdrant collection to verify readiness before activation:
-1. Vector geometry: 768 dimensions, Cosine distance metric.
-2. Collection status: GREEN or YELLOW (never RED).
+Inspects a target Qdrant collection to verify strict readiness before activation:
+1. Vector geometry: exact 768 dimensions, Cosine distance metric.
+2. Collection status: GREEN or YELLOW (fail on RED, GREY, ERROR, or unknown).
 3. Payload schema: required keyword payload indexes (canonical_class, category, source_dataset, dataset_name).
-4. Point sampling: verifies required top-level schema fields, image_url presence, and taxonomy status.
-5. Distribution summaries: breakdown by source dataset, category, and canonical class.
+4. Full payload scan: 100% coverage verification on mandatory fields without downloading vectors.
+5. Vector sampling: verification of L2 norm, finite floats, and dimension on configurable sample.
+6. URL coverage: verifies image_url / thumbnail_url meets required threshold (--min-image-url-coverage).
+7. Taxonomy status: verifies zero unverified PackEat / unreviewed records unless explicitly permitted.
+8. Optional expected total and per-source counts validation.
+
+FAIL-CLOSED ACTIVATION GATE:
+If any mandatory requirement fails, exits with non-zero exit code (1). Never prints [PASS] on warnings.
 
 USAGE:
     python scripts/validate_gallery_v2.py --collection fruvia_gallery_dinov2_base_v2
@@ -19,22 +25,39 @@ import math
 import os
 import sys
 from collections import Counter
+from typing import Any
 
 from qdrant_client import QdrantClient
 
 REQUIRED_PAYLOAD_INDEXES = {"canonical_class", "category", "source_dataset", "dataset_name"}
 REQUIRED_PAYLOAD_FIELDS = {
     "canonical_class",
-    "display_name_en",
     "category",
     "source_dataset",
     "dataset_name",
+    "source_collection",
+    "source_point_id",
     "gallery_schema_version",
 }
 
 
+def is_keyword_index_type(schema_info: Any) -> bool:
+    """Check if schema_info represents an exact keyword payload index in Qdrant."""
+    if schema_info is None:
+        return False
+    data_type = (
+        getattr(schema_info, "data_type", None) or getattr(schema_info, "type", None) or schema_info
+    )
+    if hasattr(data_type, "value"):
+        data_type = data_type.value
+    dt_str = str(data_type).lower().strip()
+    return dt_str in {"keyword", "payloadschematype.keyword"}
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Read-Only Gallery V2 Pre-Flight Validator")
+    parser = argparse.ArgumentParser(
+        description="Read-Only Gallery V2 Activation Gate & Pre-Flight Validator"
+    )
     parser.add_argument(
         "--collection",
         type=str,
@@ -42,33 +65,73 @@ def parse_args() -> argparse.Namespace:
         help="Target Qdrant collection name to validate",
     )
     parser.add_argument(
-        "--sample-size",
+        "--vector-sample-size",
         type=int,
         default=500,
-        help="Number of points to sample for deep payload and vector inspection (default: 500)",
+        help="Number of points to sample for vector numeric validation (default: 500)",
+    )
+    parser.add_argument(
+        "--min-image-url-coverage",
+        type=float,
+        default=1.0,
+        help="Minimum required ratio of points with valid image_url / thumbnail_url (default: 1.0 = 100%)",
+    )
+    parser.add_argument(
+        "--allow-unverified-taxonomy",
+        action="store_true",
+        default=False,
+        help="Allow points with UNVERIFIED_PACKEAT or MANUAL_REVIEW taxonomy statuses",
+    )
+    parser.add_argument(
+        "--expect-total-count",
+        type=int,
+        default=None,
+        help="Optional exact total point count expected in the collection",
+    )
+    parser.add_argument(
+        "--expect-source-count",
+        action="append",
+        type=str,
+        default=[],
+        help="Expected count for a specific source_dataset in format SOURCE=COUNT (can be repeated)",
     )
     parser.add_argument(
         "--timeout",
         type=int,
-        default=30,
+        default=60,
         help="Timeout in seconds for Qdrant client operations",
     )
     return parser.parse_args()
 
 
-def validate_collection(collection_name: str, sample_size: int, timeout: int) -> bool:
-    qdrant_url = os.getenv("QDRANT_URL")
-    qdrant_api_key = os.getenv("QDRANT_API_KEY")
+def validate_gallery_v2_collection(
+    collection_name: str,
+    vector_sample_size: int = 500,
+    min_image_url_coverage: float = 1.0,
+    allow_unverified_taxonomy: bool = False,
+    expect_total_count: int | None = None,
+    expect_source_counts: dict[str, int] | None = None,
+    timeout: int = 60,
+    client: QdrantClient | None = None,
+) -> bool:
+    """
+    Perform rigorous read-only pre-flight validation on target collection.
+    Returns True if collection strictly meets all Gallery V2 activation requirements, else False.
+    """
+    if client is None:
+        qdrant_url = os.getenv("QDRANT_URL")
+        qdrant_api_key = os.getenv("QDRANT_API_KEY")
 
-    if not qdrant_url or not qdrant_api_key:
-        print(
-            "[ERROR] QDRANT_URL or QDRANT_API_KEY environment variable is not set.", file=sys.stderr
-        )
-        return False
+        if not qdrant_url or not qdrant_api_key:
+            print(
+                "[FAIL] QDRANT_URL or QDRANT_API_KEY environment variable is not set.",
+                file=sys.stderr,
+            )
+            return False
 
-    client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=timeout)
+        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=timeout)
 
-    print(f"=== Gallery V2 Validation Report: '{collection_name}' ===")
+    print(f"=== Gallery V2 Activation Gate Inspection: '{collection_name}' ===")
 
     # 1. Existence & Collection Info
     try:
@@ -90,10 +153,13 @@ def validate_collection(collection_name: str, sample_size: int, timeout: int) ->
     points_count = getattr(info, "points_count", None) or getattr(info, "vectors_count", None) or 0
 
     print(f"Status           : {status_name}")
-    print(f"Points Count     : {points_count:,}")
+    print(f"Reported Points  : {points_count:,}")
 
-    if status_name in {"RED", "ERROR"}:
-        print(f"[FAIL] Collection status '{status_name}' is unhealthy.", file=sys.stderr)
+    if status_name not in {"GREEN", "YELLOW"}:
+        print(
+            f"[FAIL] Collection status '{status_name}' is unhealthy or not ready (must be GREEN or YELLOW).",
+            file=sys.stderr,
+        )
         return False
 
     # 3. Vector Configuration
@@ -119,47 +185,174 @@ def validate_collection(collection_name: str, sample_size: int, timeout: int) ->
         )
         return False
 
-    # 4. Payload Schema & Indexes
+    # 4. Payload Schema & Indexes (Exact KEYWORD check)
     payload_schema = getattr(info, "payload_schema", {}) or {}
     indexed_fields: set[str] = set()
 
     for f_name, s_info in payload_schema.items():
-        data_type = (
-            getattr(s_info, "data_type", None) or getattr(s_info, "type", None) or str(s_info)
-        )
-        dt_str = str(data_type.value if hasattr(data_type, "value") else data_type).lower()
-        if "keyword" in dt_str and "text" not in dt_str:
+        if is_keyword_index_type(s_info):
             indexed_fields.add(f_name.lower().strip())
 
     missing_indexes = REQUIRED_PAYLOAD_INDEXES - indexed_fields
-    print(f"Indexed Fields   : {sorted(indexed_fields)}")
+    print(f"Keyword Indexes  : {sorted(indexed_fields)}")
     if missing_indexes:
-        print(f"[WARN] Missing required keyword payload indexes: {sorted(missing_indexes)}")
-    else:
-        print("[OK] All required payload keyword indexes present.")
-
-    # 5. Point Sampling & Distribution Check
-    if points_count > 0 and sample_size > 0:
         print(
-            f"\n--- Sampling {min(points_count, sample_size)} points for deep payload inspection ---"
+            f"[FAIL] Missing required keyword payload indexes: {sorted(missing_indexes)}",
+            file=sys.stderr,
         )
-        try:
-            records, _ = client.scroll(
-                collection_name=collection_name,
-                limit=sample_size,
-                with_payload=True,
-                with_vectors=True,
-            )
+        return False
+    print("[OK] All required payload keyword indexes present.")
 
-            dataset_counter: Counter[str] = Counter()
-            category_counter: Counter[str] = Counter()
-            status_counter: Counter[str] = Counter()
-            url_missing_count = 0
-            invalid_vec_count = 0
-            schema_version_mismatch = 0
+    # 5. Full Payload Scan (with_vectors=False) for 100% Coverage Verification
+    print("\n--- Performing Full Payload Scan (with_vectors=False) ---")
+    field_present_counts: dict[str, int] = {f: 0 for f in REQUIRED_PAYLOAD_FIELDS}
+    url_present_count = 0
+    schema_v2_count = 0
+    total_scanned_points = 0
+    dataset_counter: Counter[str] = Counter()
+    category_counter: Counter[str] = Counter()
+    status_counter: Counter[str] = Counter()
+
+    scroll_offset = None
+    batch_size = 500
+
+    try:
+        while True:
+            records, next_offset = client.scroll(
+                collection_name=collection_name,
+                limit=batch_size,
+                offset=scroll_offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            if not records:
+                break
 
             for rec in records:
-                # Vector validation
+                total_scanned_points += 1
+                payload = rec.payload or {}
+
+                # Check required fields
+                for field in REQUIRED_PAYLOAD_FIELDS:
+                    val = payload.get(field)
+                    if val is not None and str(val).strip() != "" and str(val) != "unknown":
+                        field_present_counts[field] += 1
+
+                # URL presence
+                if payload.get("image_url") or payload.get("thumbnail_url"):
+                    url_present_count += 1
+
+                # Schema version
+                if payload.get("gallery_schema_version") == 2:
+                    schema_v2_count += 1
+
+                # Distributions
+                dataset_counter[str(payload.get("source_dataset", "missing"))] += 1
+                category_counter[str(payload.get("category", "missing"))] += 1
+                status_counter[str(payload.get("taxonomy_status", "missing"))] += 1
+
+            scroll_offset = next_offset
+            if next_offset is None:
+                break
+
+    except Exception as e:
+        print(f"[FAIL] Full payload scan failed: {e}", file=sys.stderr)
+        return False
+
+    print(f"Total Points Scanned : {total_scanned_points:,}")
+    if total_scanned_points == 0:
+        print("[FAIL] Collection is empty (0 points).", file=sys.stderr)
+        return False
+
+    # Check Total Count Expectation if provided
+    if expect_total_count is not None and total_scanned_points != expect_total_count:
+        print(
+            f"[FAIL] Point count mismatch: found {total_scanned_points}, expected {expect_total_count}",
+            file=sys.stderr,
+        )
+        return False
+
+    # Check Source Distribution Expectations if provided
+    if expect_source_counts:
+        for src_name, exp_count in expect_source_counts.items():
+            actual_count = dataset_counter.get(src_name, 0)
+            if actual_count != exp_count:
+                print(
+                    f"[FAIL] Source '{src_name}' count mismatch: found {actual_count}, expected {exp_count}",
+                    file=sys.stderr,
+                )
+                return False
+
+    # Verify 100% Coverage on Mandatory Filter Fields
+    mandatory_failed = False
+    print("\n--- Field Coverage Analysis ---")
+    for field in sorted(REQUIRED_PAYLOAD_FIELDS):
+        count = field_present_counts[field]
+        pct = (count / total_scanned_points) * 100.0
+        print(f"  - {field:25s}: {count:,}/{total_scanned_points:,} ({pct:.2f}%)")
+        if count != total_scanned_points:
+            print(
+                f"[FAIL] Field '{field}' does not have 100% coverage ({pct:.2f}%).", file=sys.stderr
+            )
+            mandatory_failed = True
+
+    if mandatory_failed:
+        return False
+
+    # Schema V2 version check
+    if schema_v2_count != total_scanned_points:
+        print(
+            f"[FAIL] Gallery schema version mismatch: {schema_v2_count}/{total_scanned_points} points have gallery_schema_version=2",
+            file=sys.stderr,
+        )
+        return False
+
+    # Image URL coverage
+    url_pct = (url_present_count / total_scanned_points) if total_scanned_points > 0 else 0.0
+    print(
+        f"  - Image URL Coverage       : {url_present_count:,}/{total_scanned_points:,} ({url_pct * 100:.2f}%)"
+    )
+    if url_pct < min_image_url_coverage:
+        print(
+            f"[FAIL] Image URL coverage ({url_pct * 100:.2f}%) is below required threshold ({min_image_url_coverage * 100:.2f}%).",
+            file=sys.stderr,
+        )
+        return False
+
+    # Taxonomy Status Distribution & Gate
+    print("\n--- Taxonomy Status Distribution ---")
+    for st, cnt in sorted(status_counter.items()):
+        pct = (cnt / total_scanned_points) * 100.0
+        print(f"  - {st:25s}: {cnt:,} ({pct:.2f}%)")
+
+    unverified_count = (
+        status_counter.get("UNVERIFIED_PACKEAT", 0)
+        + status_counter.get("MANUAL_REVIEW", 0)
+        + status_counter.get("UNMATCHED", 0)
+    )
+    if unverified_count > 0 and not allow_unverified_taxonomy:
+        print(
+            f"[FAIL] Collection contains {unverified_count} unverified / unreviewed taxonomy records. Pass --allow-unverified-taxonomy if intentional.",
+            file=sys.stderr,
+        )
+        return False
+
+    # 6. Vector Numeric Sampling
+    if vector_sample_size > 0:
+        sample_count = min(total_scanned_points, vector_sample_size)
+        print(f"\n--- Sampling {sample_count} Points for Vector Numeric Inspection ---")
+        try:
+            sample_records, _ = client.scroll(
+                collection_name=collection_name,
+                limit=sample_count,
+                with_payload=False,
+                with_vectors=True,
+            )
+            if not sample_records:
+                print("[FAIL] Failed to retrieve vector sample records.", file=sys.stderr)
+                return False
+
+            for rec in sample_records:
                 vec = rec.vector
                 if isinstance(vec, dict):
                     vec = list(vec.values())[0]
@@ -169,45 +362,52 @@ def validate_collection(collection_name: str, sample_size: int, timeout: int) ->
                     or len(vec) != 768
                     or not all(isinstance(x, (int, float)) and math.isfinite(x) for x in vec)
                 ):
-                    invalid_vec_count += 1
+                    print(
+                        f"[FAIL] Point '{rec.id}' contains non-finite or invalid vector geometry.",
+                        file=sys.stderr,
+                    )
+                    return False
 
-                payload = rec.payload or {}
-                dataset_counter[str(payload.get("source_dataset", "missing"))] += 1
-                category_counter[str(payload.get("category", "missing"))] += 1
-                status_counter[str(payload.get("taxonomy_status", "missing"))] += 1
+                # L2 norm check
+                l2_norm = math.sqrt(sum(x * x for x in vec))
+                if abs(l2_norm - 1.0) > 0.05:
+                    print(
+                        f"[FAIL] Point '{rec.id}' vector is not L2 normalized (norm={l2_norm:.4f}).",
+                        file=sys.stderr,
+                    )
+                    return False
 
-                if not payload.get("image_url") and not payload.get("thumbnail_url"):
-                    url_missing_count += 1
-
-                if payload.get("gallery_schema_version") != 2:
-                    schema_version_mismatch += 1
-
-            print(f"Dataset Distribution : {dict(dataset_counter)}")
-            print(f"Category Distribution: {dict(category_counter)}")
-            print(f"Taxonomy Statuses    : {dict(status_counter)}")
-            print(f"Missing Image URLs   : {url_missing_count}/{len(records)}")
-            print(f"Invalid Vectors      : {invalid_vec_count}/{len(records)}")
-            print(f"Schema V2 Mismatch   : {schema_version_mismatch}/{len(records)}")
-
-            if invalid_vec_count > 0:
-                print(
-                    f"[FAIL] Found {invalid_vec_count} invalid vectors in sample.", file=sys.stderr
-                )
-                return False
-
+            print(f"[OK] All {len(sample_records)} sampled vectors are finite 768D L2-normalized.")
         except Exception as e:
-            print(f"[WARN] Failed to sample points: {e}")
+            print(f"[FAIL] Vector sampling inspection failed: {e}", file=sys.stderr)
+            return False
 
-    print("\n" + "=" * 50)
-    print(f"[PASS] Pre-flight validation passed for '{collection_name}'.")
+    print("\n" + "=" * 60)
+    print(f"[PASS] Pre-flight validation & activation gate passed for '{collection_name}'.")
     return True
 
 
 def main() -> None:
     args = parse_args()
-    success = validate_collection(
+
+    # Parse expect-source-count arguments
+    expect_source_counts: dict[str, int] = {}
+    for item in args.expect_source_count:
+        if "=" in item:
+            src, cnt_str = item.split("=", 1)
+            try:
+                expect_source_counts[src.strip()] = int(cnt_str.strip())
+            except ValueError:
+                print(f"[ERROR] Invalid --expect-source-count format: '{item}'", file=sys.stderr)
+                sys.exit(1)
+
+    success = validate_gallery_v2_collection(
         collection_name=args.collection,
-        sample_size=args.sample_size,
+        vector_sample_size=args.vector_sample_size,
+        min_image_url_coverage=args.min_image_url_coverage,
+        allow_unverified_taxonomy=args.allow_unverified_taxonomy,
+        expect_total_count=args.expect_total_count,
+        expect_source_counts=expect_source_counts,
         timeout=args.timeout,
     )
     if not success:

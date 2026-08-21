@@ -31,6 +31,22 @@ EXPECTED_VECTOR_SIZE = 768
 EXPECTED_DISTANCE_METRIC = "Cosine"
 
 
+def is_keyword_index_type(schema_info: Any) -> bool:
+    """
+    Check if schema_info represents an exact keyword payload index in Qdrant.
+    Rejects text, integer, float, geo, bool, or None schemas.
+    """
+    if schema_info is None:
+        return False
+    data_type = (
+        getattr(schema_info, "data_type", None) or getattr(schema_info, "type", None) or schema_info
+    )
+    if hasattr(data_type, "value"):
+        data_type = data_type.value
+    dt_str = str(data_type).lower().strip()
+    return dt_str in {"keyword", "payloadschematype.keyword"}
+
+
 class QdrantRepository:
     """
     Data repository for Qdrant Cloud vector search.
@@ -95,9 +111,9 @@ class QdrantRepository:
 
         supported_fields: set[str] = set()
 
-        # Enforce safety check against native_filter_safe_collections
+        # Enforce safety check against native_filter_safe_collections (fails closed if empty or target not listed)
         safe_collections = self.settings.native_filter_safe_collection_list
-        if safe_collections and target not in safe_collections:
+        if target not in safe_collections:
             logger.debug(
                 "Collection '%s' is not in native_filter_safe_collections; returning empty filter capabilities for safe client filtering.",
                 target,
@@ -110,15 +126,11 @@ class QdrantRepository:
             payload_schema = getattr(info, "payload_schema", None)
             if isinstance(payload_schema, dict):
                 for field_name, schema_info in payload_schema.items():
-                    data_type = getattr(schema_info, "data_type", None) or getattr(
-                        schema_info, "type", None
-                    )
-                    data_type_str = str(data_type).lower()
-                    # Only accept exact keyword index types, reject text index types
-                    if "keyword" in data_type_str and "text" not in data_type_str:
+                    if is_keyword_index_type(schema_info):
                         supported_fields.add(field_name.lower().strip())
         except Exception as e:
             logger.debug("Failed to inspect payload schema for '%s': %s", target, e)
+            supported_fields = set()
 
         self._capabilities_cache[target] = (now, supported_fields)
         return supported_fields
@@ -223,9 +235,10 @@ class QdrantRepository:
         raw_status = getattr(info, "status", "unknown")
         status_name = getattr(raw_status, "name", str(raw_status)).upper()
 
-        if status_name in {"RED", "ERROR"}:
+        # Explicit status policy: GREEN and YELLOW are ready; RED, GREY, ERROR, and unknown/other fail closed
+        if status_name not in {"GREEN", "YELLOW"}:
             raise QdrantSchemaIncompatibleError(
-                message=f"Collection '{target}' status is {status_name} (unhealthy).",
+                message=f"Collection '{target}' status is {status_name} (unhealthy/not ready).",
                 detail=f"Expected collection status GREEN or YELLOW, found {status_name}.",
             )
 

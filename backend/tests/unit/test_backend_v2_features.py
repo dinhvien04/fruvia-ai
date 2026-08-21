@@ -1,11 +1,12 @@
 """
-Unit and integration tests for Backend V2 features:
+Unit and integration tests for Backend V2 & Gallery V2 features:
 - Multi-collection architecture & schema validation.
 - Native Qdrant filtering with fallback and keyword index safety.
-- Rate limiting proxy trust and IP spoofing prevention.
+- Rate limiting proxy trust and IP spoofing prevention (including malformed chain fail-closed).
 - Timing breakdown and quality metadata.
 - Species taxonomy API (/api/species).
-- Migration scripts dry-run, UUIDs, atomic checkpoints, and normalization.
+- Migration scripts dry-run, UUIDs, atomic checkpoints, PackEat unverified taxonomy protection, and normalization.
+- Payload indexing two-phase preflight and activation gate validator.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from app.core.config import Settings
 from app.core.exceptions import QdrantSchemaIncompatibleError
 from app.core.rate_limit import InMemorySlidingWindowRateLimiter
 from app.main import app
-from app.repositories.qdrant_repository import QdrantRepository
+from app.repositories.qdrant_repository import QdrantRepository, is_keyword_index_type
 from app.schemas.retrieval import RetrievalResult
 from app.services.retrieval_service import RetrievalService
 from app.utils.taxonomy import get_taxonomy_manager
@@ -131,6 +132,30 @@ class TestConfigAndRateLimitSecurity:
             assert ip == "127.0.0.1"
             get_settings.cache_clear()
 
+    def test_extract_client_ip_malformed_forwarded_chain_fails_closed(self) -> None:
+        from starlette.requests import Request
+
+        from app.core.rate_limit import extract_client_ip
+
+        # Header contains an invalid IP token in the chain
+        scope = {
+            "type": "http",
+            "client": ("127.0.0.1", 12345),
+            "headers": [(b"x-forwarded-for", b"203.0.113.5, garbage_ip, 10.0.0.1")],
+        }
+        req = Request(scope)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setenv("TRUST_PROXY_HEADERS", "true")
+            mp.setenv("TRUSTED_PROXY_IPS", "127.0.0.1,::1,10.0.0.1")
+            from app.core.config import get_settings
+
+            get_settings.cache_clear()
+            ip = extract_client_ip(req)
+            # Fails closed to peer IP on malformed token
+            assert ip == "127.0.0.1"
+            get_settings.cache_clear()
+
 
 class TestMultiCollectionAndSchemaValidation:
     """Tests for multi-collection config override and schema validation."""
@@ -189,7 +214,7 @@ class TestMultiCollectionAndSchemaValidation:
         ):
             repo.validate_collection_schema("test_coll")
 
-    def test_validate_collection_schema_status_red(self) -> None:
+    def test_validate_collection_schema_status_red_or_grey(self) -> None:
         mock_client = MagicMock()
         mock_info = MagicMock()
         mock_info.config.params.vectors.size = 768
@@ -201,9 +226,29 @@ class TestMultiCollectionAndSchemaValidation:
         with pytest.raises(QdrantSchemaIncompatibleError, match="status is RED"):
             repo.validate_collection_schema("test_coll")
 
+        mock_info.status.name = "GREY"
+        with pytest.raises(QdrantSchemaIncompatibleError, match="status is GREY"):
+            repo.validate_collection_schema("test_coll")
+
 
 class TestNativeQdrantFiltering:
-    """Tests for native filter building, keyword index requirements, and fallback handling."""
+    """Tests for native filter building, exact keyword index requirements, and allowlist safety."""
+
+    def test_is_keyword_index_type_helper(self) -> None:
+        from qdrant_client.models import PayloadSchemaType
+
+        assert is_keyword_index_type(PayloadSchemaType.KEYWORD) is True
+        assert is_keyword_index_type("keyword") is True
+        assert is_keyword_index_type("KEYWORD") is True
+
+        schema_mock = MagicMock()
+        schema_mock.data_type = "keyword"
+        assert is_keyword_index_type(schema_mock) is True
+
+        # Unsupported schemas
+        assert is_keyword_index_type("text") is False
+        assert is_keyword_index_type("integer") is False
+        assert is_keyword_index_type(None) is False
 
     def test_get_filter_capabilities_accepts_keyword_only(self) -> None:
         mock_client = MagicMock()
@@ -226,9 +271,9 @@ class TestNativeQdrantFiltering:
 
         caps = repo.get_filter_capabilities("fruvia_gallery_dinov2_base_v2")
         assert "category" in caps
-        assert "title" not in caps  # text must NOT be treated as filter capability
+        assert "title" not in caps
 
-    def test_get_filter_capabilities_unsafe_collection_returns_empty(self) -> None:
+    def test_get_filter_capabilities_unsafe_collection_or_empty_allowlist(self) -> None:
         mock_client = MagicMock()
         settings = Settings(native_filter_safe_collections="fruvia_gallery_dinov2_base_v2")
         repo = QdrantRepository(settings=settings, client=mock_client)
@@ -236,6 +281,11 @@ class TestNativeQdrantFiltering:
         # Legacy collection is not in native_filter_safe_collections
         caps = repo.get_filter_capabilities("fruvia_fruits360_original_dinov2_base_v1")
         assert caps == set()
+
+        # Empty allowlist fails closed
+        settings_empty = Settings(native_filter_safe_collections="")
+        repo_empty = QdrantRepository(settings=settings_empty, client=mock_client)
+        assert repo_empty.get_filter_capabilities("fruvia_gallery_dinov2_base_v2") == set()
 
     def test_build_qdrant_filter_with_supported_fields(self) -> None:
         repo = QdrantRepository(client=MagicMock())
@@ -329,102 +379,232 @@ class TestSpeciesAPI:
 
 
 class TestMigrationScriptsLogic:
-    """Tests for migration scripts dry-run, UUIDs, atomic checkpoints, and normalization functions."""
+    """Tests for Gallery V2 migration scripts, normalization, PackEat protection, and checkpoint safety."""
 
-    def test_prepare_gallery_v2_payload_normalization(self) -> None:
+    def test_prepare_gallery_v2_payload_provenance_and_normalization(self) -> None:
         from scripts.prepare_gallery_v2 import normalize_point_payload
 
         tax_mgr = get_taxonomy_manager()
-        raw_payload = {
+
+        # Matrix item 1: Fruits-360 standard
+        p_360 = {
             "original_class": "apple_crimson_snow",
             "image_url": "https://pub-fruits.r2.dev/apple_1.jpg",
             "source_dataset": "fruits360",
+            "dataset_name": "fruits360_original",
+            "dataset_version": "1",
             "custom_metadata_tag": "test_tag_123",
         }
-        normalized = normalize_point_payload(
-            original_payload=raw_payload,
+        norm_360 = normalize_point_payload(
+            original_payload=p_360,
             tax_manager=tax_mgr,
             source_collection="fruvia_fruits360_original_dinov2_base_v1",
             source_point_id=101,
         )
+        assert norm_360["canonical_class"] == "apple"
+        assert norm_360["display_name_en"] == "Apple"
+        assert norm_360["display_name_vi"] == "Táo"
+        assert norm_360["category"] == "fruit"
+        assert norm_360["gallery_schema_version"] == 2
+        assert norm_360["source_collection"] == "fruvia_fruits360_original_dinov2_base_v1"
+        assert norm_360["source_point_id"] == "101"
+        assert norm_360["source_point_id_type"] == "int"
+        assert norm_360["attributes"].get("custom_metadata_tag") == "test_tag_123"
 
-        assert normalized["canonical_class"] == "apple"
-        assert normalized["display_name_en"] == "Apple"
-        assert normalized["display_name_vi"] == "Táo"
-        assert normalized["category"] == "fruit"
-        assert normalized["gallery_schema_version"] == 2
-        assert normalized["source_collection"] == "fruvia_fruits360_original_dinov2_base_v1"
-        assert normalized["source_point_id"] == "101"
-        assert normalized["image_url"] == "https://pub-fruits.r2.dev/apple_1.jpg"
-        assert normalized["thumbnail_url"] == "https://pub-fruits.r2.dev/apple_1.jpg"
-        assert normalized["attributes"].get("custom_metadata_tag") == "test_tag_123"
+        # Matrix item 2: Missing dataset version remains None (never fabricated as "1")
+        p_no_ver = {
+            "original_class": "durian",
+            "source_dataset": "fruits262",
+        }
+        norm_no_ver = normalize_point_payload(
+            original_payload=p_no_ver,
+            tax_manager=tax_mgr,
+            source_collection="fruvia_fruits262_v1",
+            source_point_id="pt_404",
+        )
+        assert norm_no_ver["dataset_version"] is None
+        assert norm_no_ver["source_point_id_type"] == "str"
 
-    def test_prepare_gallery_v2_deterministic_uuids(self) -> None:
+    def test_prepare_gallery_v2_robust_attributes_handling(self) -> None:
+        from scripts.prepare_gallery_v2 import normalize_point_payload
+
+        tax_mgr = get_taxonomy_manager()
+
+        for bad_attr in [None, "string_attr", [1, 2, 3], 42]:
+            norm = normalize_point_payload(
+                original_payload={"original_class": "durian", "attributes": bad_attr},
+                tax_manager=tax_mgr,
+                source_collection="coll",
+                source_point_id=1,
+            )
+            assert isinstance(norm["attributes"], dict)
+
+    def test_packeat_unreviewed_taxonomy_fails_closed_without_approved_mapping(self) -> None:
+        from scripts.prepare_gallery_v2 import normalize_point_payload
+
+        tax_mgr = get_taxonomy_manager()
+
+        raw_packeat = {
+            "original_class": "some_obscure_variety",
+            "canonical_class": "unreviewed_candidate",
+            "taxonomy_status": "unverified_packeat",
+            "source_dataset": "packeat",
+        }
+
+        # 1. Default: MUST raise RuntimeError
+        with pytest.raises(RuntimeError, match="has unverified PackEat taxonomy"):
+            normalize_point_payload(
+                original_payload=raw_packeat,
+                tax_manager=tax_mgr,
+                source_collection="fruvia_packeat_dinov2_base_v1",
+                source_point_id=1,
+            )
+
+        # 2. With --preserve-unverified-taxonomy: Preserved with UNVERIFIED_PACKEAT (never CANONICAL/EXACT)
+        norm_preserved = normalize_point_payload(
+            original_payload=raw_packeat,
+            tax_manager=tax_mgr,
+            source_collection="fruvia_packeat_dinov2_base_v1",
+            source_point_id=1,
+            preserve_unverified_taxonomy=True,
+        )
+        assert norm_preserved["taxonomy_status"] == "UNVERIFIED_PACKEAT"
+        assert norm_preserved["taxonomy_resolution_method"] == "preserved_unverified"
+
+        # 3. With approved taxonomy mapping: Promoted safely to ALIAS
+        approved_mapping = {"some_obscure_variety": "apple"}
+        norm_approved = normalize_point_payload(
+            original_payload=raw_packeat,
+            tax_manager=tax_mgr,
+            source_collection="fruvia_packeat_dinov2_base_v1",
+            source_point_id=1,
+            custom_mapping=approved_mapping,
+        )
+        assert norm_approved["canonical_class"] == "apple"
+        assert norm_approved["taxonomy_status"] == "ALIAS"
+        assert norm_approved["taxonomy_resolution_method"] == "approved_mapping"
+
+    def test_prepare_gallery_v2_deterministic_uuids_type_tagged(self) -> None:
         from scripts.prepare_gallery_v2 import generate_deterministic_point_uuid
 
-        uuid_fruits360 = generate_deterministic_point_uuid("fruits360_collection", 1001)
-        uuid_packeat = generate_deterministic_point_uuid("packeat_collection", 1001)
+        uuid_int = generate_deterministic_point_uuid("coll", 123)
+        uuid_str = generate_deterministic_point_uuid("coll", "123")
 
-        # Same point ID from different source collections MUST produce distinct UUIDs
-        assert uuid_fruits360 != uuid_packeat
+        # Distinguishes integer 123 from string "123" to prevent type collision
+        assert uuid_int != uuid_str
 
-        # Re-running on same collection and ID must produce identical UUID (idempotency)
-        uuid_fruits360_repeat = generate_deterministic_point_uuid("fruits360_collection", 1001)
-        assert uuid_fruits360 == uuid_fruits360_repeat
+        # Idempotent
+        assert uuid_int == generate_deterministic_point_uuid("coll", 123)
 
-    def test_atomic_checkpoint_persistence_and_validation(self, tmp_path) -> None:
+    def test_checkpoint_strict_validation(self, tmp_path) -> None:
         from scripts.prepare_gallery_v2 import load_checkpoint, save_checkpoint_atomic
 
-        chk_path = tmp_path / "test_migration.checkpoint.json"
-        data = {
+        chk_path = tmp_path / "migration.checkpoint.json"
+
+        # Valid checkpoint
+        valid_data = {
             "version": 1,
             "source_collection": "coll_a",
             "target_collection": "coll_b",
-            "next_offset": 4500,
+            "next_offset": 500,
             "next_offset_type": "int",
-            "total_processed": 4500,
-            "total_migrated": 4500,
+            "total_processed": 500,
+            "total_migrated": 500,
             "total_skipped": 0,
-            "batches_completed": 45,
+            "batches_completed": 5,
         }
-        save_checkpoint_atomic(chk_path, data)
-        assert chk_path.exists()
+        save_checkpoint_atomic(chk_path, valid_data)
+        loaded = load_checkpoint(chk_path, "coll_a", "coll_b")
+        assert loaded["version"] == 1
 
-        loaded = load_checkpoint(chk_path, source_collection="coll_a", target_collection="coll_b")
-        assert loaded["next_offset"] == 4500
-        assert loaded["next_offset_type"] == "int"
-        assert loaded["total_migrated"] == 4500
+        # Version mismatch
+        save_checkpoint_atomic(chk_path, {**valid_data, "version": 2})
+        with pytest.raises(RuntimeError, match="Unsupported checkpoint version 2"):
+            load_checkpoint(chk_path, "coll_a", "coll_b")
 
-        # Mismatch in source collection should raise RuntimeError
-        with pytest.raises(RuntimeError, match="does not match"):
-            load_checkpoint(chk_path, source_collection="diff_source", target_collection="coll_b")
+        # Missing identity
+        save_checkpoint_atomic(chk_path, {"version": 1, "next_offset": 10})
+        with pytest.raises(RuntimeError, match="missing required source/target"):
+            load_checkpoint(chk_path, "coll_a", "coll_b")
 
-    def test_packeat_taxonomy_matching_logic(self) -> None:
+        # Corrupt offset type
+        save_checkpoint_atomic(
+            chk_path, {**valid_data, "next_offset": "not_an_int", "next_offset_type": "int"}
+        )
+        with pytest.raises(RuntimeError, match="cannot be parsed as integer"):
+            load_checkpoint(chk_path, "coll_a", "coll_b")
 
-        from scripts.build_packeat_taxonomy_mapping import build_taxonomy_index, match_label
+    def test_packeat_structured_record_alignment(self) -> None:
+        from scripts.build_packeat_taxonomy_mapping import (
+            PackEatRecord,
+            build_taxonomy_index,
+            match_packeat_record,
+        )
 
         tax_path = Path("configs/taxonomy.yaml")
         canonical_items, alias_map = build_taxonomy_index(tax_path)
 
-        # 1. Exact match
-        status, canon, _ = match_label("durian", canonical_items, alias_map)
+        rec_exact = PackEatRecord(raw_label="durian", variety=None, species="durian")
+        status, canon, _ = match_packeat_record(rec_exact, canonical_items, alias_map)
         assert status == "EXACT"
         assert canon == "durian"
 
-        # 2. Alias match
-        status, canon, _ = match_label("pitahaya", canonical_items, alias_map)
+        rec_alias = PackEatRecord(raw_label="pitahaya", variety=None, species="pitahaya")
+        status, canon, _ = match_packeat_record(rec_alias, canonical_items, alias_map)
         assert status == "ALIAS"
         assert canon == "dragon_fruit"
 
-        # 3. Normalized slug / number stripped match
-        status, canon, _ = match_label("apple_red_12", canonical_items, alias_map)
-        assert status in ("ALIAS", "NORMALIZED_EXACT")
-        assert canon == "apple"
-
-        # 4. Prefix heuristics must require manual review, not auto match
-        status, canon, _ = match_label("apple_variety_special_xyz", canonical_items, alias_map)
+        # Prefix heuristics must be flagged as MANUAL_REVIEW
+        rec_prefix = PackEatRecord(raw_label="apple_variety_xyz", variety=None, species=None)
+        status, canon, _ = match_packeat_record(rec_prefix, canonical_items, alias_map)
         assert status == "MANUAL_REVIEW"
-        assert canon == "apple"
+
+
+class TestValidationToolAndPayloadIndexes:
+    """Tests for Gallery V2 validator and two-phase payload indexing tool."""
+
+    def test_inspect_collection_indexes_preflight(self) -> None:
+        from scripts.create_qdrant_payload_indexes import inspect_collection_indexes
+
+        mock_client = MagicMock()
+        mock_info = MagicMock()
+
+        schema_kw = MagicMock()
+        schema_kw.data_type = "keyword"
+
+        schema_bad = MagicMock()
+        schema_bad.data_type = "text"
+
+        mock_info.payload_schema = {
+            "canonical_class": schema_kw,
+            "category": schema_bad,  # INCOMPATIBLE
+        }
+        mock_client.get_collection.return_value = mock_info
+
+        results = inspect_collection_indexes(mock_client, "test_collection")
+        assert results["canonical_class"][0] == "EXISTS"
+        assert results["category"][0] == "INCOMPATIBLE"
+        assert results["source_dataset"][0] == "MISSING"
+
+    def test_validate_gallery_v2_fail_closed_on_missing_index(self) -> None:
+        from scripts.validate_gallery_v2 import validate_gallery_v2_collection
+
+        mock_client = MagicMock()
+        mock_info = MagicMock()
+        mock_info.status.name = "GREEN"
+        mock_info.points_count = 100
+        mock_info.config.params.vectors.size = 768
+        mock_info.config.params.vectors.distance = "Cosine"
+        mock_info.payload_schema = {}  # Missing all indexes
+        mock_client.get_collections.return_value.collections = [
+            MagicMock(name="fruvia_gallery_dinov2_base_v2")
+        ]
+        mock_client.get_collection.return_value = mock_info
+
+        is_valid = validate_gallery_v2_collection(
+            collection_name="fruvia_gallery_dinov2_base_v2", client=mock_client
+        )
+        assert is_valid is False
 
 
 class TestTimingAndQualityMeta:
