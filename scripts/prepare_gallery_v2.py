@@ -107,6 +107,12 @@ def parse_args() -> argparse.Namespace:
         help="Explicit source dataset identifier override if missing from payload",
     )
     parser.add_argument(
+        "--dataset-name",
+        type=str,
+        default=None,
+        help="Explicit dataset name override (default: None, does not fabricate from source_dataset)",
+    )
+    parser.add_argument(
         "--infer-source-dataset",
         action="store_true",
         default=False,
@@ -171,6 +177,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Perform a zero-write dry-run without writing to Qdrant, checkpoint, or skip files",
+    )
+    parser.add_argument(
+        "--allow-runtime-key-for-local-migration",
+        action="store_true",
+        default=False,
+        help="Explicitly permit using QDRANT_API_KEY if QDRANT_MIGRATION_API_KEY is not set (development/local only)",
     )
     parser.add_argument(
         "--timeout",
@@ -303,6 +315,17 @@ def save_checkpoint_atomic(checkpoint_file: Path, checkpoint: dict[str, Any]) ->
             f.flush()
             os.fsync(f.fileno())
         temp_file.replace(checkpoint_file)
+
+        # Fsync parent directory where supported by OS
+        if hasattr(os, "O_DIRECTORY") and hasattr(os, "fsync"):
+            try:
+                dir_fd = os.open(str(checkpoint_file.parent), os.O_RDONLY)
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
+            except Exception:
+                pass
     except Exception as e:
         if temp_file.exists():
             with contextlib.suppress(OSError):
@@ -342,6 +365,57 @@ def generate_deterministic_point_uuid(source_collection: str, source_point_id: i
     type_tag = "int" if isinstance(source_point_id, int) else "str"
     composite_key = f"{source_collection}:{type_tag}:{source_point_id}"
     return str(uuid.uuid5(FRUVIA_NAMESPACE, composite_key))
+
+
+def validate_taxonomy_mapping(
+    mapping_data: Any,
+    taxonomy_manager: Any,
+) -> dict[str, Any]:
+    """
+    Validate that approved taxonomy mapping is valid and targets real canonical classes.
+    Rejects nonexistent target species or malformed structures.
+    """
+    if not isinstance(mapping_data, dict):
+        raise ValueError("Approved taxonomy mapping must be a JSON dictionary.")
+
+    entries: dict[str, Any] = {}
+    if "entries" in mapping_data and isinstance(mapping_data["entries"], dict):
+        entries = mapping_data["entries"]
+    else:
+        entries = mapping_data
+
+    validated: dict[str, Any] = {}
+    for raw_label, target in entries.items():
+        if not isinstance(raw_label, str) or not raw_label.strip():
+            raise ValueError(f"Invalid empty raw_label key in taxonomy mapping: {raw_label}")
+
+        canonical_target: str
+        status: str = "ALIAS"
+
+        if isinstance(target, dict):
+            canon_val = target.get("canonical_class")
+            if not isinstance(canon_val, str) or not canon_val.strip():
+                raise ValueError(f"Mapping entry for '{raw_label}' missing valid 'canonical_class'")
+            canonical_target = canon_val.strip()
+            status = target.get("match_status", "ALIAS")
+        elif isinstance(target, str) and target.strip():
+            canonical_target = target.strip()
+        else:
+            raise ValueError(f"Invalid mapping value for '{raw_label}': {target}")
+
+        # Validate that canonical_target exists in taxonomy.yaml
+        if canonical_target not in taxonomy_manager.taxonomy:
+            raise ValueError(
+                f"Approved taxonomy mapping targets unknown canonical species '{canonical_target}' "
+                f"for raw label '{raw_label}'. Not found in taxonomy.yaml."
+            )
+
+        validated[raw_label] = {
+            "canonical_class": canonical_target,
+            "match_status": status,
+        }
+
+    return validated
 
 
 def validate_source_and_target_schema(
@@ -407,16 +481,23 @@ def validate_source_and_target_schema(
 
         # Verify required keyword payload indexes exist on existing target
         target_schema = getattr(target_info, "payload_schema", {}) or {}
-        missing_or_incompatible: list[str] = []
-        for field_name in REQUIRED_PAYLOAD_INDEXES:
-            if field_name not in target_schema or not is_keyword_index_type(
-                target_schema[field_name]
-            ):
-                missing_or_incompatible.append(field_name)
+        missing_fields: list[str] = []
+        incompatible_fields: list[str] = []
 
-        if missing_or_incompatible:
+        for field_name in REQUIRED_PAYLOAD_INDEXES:
+            if field_name not in target_schema:
+                missing_fields.append(field_name)
+            elif not is_keyword_index_type(target_schema[field_name]):
+                incompatible_fields.append(field_name)
+
+        if incompatible_fields:
+            raise RuntimeError(
+                f"Existing target collection '{target_collection}' has INCOMPATIBLE non-keyword indexes on: {incompatible_fields}. Aborting."
+            )
+
+        if missing_fields:
             if create_missing_target_indexes and not dry_run:
-                for field_name in missing_or_incompatible:
+                for field_name in missing_fields:
                     print(
                         f"[INDEX] Creating missing payload index on target: {field_name} (KEYWORD)..."
                     )
@@ -427,7 +508,7 @@ def validate_source_and_target_schema(
                     )
             else:
                 raise RuntimeError(
-                    f"Existing target collection '{target_collection}' is missing required KEYWORD payload indexes on: {missing_or_incompatible}. "
+                    f"Existing target collection '{target_collection}' is missing required KEYWORD payload indexes on: {missing_fields}. "
                     "Run scripts/create_qdrant_payload_indexes.py or pass --create-missing-target-indexes to fix before migrating."
                 )
 
@@ -463,11 +544,12 @@ def normalize_point_payload(
     source_point_id: Any,
     default_source_dataset: str | None = None,
     infer_source_dataset: bool = False,
+    default_dataset_name: str | None = None,
     default_dataset_version: str | None = None,
     embedding_model: str | None = None,
     embedding_pooling: str | None = None,
     embedding_normalization: str | None = None,
-    custom_mapping: dict[str, str] | None = None,
+    custom_mapping: dict[str, Any] | None = None,
     preserve_unverified_taxonomy: bool = False,
 ) -> dict[str, Any]:
     """
@@ -508,9 +590,24 @@ def normalize_point_payload(
     )
 
     # Check custom approved mapping first
-    mapped_canon = None
-    if custom_mapping and raw_class_str in custom_mapping:
-        mapped_canon = custom_mapping[raw_class_str]
+    mapped_canon: str | None = None
+    mapped_status: str | None = None
+    if custom_mapping:
+        # Check structured mapping dictionary or flat mapping
+        if "entries" in custom_mapping and isinstance(custom_mapping["entries"], dict):
+            entry = custom_mapping["entries"].get(raw_class_str)
+            if isinstance(entry, dict):
+                mapped_canon = entry.get("canonical_class")
+                mapped_status = entry.get("match_status")
+            elif isinstance(entry, str):
+                mapped_canon = entry
+        elif raw_class_str in custom_mapping:
+            val = custom_mapping[raw_class_str]
+            if isinstance(val, dict):
+                mapped_canon = val.get("canonical_class")
+                mapped_status = val.get("match_status")
+            elif isinstance(val, str):
+                mapped_canon = val
 
     if is_packeat_source and is_unreviewed_status and not mapped_canon:
         # PackEat unreviewed point without approved mapping
@@ -532,7 +629,7 @@ def normalize_point_payload(
             payload_canonical=mapped_canon,
             allow_heuristic=False,
         )
-        taxonomy_status = "ALIAS"
+        taxonomy_status = (mapped_status or "ALIAS").upper()
         resolution_method = "approved_mapping"
     else:
         # Standard strict resolution
@@ -563,9 +660,7 @@ def normalize_point_payload(
         else:
             source_dataset = "fruits360"
 
-    dataset_name = original_payload.get("dataset_name") or (
-        str(source_dataset) if source_dataset else None
-    )
+    dataset_name = original_payload.get("dataset_name") or default_dataset_name
     dataset_version = original_payload.get("dataset_version") or default_dataset_version
 
     image_url = (
@@ -677,13 +772,28 @@ def main() -> None:
     args = parse_args()
 
     qdrant_url = os.getenv("QDRANT_URL")
-    qdrant_api_key = os.getenv("QDRANT_API_KEY")
+    migration_api_key = os.getenv("QDRANT_MIGRATION_API_KEY")
+    runtime_api_key = os.getenv("QDRANT_API_KEY")
 
-    if not qdrant_url or not qdrant_api_key:
-        print(
-            "[ERROR] QDRANT_URL or QDRANT_API_KEY environment variable is not set.", file=sys.stderr
-        )
+    if not qdrant_url:
+        print("[ERROR] QDRANT_URL environment variable is not set.", file=sys.stderr)
         sys.exit(1)
+
+    api_key = migration_api_key
+    if not api_key:
+        if runtime_api_key and args.allow_runtime_key_for_local_migration:
+            print(
+                "[WARN] Using QDRANT_API_KEY for migration because --allow-runtime-key-for-local-migration was provided.",
+                file=sys.stderr,
+            )
+            api_key = runtime_api_key
+        else:
+            print(
+                "[ERROR] QDRANT_MIGRATION_API_KEY is not set. Gallery V2 migration requires an administrative migration key.\n"
+                "Pass --allow-runtime-key-for-local-migration if running in local development.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     checkpoint_file = (
         args.checkpoint_file
@@ -704,19 +814,29 @@ def main() -> None:
     print("-" * 50)
 
     try:
-        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=args.timeout)
         tax_mgr = get_taxonomy_manager()
 
-        # Load approved taxonomy mapping if provided
-        custom_mapping: dict[str, str] | None = None
+        # Step 1: Pre-load and validate approved taxonomy mapping strictly
+        custom_mapping: dict[str, Any] | None = None
         if args.taxonomy_mapping and args.taxonomy_mapping.exists():
             with open(args.taxonomy_mapping, encoding="utf-8") as mf:
-                custom_mapping = json.load(mf)
+                raw_mapping_json = json.load(mf)
+                custom_mapping = validate_taxonomy_mapping(raw_mapping_json, tax_mgr)
                 print(
-                    f"[OK] Loaded {len(custom_mapping)} custom taxonomy mappings from {args.taxonomy_mapping}"
+                    f"[OK] Loaded & validated {len(custom_mapping)} taxonomy mappings from {args.taxonomy_mapping}"
                 )
 
-        # Pre-flight schema validation & required index checking
+        # Step 2: Pre-load and validate checkpoint BEFORE making any Qdrant mutations
+        checkpoint = load_checkpoint(
+            checkpoint_file=checkpoint_file,
+            source_collection=args.source_collection,
+            target_collection=args.target_collection,
+            ignore_invalid=args.ignore_invalid_checkpoint,
+        )
+
+        # Step 3: Initialize client and perform pre-flight schema & index validation
+        client = QdrantClient(url=qdrant_url, api_key=api_key, timeout=args.timeout)
+
         validate_source_and_target_schema(
             client=client,
             source_collection=args.source_collection,
@@ -725,18 +845,13 @@ def main() -> None:
             create_missing_target_indexes=args.create_missing_target_indexes,
         )
 
-        checkpoint = load_checkpoint(
-            checkpoint_file=checkpoint_file,
-            source_collection=args.source_collection,
-            target_collection=args.target_collection,
-            ignore_invalid=args.ignore_invalid_checkpoint,
-        )
-
         offset: int | str | None = checkpoint.get("next_offset")
         offset_type = checkpoint.get("next_offset_type")
         if offset is not None and offset_type == "int":
-            with contextlib.suppress(ValueError, TypeError):
+            try:
                 offset = int(offset)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Failed to parse next_offset '{offset}' as integer: {e}") from e
 
         total_processed = int(checkpoint.get("total_processed", 0))
         total_migrated = int(checkpoint.get("total_migrated", 0))
@@ -809,6 +924,7 @@ def main() -> None:
                     source_point_id=rec.id,
                     default_source_dataset=args.source_dataset,
                     infer_source_dataset=args.infer_source_dataset,
+                    default_dataset_name=args.dataset_name,
                     default_dataset_version=args.dataset_version,
                     embedding_model=args.embedding_model,
                     embedding_pooling=args.embedding_pooling,

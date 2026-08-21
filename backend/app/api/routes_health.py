@@ -65,20 +65,35 @@ async def health_check(
     qdrant_connected, collection_available, schema_valid, schema_info = repo.get_health_status()
 
     is_fully_healthy = model_loaded and qdrant_connected and collection_available and schema_valid
-    status = "ok" if is_fully_healthy else "degraded"
+    status_str = "ok" if is_fully_healthy else "degraded"
 
-    result_data = {
-        "status": status,
-        "model_loaded": model_loaded,
-        "qdrant_connected": qdrant_connected,
-        "collection_available": collection_available,
-        "schema_valid": schema_valid,
-        "collection_name": repo.collection_name,
-        "vector_size": schema_info.get("vector_size") if schema_info else None,
-        "distance": schema_info.get("distance") if schema_info else None,
-        "points_count": schema_info.get("points_count") if schema_info else None,
-        "version": settings.app_version,
-    }
+    if settings.is_production:
+        # Minimal information disclosure in production
+        result_data = {
+            "status": status_str,
+            "model_loaded": model_loaded,
+            "qdrant_connected": qdrant_connected,
+            "collection_available": collection_available,
+            "schema_valid": schema_valid,
+            "collection_name": None,
+            "vector_size": None,
+            "distance": None,
+            "points_count": None,
+            "version": settings.app_version,
+        }
+    else:
+        result_data = {
+            "status": status_str,
+            "model_loaded": model_loaded,
+            "qdrant_connected": qdrant_connected,
+            "collection_available": collection_available,
+            "schema_valid": schema_valid,
+            "collection_name": repo.collection_name,
+            "vector_size": schema_info.get("vector_size") if schema_info else None,
+            "distance": schema_info.get("distance") if schema_info else None,
+            "points_count": schema_info.get("points_count") if schema_info else None,
+            "version": settings.app_version,
+        }
 
     _health_cache = result_data  # type: ignore[assignment]
     _last_health_check_time = now

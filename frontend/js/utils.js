@@ -18,21 +18,55 @@ const Utils = {
   },
 
   /**
-   * Validate image URL to prevent XSS / malicious protocol injection.
-   * Accepts http://, https://, data:, or relative URLs.
+   * Validate image URL using URL() parsing against approved hostnames and protocols.
+   * Prevents XSS, javascript: injection, and arbitrary untrusted external image hosts.
    * @param {string|null|undefined} url
    * @returns {boolean}
    */
   isSafeImageUrl(url) {
     if (!url || typeof url !== "string") return false;
-    const trimmed = url.trim().toLowerCase();
-    return (
-      trimmed.startsWith("https://") ||
-      trimmed.startsWith("http://localhost") ||
-      trimmed.startsWith("http://127.0.0.1") ||
-      trimmed.startsWith("data:image/") ||
-      trimmed.startsWith("/")
-    );
+    const trimmed = url.trim();
+
+    // 1. Safe relative URLs and data: image URLs
+    if (trimmed.startsWith("data:image/jpeg;") ||
+        trimmed.startsWith("data:image/png;") ||
+        trimmed.startsWith("data:image/webp;")) {
+      return true;
+    }
+    if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+      return true;
+    }
+
+    // 2. Full URL validation via URL object
+    try {
+      const parsed = new URL(trimmed, window.location.origin);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        const hostname = parsed.hostname.toLowerCase();
+
+        // Same origin is always allowed
+        if (hostname === window.location.hostname) {
+          return true;
+        }
+
+        // Local development hostnames
+        if (hostname === "localhost" || hostname === "127.0.0.1") {
+          return true;
+        }
+
+        // Check against CONFIG.ALLOWED_IMAGE_HOSTS
+        const allowedHosts = CONFIG.ALLOWED_IMAGE_HOSTS || [];
+        for (const allowed of allowedHosts) {
+          const cleanAllowed = allowed.toLowerCase().trim();
+          if (hostname === cleanAllowed || hostname.endsWith("." + cleanAllowed)) {
+            return true;
+          }
+        }
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
   },
 
   /**

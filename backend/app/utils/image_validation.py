@@ -3,15 +3,17 @@ Image validation utilities with strict security safeguards.
 
 Validates uploaded images by:
 - Enforcing bounded chunked reading to prevent RAM exhaustion
+- Restricting Pillow decoders strictly to JPEG, PNG, and WEBP to prevent unverified decoder exploits
+- Setting Pillow pixel limits and catching decompression bomb warnings/errors to fail closed
+- Verifying image resolution (width/height bounds) BEFORE performing full pixel decode/load
 - Checking file extension, Content-Type, and Pillow detected format consistency
-- Setting Pillow pixel limits to prevent decompression bomb attacks
-- Verifying image resolution (width/height bounds)
 - Executing proper Pillow verify() on the initial stream and re-opening to convert to RGB
 """
 
 from __future__ import annotations
 
 import io
+import warnings
 from typing import TYPE_CHECKING
 
 from PIL import Image
@@ -26,11 +28,15 @@ from app.core.exceptions import (
 if TYPE_CHECKING:
     from fastapi import UploadFile
 
+# Maximum allowed filename length to prevent filesystem/buffer abuse
+MAX_FILENAME_LENGTH: int = 255
+
 # Allowed file extensions (lowercase)
 ALLOWED_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".webp"}
 
 # Pillow format names that correspond to allowed types
-ALLOWED_PILLOW_FORMATS: set[str] = {"JPEG", "PNG", "WEBP"}
+ALLOWED_PILLOW_FORMATS: list[str] = ["JPEG", "PNG", "WEBP"]
+ALLOWED_PILLOW_FORMAT_SET: set[str] = set(ALLOWED_PILLOW_FORMATS)
 
 # MIME types considered valid
 ALLOWED_MIME_TYPES: set[str] = {
@@ -59,7 +65,7 @@ MIME_TO_PILLOW_FORMAT: dict[str, str] = {
 
 def validate_file_extension(filename: str) -> str:
     """
-    Check the file extension is in the allowed set.
+    Check the file extension is in the allowed set and filename length is bounded.
 
     Parameters
     ----------
@@ -73,9 +79,19 @@ def validate_file_extension(filename: str) -> str:
 
     Raises
     ------
+    ImageValidationError
+        If filename is missing or exceeds max length.
     UnsupportedFormatError
         If the extension is not allowed.
     """
+    if not filename or not filename.strip():
+        raise ImageValidationError("Filename cannot be empty.")
+
+    if len(filename) > MAX_FILENAME_LENGTH:
+        raise ImageValidationError(
+            f"Filename length ({len(filename)}) exceeds maximum allowed limit of {MAX_FILENAME_LENGTH} characters."
+        )
+
     ext = ""
     if "." in filename:
         ext = "." + filename.rsplit(".", 1)[-1].lower()
@@ -89,13 +105,18 @@ def validate_file_extension(filename: str) -> str:
 
 def validate_file_size(data: bytes, max_bytes: int) -> None:
     """
-    Ensure raw bytes payload does not exceed max_bytes limit.
+    Ensure raw bytes payload is non-empty and does not exceed max_bytes limit.
 
     Raises
     ------
+    ImageValidationError
+        If data is empty (0 bytes).
     FileTooLargeError
         If len(data) > max_bytes.
     """
+    if not data or len(data) == 0:
+        raise ImageValidationError("Uploaded image file is empty (0 bytes).")
+
     if len(data) > max_bytes:
         max_mb = max_bytes / (1024 * 1024)
         actual_mb = len(data) / (1024 * 1024)
@@ -149,12 +170,14 @@ def validate_image_content(
     filename: str | None = None,
 ) -> Image.Image:
     """
-    Open, verify, and validate image data using Pillow with security limits.
+    Open, verify, and validate image data using Pillow with strict security limits.
 
-    Checks:
-    - Protection against decompression bomb (Image.MAX_IMAGE_PIXELS)
+    Safeguards:
+    - Decoders strictly limited to ALLOWED_PILLOW_FORMATS (JPEG, PNG, WEBP)
+    - Protection against decompression bomb (Image.MAX_IMAGE_PIXELS + warning capture)
     - Image integrity check via img.verify() on original stream
-    - Re-open fresh stream to load pixels and check width/height limits
+    - Geometry checks (width > 0, height > 0, width/height bounds, total pixels) BEFORE full load
+    - Re-open fresh stream to load pixels and convert to RGB mode
     - Consistency check across filename extension, Content-Type, and detected format
 
     Returns
@@ -169,33 +192,37 @@ def validate_image_content(
     UnsupportedFormatError
         If image format is disallowed or inconsistent.
     """
+    if not data or len(data) == 0:
+        raise ImageValidationError("Uploaded image data is empty.")
+
     settings = get_settings()
 
-    # Decompression bomb prevention
+    # Decompression bomb prevention policy
     Image.MAX_IMAGE_PIXELS = settings.max_image_pixels
 
-    # Step 1: Open stream and verify image integrity directly
+    # Step 1: Open stream with restricted decoders and verify integrity
     try:
-        stream_orig = io.BytesIO(data)
-        img_orig = Image.open(stream_orig)
-        detected_format = img_orig.format
-        img_orig.verify()
-    except Image.DecompressionBombError as exc:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            stream_orig = io.BytesIO(data)
+            # Restrict decoders strictly to JPEG, PNG, WEBP
+            img_orig = Image.open(stream_orig, formats=ALLOWED_PILLOW_FORMATS)
+            detected_format = img_orig.format
+            img_orig.verify()
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
         raise ImageValidationError(
-            "Image pixel count exceeds maximum allowed limit (Decompression Bomb protection).",
-            detail=str(exc),
+            "Image pixel count exceeds maximum allowed limit (Decompression Bomb protection)."
         ) from exc
     except Exception as exc:
         raise ImageValidationError(
-            "Cannot open file as a valid image or file is corrupted.",
-            detail=str(exc),
+            "Cannot open file as a valid image or file is corrupted."
         ) from exc
 
     # Step 2: Validate detected Pillow format
-    if not detected_format or detected_format not in ALLOWED_PILLOW_FORMATS:
+    if not detected_format or detected_format not in ALLOWED_PILLOW_FORMAT_SET:
         raise UnsupportedFormatError(
             f"Detected image format '{detected_format}' is not supported. "
-            f"Allowed formats: {', '.join(sorted(ALLOWED_PILLOW_FORMATS))}"
+            f"Allowed formats: {', '.join(sorted(ALLOWED_PILLOW_FORMAT_SET))}"
         )
 
     # Step 3: Check consistency between extension, MIME type, and detected format
@@ -218,38 +245,48 @@ def validate_image_content(
                     f"Content-Type '{content_type}' does not match detected image format '{detected_format}'."
                 )
 
-    # Step 4: Re-open fresh stream to load image pixel data and validate dimensions
+    # Step 4: Re-open fresh stream with restricted decoders, check dimensions BEFORE load
     try:
-        stream_fresh = io.BytesIO(data)
-        img_load = Image.open(stream_fresh)
-        img_load.load()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            stream_fresh = io.BytesIO(data)
+            img_load = Image.open(stream_fresh, formats=ALLOWED_PILLOW_FORMATS)
 
-        width, height = img_load.size
-        if width > settings.max_image_width or height > settings.max_image_height:
-            raise ImageValidationError(
-                f"Image dimensions ({width}x{height}) exceed maximum allowed limits "
-                f"({settings.max_image_width}x{settings.max_image_height})."
-            )
+            width, height = img_load.size
+            if width <= 0 or height <= 0:
+                raise ImageValidationError(
+                    f"Invalid image dimensions ({width}x{height}). Width and height must be positive."
+                )
 
-        if width * height > settings.max_image_pixels:
-            raise ImageValidationError(
-                f"Image total pixels ({width * height}) exceed maximum allowed limit "
-                f"({settings.max_image_pixels})."
-            )
+            if width > settings.max_image_width or height > settings.max_image_height:
+                raise ImageValidationError(
+                    f"Image dimensions ({width}x{height}) exceed maximum allowed limits "
+                    f"({settings.max_image_width}x{settings.max_image_height})."
+                )
 
-        # Convert to RGB
-        if img_load.mode != "RGB":
-            img_load = img_load.convert("RGB")
+            if width * height > settings.max_image_pixels:
+                raise ImageValidationError(
+                    f"Image total pixels ({width * height}) exceed maximum allowed limit "
+                    f"({settings.max_image_pixels})."
+                )
 
-        return img_load
+            # Only after geometry validation passes, load pixel buffer into memory
+            img_load.load()
 
+            # Convert to RGB
+            if img_load.mode != "RGB":
+                img_load = img_load.convert("RGB")
+
+            return img_load
+
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise ImageValidationError(
+            "Image pixel count exceeds maximum allowed limit (Decompression Bomb protection)."
+        ) from exc
     except ImageValidationError:
         raise
     except Exception as exc:
-        raise ImageValidationError(
-            "Failed to load or process image pixel data.",
-            detail=str(exc),
-        ) from exc
+        raise ImageValidationError("Failed to load or process image pixel data.") from exc
 
 
 def validate_upload(

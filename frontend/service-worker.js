@@ -79,18 +79,19 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // DO NOT cache API requests or non-GET requests
-  if (request.method !== "GET" || url.pathname.startsWith("/api/")) {
+  // Security & Safety: ONLY cache same-origin static GET requests.
+  // NEVER cache API requests, cross-origin requests, health checks, or non-GET requests.
+  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
     return;
   }
 
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return cached version & fetch update in background
+        // Return cached version & fetch update in background for static assets
         fetch(request)
           .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
+            if (networkResponse && networkResponse.status === 200 && networkResponse.type === "basic") {
               caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
             }
           })

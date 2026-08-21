@@ -50,7 +50,17 @@ class TestSettings:
         assert s.cors_origin_list == ["http://localhost:3000", "http://localhost:8080"]
 
     def test_is_production(self) -> None:
-        with patch.dict(os.environ, {"APP_ENV": "production"}, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "APP_ENV": "production",
+                "ALLOWED_HOSTS": "fruvia.ai,api.fruvia.ai",
+                "CORS_ORIGINS": "https://fruvia.ai",
+                "DINOV2_REVISION": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                "QDRANT_URL": "https://qdrant.cloud:6333",
+            },
+            clear=True,
+        ):
             s = Settings()
         assert s.is_production is True
 

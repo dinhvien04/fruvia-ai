@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     app_host: str = Field(default="0.0.0.0")
     app_port: int = Field(default=8000)
     app_version: str = Field(default="0.1.0")
+    allowed_hosts: str = Field(
+        default="localhost,127.0.0.1,testserver,0.0.0.0",
+        description="Comma-separated list of allowed Host header values for TrustedHostMiddleware",
+    )
 
     # --- DINOv2 Embedding Model ---
     dinov2_model_name: str = Field(
@@ -67,7 +71,12 @@ class Settings(BaseSettings):
 
     # --- Qdrant & Gallery Collections ---
     qdrant_url: str | None = Field(default=None, description="Qdrant Cloud endpoint URL")
-    qdrant_api_key: str | None = Field(default=None, description="Qdrant Cloud API key")
+    qdrant_api_key: str | None = Field(
+        default=None, description="Qdrant Cloud runtime API key (read-only recommended)"
+    )
+    qdrant_migration_api_key: str | None = Field(
+        default=None, description="Dedicated admin/migration API key for Qdrant schema mutations"
+    )
     qdrant_collection: str = Field(default="fruvia_fruits360_original_dinov2_base_v1")
     fruvia_gallery_collection: str | None = Field(
         default=None,
@@ -126,8 +135,14 @@ class Settings(BaseSettings):
         default=4, ge=1, description="Max concurrent ML model inferences"
     )
 
-    # --- Upload ---
+    # --- Upload & Request Body Limits ---
     max_upload_mb: int = Field(default=10, ge=1, le=50)
+    max_request_body_mb: int = Field(
+        default=12,
+        ge=1,
+        le=60,
+        description="Maximum raw HTTP request body size in MB (must be >= max_upload_mb)",
+    )
     max_image_pixels: int = Field(
         default=25_000_000, description="Maximum total pixel count to prevent decompression bombs"
     )
@@ -148,7 +163,36 @@ class Settings(BaseSettings):
     # --- Logging ---
     log_level: str = Field(default="INFO")
 
+    # --- Security & Response Headers ---
+    enable_hsts: bool = Field(
+        default=False,
+        description="Whether to send Strict-Transport-Security header (production HTTPS only)",
+    )
+    allowed_image_hosts: str = Field(
+        default="",
+        description="Comma-separated list of approved CDN/image hostnames for Content-Security-Policy img-src",
+    )
+    csp_connect_origins: str = Field(
+        default="",
+        description="Comma-separated list of additional API origins for Content-Security-Policy connect-src",
+    )
+
     # --- Derived properties ---
+
+    @property
+    def allowed_host_list(self) -> list[str]:
+        """Parse comma-separated allowed hosts into a list."""
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
+
+    @property
+    def allowed_image_host_list(self) -> list[str]:
+        """Parse comma-separated approved image hosts into a list."""
+        return [h.strip() for h in self.allowed_image_hosts.split(",") if h.strip()]
+
+    @property
+    def csp_connect_origin_list(self) -> list[str]:
+        """Parse comma-separated CSP connect origins into a list."""
+        return [o.strip() for o in self.csp_connect_origins.split(",") if o.strip()]
 
     @property
     def trusted_proxy_ip_list(self) -> set[str]:
@@ -178,6 +222,11 @@ class Settings(BaseSettings):
         return self.max_upload_mb * 1024 * 1024
 
     @property
+    def max_request_body_bytes(self) -> int:
+        """Maximum raw HTTP request body size in bytes."""
+        return self.max_request_body_mb * 1024 * 1024
+
+    @property
     def cors_origin_list(self) -> list[str]:
         """Parse comma-separated CORS origins into a list."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
@@ -197,14 +246,67 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("app_env")
+    @classmethod
+    def validate_app_env(cls, v: str) -> str:
+        allowed = {"development", "staging", "production"}
+        clean = v.lower().strip()
+        if clean not in allowed:
+            raise ValueError(f"app_env must be one of {allowed}, got '{v}'")
+        return clean
+
+    @field_validator("allowed_hosts")
+    @classmethod
+    def validate_production_hosts(cls, v: str | list[str], info) -> str:
+        env = info.data.get("app_env", "development")
+        v_str = ",".join(v) if isinstance(v, list) else str(v)
+        if env == "production":
+            hosts = [h.strip() for h in v_str.split(",") if h.strip()]
+            if not hosts or "*" in hosts or "0.0.0.0" in hosts:
+                raise ValueError(
+                    "In production, ALLOWED_HOSTS must be explicitly configured without wildcards ('*') or 0.0.0.0."
+                )
+        return v_str
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_production_cors(cls, v: str | list[str], info) -> str:
+        env = info.data.get("app_env", "development")
+        v_str = ",".join(v) if isinstance(v, list) else str(v)
+        if env == "production":
+            origins = [o.strip() for o in v_str.split(",") if o.strip()]
+            if not origins or "*" in origins:
+                raise ValueError(
+                    "In production, CORS_ORIGINS must be explicitly configured and cannot contain wildcard '*'."
+                )
+        return v_str
+
+    @field_validator("dinov2_revision")
+    @classmethod
+    def validate_production_model_revision(cls, v: str, info) -> str:
+        env = info.data.get("app_env", "development")
+        if env == "production" and (not v or v.strip().lower() == "main" or len(v.strip()) < 40):
+            raise ValueError(
+                "In production, DINOV2_REVISION must be pinned to an immutable full Hugging Face commit SHA (40 hex chars), not 'main'."
+            )
+        return v
+
+    @field_validator("qdrant_url")
+    @classmethod
+    def validate_production_qdrant_url(cls, v: str | None, info) -> str | None:
+        env = info.data.get("app_env", "development")
+        if env == "production" and v and not v.startswith("https://"):
+            raise ValueError(f"In production, QDRANT_URL must use HTTPS, got '{v}'")
+        return v
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
         allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        upper = v.upper()
-        if upper not in allowed:
+        clean = v.upper().strip()
+        if clean not in allowed:
             raise ValueError(f"log_level must be one of {allowed}, got '{v}'")
-        return upper
+        return clean
 
 
 @lru_cache(maxsize=1)

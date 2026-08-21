@@ -53,12 +53,37 @@ class BaseRateLimiter(abc.ABC):
 
 class InMemorySlidingWindowRateLimiter(BaseRateLimiter):
     """
-    In-memory rate limiter using sliding timestamp windows.
+    In-memory rate limiter using sliding timestamp windows with memory cleanup.
     Suitable for single-instance deployments.
+    Prunes expired entries to prevent unbounded memory growth under high random-IP traffic.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_clients: int = 10_000, cleanup_interval_seconds: float = 60.0) -> None:
         self.requests: dict[str, list[float]] = defaultdict(list)
+        self.max_clients = max_clients
+        self.cleanup_interval_seconds = cleanup_interval_seconds
+        self._last_cleanup: float = time.time()
+
+    def _cleanup_expired_records(self, now: float, window_seconds: float) -> None:
+        """Prune completely expired client entries to bound memory usage."""
+        window_start = now - window_seconds
+        expired_keys = [
+            key
+            for key, timestamps in self.requests.items()
+            if not timestamps or timestamps[-1] <= window_start
+        ]
+        for key in expired_keys:
+            del self.requests[key]
+
+        # If still over capacity under adversarial random IP scanning, prune oldest
+        if len(self.requests) > self.max_clients:
+            sorted_keys = sorted(
+                self.requests.keys(),
+                key=lambda k: self.requests[k][-1] if self.requests[k] else 0.0,
+            )
+            keys_to_remove = sorted_keys[: len(self.requests) - self.max_clients]
+            for key in keys_to_remove:
+                del self.requests[key]
 
     def check_rate_limit(
         self, client_key: str, limit: int, window_seconds: float = 60.0
@@ -66,10 +91,20 @@ class InMemorySlidingWindowRateLimiter(BaseRateLimiter):
         now = time.time()
         window_start = now - window_seconds
 
-        # Prune older timestamps
-        self.requests[client_key] = [t for t in self.requests[client_key] if t > window_start]
+        # Periodic cleanup of expired clients
+        if (now - self._last_cleanup) > self.cleanup_interval_seconds or len(
+            self.requests
+        ) > self.max_clients:
+            self._cleanup_expired_records(now, window_seconds)
+            self._last_cleanup = now
 
-        count = len(self.requests[client_key])
+        # Prune older timestamps for this specific client
+        if client_key in self.requests:
+            self.requests[client_key] = [t for t in self.requests[client_key] if t > window_start]
+            if not self.requests[client_key]:
+                del self.requests[client_key]
+
+        count = len(self.requests.get(client_key, []))
         if count >= limit:
             return False, 0
 

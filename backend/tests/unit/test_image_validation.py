@@ -55,12 +55,15 @@ class TestValidateFileExtension:
             "file.txt",
             "file.pdf",
             "noextension",
-            "",
         ],
     )
     def test_invalid_extensions(self, filename: str) -> None:
         with pytest.raises(UnsupportedFormatError):
             validate_file_extension(filename)
+
+    def test_empty_filename(self) -> None:
+        with pytest.raises(ImageValidationError, match="Filename cannot be empty"):
+            validate_file_extension("")
 
 
 # ================================================================
@@ -85,7 +88,8 @@ class TestValidateFileSize:
             validate_file_size(data, max_bytes=2000)
 
     def test_empty_file(self) -> None:
-        validate_file_size(b"", max_bytes=1000)  # Should not raise
+        with pytest.raises(ImageValidationError, match="Uploaded image file is empty"):
+            validate_file_size(b"", max_bytes=1000)
 
 
 # ================================================================

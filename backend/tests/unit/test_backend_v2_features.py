@@ -123,8 +123,7 @@ class TestConfigAndRateLimitSecurity:
         req = Request(scope)
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setenv("TRUST_PROXY_HEADERS", "true")
-            mp.setenv("TRUSTED_PROXY_IPS", "")
+            mp.setenv("TRUST_PROXY_HEADERS", "false")
             from app.core.config import get_settings
 
             get_settings.cache_clear()
@@ -655,3 +654,112 @@ class TestTimingAndQualityMeta:
         assert resp.quality_meta is not None
         assert resp.quality_meta.quality == "high_similarity"
         assert resp.quality_meta.top_similarity == 0.88
+
+
+class TestProductionSecurityMiddlewareAndValidators:
+    """Tests for raw body limits, restricted decoders, security headers, and production config."""
+
+    def test_request_body_limiter_middleware_content_length(self) -> None:
+        client = TestClient(app)
+        # Send oversized body exceeding max_request_body_mb (12 MB default) with explicit content-length
+        huge_payload = b"X" * (13 * 1024 * 1024)
+        response = client.post(
+            "/api/retrieve",
+            content=huge_payload,
+            headers={
+                "Content-Length": str(len(huge_payload)),
+                "Content-Type": "application/octet-stream",
+            },
+        )
+        assert response.status_code == 413
+        assert response.json()["error"] == "FILE_TOO_LARGE"
+
+    def test_security_headers_injected(self) -> None:
+        client = TestClient(app)
+        response = client.get("/api/live")
+        assert response.status_code == 200
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+        assert response.headers.get("X-Frame-Options") == "DENY"
+        assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+        assert "Content-Security-Policy" in response.headers
+
+    def test_image_validation_restricted_decoders(self) -> None:
+        import io
+
+        from PIL import Image
+
+        from app.core.exceptions import ImageValidationError, UnsupportedFormatError
+        from app.utils.image_validation import validate_upload
+
+        # 1. Valid PNG
+        img = Image.new("RGB", (64, 64), color="red")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        res_img, fmt = validate_upload(
+            buf.getvalue(),
+            filename="test.png",
+            max_bytes=10 * 1024 * 1024,
+            content_type="image/png",
+        )
+        assert fmt == ".png"
+        assert res_img.size == (64, 64)
+
+        # 2. Unsupported format (GIF)
+        gif_buf = io.BytesIO()
+        img.save(gif_buf, format="GIF")
+        with pytest.raises((ImageValidationError, UnsupportedFormatError)):
+            validate_upload(
+                gif_buf.getvalue(),
+                filename="test.gif",
+                max_bytes=10 * 1024 * 1024,
+                content_type="image/gif",
+            )
+
+    def test_production_config_fail_closed_validation(self) -> None:
+        # Rejects CORS_ORIGINS=* in production
+        with pytest.raises(
+            ValueError,
+            match="CORS_ORIGINS must be explicitly configured and cannot contain wildcard",
+        ):
+            Settings(
+                app_env="production",
+                cors_origins="*",
+                allowed_hosts="fruvia.ai",
+                dinov2_revision="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                qdrant_url="https://qdrant.cloud:6333",
+            )
+
+        # Rejects ALLOWED_HOSTS=* in production
+        with pytest.raises(
+            ValueError, match="ALLOWED_HOSTS must be explicitly configured without wildcards"
+        ):
+            Settings(
+                app_env="production",
+                cors_origins="https://fruvia.ai",
+                allowed_hosts="*",
+                dinov2_revision="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                qdrant_url="https://qdrant.cloud:6333",
+            )
+
+        # Rejects DINOV2_REVISION=main in production
+        with pytest.raises(
+            ValueError,
+            match="DINOV2_REVISION must be pinned to an immutable full Hugging Face commit SHA",
+        ):
+            Settings(
+                app_env="production",
+                cors_origins="https://fruvia.ai",
+                allowed_hosts="fruvia.ai",
+                dinov2_revision="main",
+                qdrant_url="https://qdrant.cloud:6333",
+            )
+
+        # Rejects unencrypted HTTP QDRANT_URL in production
+        with pytest.raises(ValueError, match="QDRANT_URL must use HTTPS"):
+            Settings(
+                app_env="production",
+                cors_origins="https://fruvia.ai",
+                allowed_hosts="fruvia.ai",
+                dinov2_revision="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                qdrant_url="http://insecure-qdrant.cloud:6333",
+            )

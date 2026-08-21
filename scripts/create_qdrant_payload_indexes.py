@@ -71,6 +71,12 @@ def parse_args() -> argparse.Namespace:
         help="Perform a dry-run without modifying Qdrant collection",
     )
     parser.add_argument(
+        "--allow-runtime-key-for-local-migration",
+        action="store_true",
+        default=False,
+        help="Explicitly permit using QDRANT_API_KEY if QDRANT_MIGRATION_API_KEY is not set (development/local only)",
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=30,
@@ -118,13 +124,28 @@ def main() -> None:
     args = parse_args()
 
     qdrant_url = os.getenv("QDRANT_URL")
-    qdrant_api_key = os.getenv("QDRANT_API_KEY")
+    migration_api_key = os.getenv("QDRANT_MIGRATION_API_KEY")
+    runtime_api_key = os.getenv("QDRANT_API_KEY")
 
-    if not qdrant_url or not qdrant_api_key:
-        print(
-            "[ERROR] QDRANT_URL or QDRANT_API_KEY environment variable is not set.", file=sys.stderr
-        )
+    if not qdrant_url:
+        print("[ERROR] QDRANT_URL environment variable is not set.", file=sys.stderr)
         sys.exit(1)
+
+    api_key = migration_api_key
+    if not api_key:
+        if runtime_api_key and args.allow_runtime_key_for_local_migration:
+            print(
+                "[WARN] Using QDRANT_API_KEY for indexing because --allow-runtime-key-for-local-migration was provided.",
+                file=sys.stderr,
+            )
+            api_key = runtime_api_key
+        else:
+            print(
+                "[ERROR] QDRANT_MIGRATION_API_KEY is not set. Schema index creation requires an administrative migration key.\n"
+                "Pass --allow-runtime-key-for-local-migration if running in local development.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     print("=== Qdrant Payload Index Creator (Two-Phase Safety) ===")
     print(f"Target Collection : {args.collection}")
@@ -133,7 +154,7 @@ def main() -> None:
     print("-" * 50)
 
     try:
-        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=args.timeout)
+        client = QdrantClient(url=qdrant_url, api_key=api_key, timeout=args.timeout)
         collections = client.get_collections()
         existing = [c.name for c in collections.collections]
 

@@ -124,11 +124,11 @@ document.addEventListener("DOMContentLoaded", () => {
         // Render Results
         ResultsRenderer.render(response, UploadManager.previewDataUrl, { mode, category });
 
-        // Save to History (if results exist)
+        // Save to History (if results exist) — stores public top-result gallery image URL, never private user query dataUrl
         if (response.results && response.results.length > 0) {
           const top = response.results[0];
           SearchHistory.addEntry({
-            thumbnailUrl: UploadManager.previewDataUrl,
+            thumbnailUrl: top.image_url || top.thumbnail_url || null,
             filename: UploadManager.selectedFile.name,
             topResultNameVi: top.display_name_vi || top.display_name,
             topResultNameEn: top.display_name,

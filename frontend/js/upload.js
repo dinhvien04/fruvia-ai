@@ -222,28 +222,57 @@ const UploadManager = {
   },
 
   /**
-   * Restore image on Search page load if coming from Homepage Hero Search
+   * Restore image on Search page load if coming from Homepage Hero Search with strict validation
    */
   restorePendingTransfer() {
     try {
       const raw = sessionStorage.getItem("fruvia_pending_image");
       if (!raw) return;
-      sessionStorage.removeItem("fruvia_pending_image"); // Use once
+      sessionStorage.removeItem("fruvia_pending_image"); // Use once and clear immediately
 
       const payload = JSON.parse(raw);
-      if (payload && payload.dataUrl) {
-        // Convert dataUrl back to File object
-        const arr = payload.dataUrl.split(",");
-        const mime = arr[0].match(/:(.*?);/)[1];
-        const bstr = atob(arr[1]);
-        let n = bstr.length;
-        const u8arr = new Uint8Array(n);
-        while (n--) {
-          u8arr[n] = bstr.charCodeAt(n);
-        }
-        const file = new File([u8arr], payload.name || "search_image.jpg", { type: mime });
-        this.handleFile(file);
+      if (!payload || typeof payload !== "object" || !payload.dataUrl || typeof payload.dataUrl !== "string") {
+        return;
       }
+
+      // Validate dataUrl format against allowed MIME patterns
+      const allowedDataUrlPrefixes = [
+        "data:image/jpeg;base64,",
+        "data:image/jpg;base64,",
+        "data:image/png;base64,",
+        "data:image/webp;base64,"
+      ];
+      const hasValidPrefix = allowedDataUrlPrefixes.some(prefix => payload.dataUrl.startsWith(prefix));
+      if (!hasValidPrefix) {
+        console.warn("Fruvia: Discarded invalid sessionStorage dataUrl format.");
+        return;
+      }
+
+      // Convert dataUrl back to File object safely
+      const arr = payload.dataUrl.split(",");
+      if (arr.length !== 2) return;
+
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      if (!mimeMatch) return;
+      const mime = mimeMatch[1].toLowerCase();
+
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      if (n > 10 * 1024 * 1024) { // Hard cap 10 MB
+        console.warn("Fruvia: Restored session image exceeded maximum 10MB limit.");
+        return;
+      }
+
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const safeName = (payload.name && typeof payload.name === "string")
+        ? payload.name.substring(0, 255)
+        : "search_image.jpg";
+
+      const file = new File([u8arr], safeName, { type: mime });
+      this.handleFile(file);
     } catch (e) {
       console.warn("Fruvia: Failed to restore image from transfer", e);
     }

@@ -335,24 +335,48 @@ Send a `multipart/form-data` request with an image file.
 
 ---
 
-## 🔒 Security & Performance Features
+## 🔒 Production Security & Hardening Architecture
 
-1. **Decompression Bomb Protection**: Pillow pixel limits capped at 25,000,000 pixels (`Image.MAX_IMAGE_PIXELS`).
-2. **Bounded File Streaming**: Maximum file uploads strictly enforced at 10 MB in RAM before decoding.
-3. **In-Memory Rate Limiting**: Capped per client IP (`RateLimitMiddleware`) to prevent endpoint abuse.
-4. **Concurrency Limiter**: Global semaphore prevents GPU/CPU memory overflow under high concurrent inference.
-5. **No Vector Over-Fetching**: Qdrant search requests payload only (`with_vectors=False`).
-6. **Container Health Readiness**: Docker `HEALTHCHECK` queries `/api/ready` to ensure ML model & Qdrant are fully online before traffic routing.
+Fruvia AI implements a zero-trust, multi-layered defensive security architecture across the ASGI pipeline, ML inference engine, vector database layer, and frontend client:
+
+1. **ASGI Raw Request Body Limiter (`RequestBodyLimitMiddleware`)**:
+   - Inspects `Content-Length` headers and streams ASGI `receive()` byte chunks.
+   - Aborts oversized payloads with HTTP 413 *before* multipart/form-data parsing occurs in Python memory.
+2. **Restricted Pillow Decoders & Pre-Decode Geometry Guard**:
+   - Explicitly restricts decoding formats to `["JPEG", "PNG", "WEBP"]` to block untrusted multi-frame decoders (GIF, TIFF, ICO, SVG, etc.).
+   - Traps `Image.DecompressionBombWarning` as fatal exceptions and strictly validates `width > 0`, `height > 0`, width/height limits (4096px), and total pixels (25,000,000 px) *before* invoking `Image.load()`.
+3. **Memory-Bounded Rate Limiting (`RateLimitMiddleware`)**:
+   - Sliding-window rate limiter with active TTL cleanup and client capacity caps (`max_clients = 10,000`) preventing memory exhaustion under adversary IP-scanning.
+4. **Least-Privilege Network & CORS Policies**:
+   - `CORSMiddleware` configured with `allow_credentials=False` and restricted HTTP verbs (`GET`, `POST`, `OPTIONS`).
+   - `TrustedHostMiddleware` enforcing explicit domain allowlists in production.
+5. **Defense-in-Depth Security Headers**:
+   - Automated injection of `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, and restrictive `Permissions-Policy`.
+   - Strict `Content-Security-Policy` isolating static assets and preventing inline script injection.
+6. **Production Configuration Fail-Closed Validation**:
+   - Pydantic validation rejecting wildcards (`*`) for CORS origins or allowed hosts, unpinned model revisions (`main`), plaintext HTTP Qdrant endpoints, or unconfigured proxy header trusts in `APP_ENV=production`.
+7. **Qdrant Least-Privilege Key Separation**:
+   - Strict separation between `QDRANT_API_KEY` (read-only search runtime) and `QDRANT_MIGRATION_API_KEY` (admin migration/indexing scripts).
+8. **Client-Side Data Privacy & Image Host Validation**:
+   - Client search history persists only public gallery result URLs—never private query image DataURLs.
+   - Image URLs are verified via strict `URL` parsing against configured CDN hosts (`CONFIG.ALLOWED_IMAGE_HOSTS`).
+9. **Service Worker Scoping**:
+   - Service Worker caches strictly same-origin static GET assets (`url.origin === self.location.origin`), explicitly bypassing all `/api/` endpoints.
+10. **Supply-Chain & Dependency Audit**:
+    - Automated dependency CVE scanning via `pip-audit` integrated directly into GitHub Actions CI pipeline.
 
 ---
 
 ## 🧪 Testing & Code Quality
 
-Run the test suite and linters locally:
+Run the test suite, vulnerability scanner, and linters locally:
 
 ```bash
-# Run pytest (181 unit & integration tests)
+# Run pytest unit & integration tests
 python -m pytest
+
+# Run pip-audit vulnerability check
+pip-audit --requirement backend/requirements.txt
 
 # Run Ruff linter
 python -m ruff check backend/ configs/ scripts/

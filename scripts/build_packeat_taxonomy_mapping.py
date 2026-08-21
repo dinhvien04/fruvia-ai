@@ -47,11 +47,10 @@ class PackEatRecord:
 
 
 def normalize_label(label: str) -> str:
-    """Normalize string to slug format (lowercase, underscores, trailing numbers stripped)."""
+    """Normalize string to slug format (lowercase, punctuation/spaces replaced by underscore)."""
     if not label:
         return ""
     clean = re.sub(r"[_\-\s]+", " ", str(label).lower()).strip()
-    clean = re.sub(r"\s+\d+$", "", clean).strip()
     return clean.replace(" ", "_")
 
 
@@ -99,8 +98,9 @@ def match_packeat_record(
     1. Exact match on raw_label or species or variety.
     2. Registered alias match.
     3. Normalized exact match.
-    4. Heuristic prefix (Flagged as MANUAL_REVIEW - never auto-approved).
-    5. UNMATCHED.
+    4. Numeric suffix variety check -> Flagged as MANUAL_REVIEW (never auto-approved).
+    5. Heuristic prefix -> Flagged as MANUAL_REVIEW (never auto-approved).
+    6. UNMATCHED.
     """
     candidates = [c for c in [record.raw_label, record.species, record.variety] if c and c.strip()]
     if not candidates:
@@ -119,14 +119,28 @@ def match_packeat_record(
             canon = alias_map[cand_clean]
             return "ALIAS", canon, f"Alias match for '{canon}' from candidate '{cand}'"
 
-    # 3. Normalized exact match
+    # 3. Normalized exact match (without numeric stripping)
     for cand in candidates:
         norm = normalize_label(cand)
         if norm in alias_map:
             canon = alias_map[norm]
             return "NORMALIZED_EXACT", canon, f"Normalized match for '{canon}' from '{cand}'"
 
-    # 4. Prefix heuristic check -> MANUAL_REVIEW only
+    # 4. Numeric variety suffix check (e.g. 'Apple 1', 'Banana 2') -> MANUAL_REVIEW only
+    for cand in candidates:
+        cand_str = cand.strip()
+        if re.search(r"[\s_]\d+$", cand_str):
+            base_stripped = re.sub(r"[\s_]\d+$", "", cand_str).strip()
+            norm_base = normalize_label(base_stripped)
+            if norm_base in alias_map:
+                canon = alias_map[norm_base]
+                return (
+                    "MANUAL_REVIEW",
+                    canon,
+                    f"Numeric variety suffix in candidate '{cand}' -> possible base '{canon}' (requires human verification)",
+                )
+
+    # 5. Prefix heuristic check -> MANUAL_REVIEW only
     for cand in candidates:
         norm = normalize_label(cand)
         for canon_key in canonical_items:
@@ -155,17 +169,22 @@ def parse_packeat_csvs(
     valid_tax_headers = {"species", "label", "class", "fruit", "name", "id", "code"}
     valid_var_headers = {"variety", "label", "species", "name", "variety_name", "class_name"}
 
-    tax_rows: dict[str, dict[str, str]] = {}
+    tax_rows: dict[str, list[dict[str, str]]] = {}
     if taxonomy_csv_path and taxonomy_csv_path.exists():
         with open(taxonomy_csv_path, encoding="utf-8-sig", errors="replace") as f:
             reader = csv.DictReader(f)
-            headers = set(h.lower().strip() for h in (reader.fieldnames or []))
+            fieldnames = [h.strip() for h in (reader.fieldnames or []) if h]
+            headers = set(h.lower() for h in fieldnames)
             if not headers.intersection(valid_tax_headers):
                 raise ValueError(
                     f"Unsupported PackEat CSV schema in '{taxonomy_csv_path}'. Detected columns: {reader.fieldnames}"
                 )
             for row in reader:
-                cleaned_row = {k.strip(): (v.strip() if v else "") for k, v in row.items()}
+                cleaned_row = {
+                    k.strip().lower(): (v.strip() if v else "")
+                    for k, v in row.items()
+                    if k is not None
+                }
                 # Identifier key: id / species / label / name
                 key = (
                     cleaned_row.get("id")
@@ -174,18 +193,24 @@ def parse_packeat_csvs(
                     or cleaned_row.get("name")
                 )
                 if key:
-                    tax_rows[key.lower()] = cleaned_row
+                    key_lower = key.lower().strip()
+                    tax_rows.setdefault(key_lower, []).append(cleaned_row)
 
     if variety_csv_path and variety_csv_path.exists():
         with open(variety_csv_path, encoding="utf-8-sig", errors="replace") as f:
             reader = csv.DictReader(f)
-            headers = set(h.lower().strip() for h in (reader.fieldnames or []))
+            fieldnames = [h.strip() for h in (reader.fieldnames or []) if h]
+            headers = set(h.lower() for h in fieldnames)
             if not headers.intersection(valid_var_headers):
                 raise ValueError(
                     f"Unsupported PackEat CSV schema in '{variety_csv_path}'. Detected columns: {reader.fieldnames}"
                 )
             for row in reader:
-                cleaned_row = {k.strip(): (v.strip() if v else "") for k, v in row.items()}
+                cleaned_row = {
+                    k.strip().lower(): (v.strip() if v else "")
+                    for k, v in row.items()
+                    if k is not None
+                }
                 raw_label = (
                     cleaned_row.get("label")
                     or cleaned_row.get("variety")
@@ -196,12 +221,14 @@ def parse_packeat_csvs(
                 variety_val = cleaned_row.get("variety") or cleaned_row.get("variety_name")
                 species_val = cleaned_row.get("species")
 
-                # Attempt join with taxonomy rows
-                matched_tax_row = None
-                if species_val and species_val.lower() in tax_rows:
-                    matched_tax_row = tax_rows[species_val.lower()]
-                elif raw_label.lower() in tax_rows:
-                    matched_tax_row = tax_rows[raw_label.lower()]
+                # Attempt join with taxonomy rows safely without collapsing 1-to-many
+                matched_tax_rows = []
+                if species_val and species_val.lower().strip() in tax_rows:
+                    matched_tax_rows = tax_rows[species_val.lower().strip()]
+                elif raw_label.lower().strip() in tax_rows:
+                    matched_tax_rows = tax_rows[raw_label.lower().strip()]
+
+                matched_tax_row = matched_tax_rows[0] if matched_tax_rows else None
 
                 records.append(
                     PackEatRecord(
@@ -216,18 +243,19 @@ def parse_packeat_csvs(
 
     # If only taxonomy CSV was provided
     elif taxonomy_csv_path and taxonomy_csv_path.exists():
-        for key, row in tax_rows.items():
-            raw_label = row.get("label") or row.get("species") or row.get("name") or key
-            records.append(
-                PackEatRecord(
-                    raw_label=raw_label,
-                    variety=None,
-                    species=row.get("species") or raw_label,
-                    source="packeat",
-                    taxonomy_row=row,
-                    variety_row=None,
+        for key, row_list in tax_rows.items():
+            for row in row_list:
+                raw_label = row.get("label") or row.get("species") or row.get("name") or key
+                records.append(
+                    PackEatRecord(
+                        raw_label=raw_label,
+                        variety=None,
+                        species=row.get("species") or raw_label,
+                        source="packeat",
+                        taxonomy_row=row,
+                        variety_row=None,
+                    )
                 )
-            )
 
     return records
 
@@ -263,8 +291,8 @@ def analyze_packeat_records(
         }
         review_entries.append(entry)
 
-        # Machine-approved mapping file may contain ONLY high-confidence matches
-        if canon and status in {"EXACT", "ALIAS", "NORMALIZED_EXACT"}:
+        # Machine-approved mapping file may contain ONLY high-confidence matches to known canonical classes
+        if canon and status in {"EXACT", "ALIAS", "NORMALIZED_EXACT"} and canon in canonical_items:
             approved_mapping[rec.raw_label] = canon
             if rec.variety:
                 approved_mapping[rec.variety] = canon

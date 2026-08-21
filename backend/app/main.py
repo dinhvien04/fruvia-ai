@@ -79,17 +79,45 @@ def create_app() -> FastAPI:
     )
 
     # --- Middleware ---
-    from app.core.middleware import RequestIdMiddleware
+    # Note: In FastAPI/Starlette, add_middleware wraps from inside out.
+    # The LAST middleware added executes FIRST on incoming requests.
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    from app.core.middleware import (
+        RequestBodyLimitMiddleware,
+        RequestIdMiddleware,
+        SecurityHeadersMiddleware,
+    )
     from app.core.rate_limit import RateLimitMiddleware
 
-    app.add_middleware(RequestIdMiddleware)
-    app.add_middleware(RateLimitMiddleware)
+    # 1. Security Headers (outermost response headers)
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # 2. Least-privilege CORS (No credentials, explicit origins and methods)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Request-ID", "Accept", "Origin"],
+    )
+
+    # 3. Trusted Host protection
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.allowed_host_list,
+    )
+
+    # 4. Request ID Tracing
+    app.add_middleware(RequestIdMiddleware)
+
+    # 5. Rate Limiting
+    app.add_middleware(RateLimitMiddleware)
+
+    # 6. Raw HTTP Request Body Limit (Pure ASGI middleware before multipart parsing - runs FIRST on incoming requests)
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=settings.max_request_body_bytes,
     )
 
     # --- Exception handlers ---

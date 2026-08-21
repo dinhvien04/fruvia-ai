@@ -20,6 +20,14 @@ const CONFIG = {
   STORAGE_HISTORY_KEY: "fruvia_recent_searches_v2",
   MAX_HISTORY_ITEMS: 10,
 
+  // Image Host Security Allowlist (Exact hostnames or approved subdomains)
+  ALLOWED_IMAGE_HOSTS: [
+    "localhost",
+    "127.0.0.1",
+    "r2.dev",
+    "cloudflare-ipfs.com"
+  ],
+
   // Product Stats (Single source of truth to avoid scattered hardcoded numbers)
   STATS: {
     VECTOR_COUNT_TEXT: "Hàng trăm nghìn",

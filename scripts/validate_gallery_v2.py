@@ -26,6 +26,7 @@ import os
 import sys
 from collections import Counter
 from typing import Any
+from urllib.parse import urlparse
 
 from qdrant_client import QdrantClient
 
@@ -54,6 +55,24 @@ def is_keyword_index_type(schema_info: Any) -> bool:
     return dt_str in {"keyword", "payloadschematype.keyword"}
 
 
+def is_valid_http_url(url_str: str, allowed_hosts: list[str] | None = None) -> bool:
+    """Validate if string is a valid HTTP/HTTPS URL and matches allowed hostnames if specified."""
+    if not url_str or not isinstance(url_str, str):
+        return False
+    try:
+        parsed = urlparse(url_str.strip())
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return False
+        if allowed_hosts:
+            host = parsed.netloc.lower()
+            return any(
+                host == ah.lower() or host.endswith("." + ah.lower()) for ah in allowed_hosts
+            )
+        return True
+    except Exception:
+        return False
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Read-Only Gallery V2 Activation Gate & Pre-Flight Validator"
@@ -75,6 +94,13 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="Minimum required ratio of points with valid image_url / thumbnail_url (default: 1.0 = 100%)",
+    )
+    parser.add_argument(
+        "--allowed-image-host",
+        action="append",
+        type=str,
+        default=[],
+        help="Allowed host for image URLs (can be specified multiple times, e.g. --allowed-image-host pub-xxx.r2.dev)",
     )
     parser.add_argument(
         "--allow-unverified-taxonomy",
@@ -108,6 +134,7 @@ def validate_gallery_v2_collection(
     collection_name: str,
     vector_sample_size: int = 500,
     min_image_url_coverage: float = 1.0,
+    allowed_image_hosts: list[str] | None = None,
     allow_unverified_taxonomy: bool = False,
     expect_total_count: int | None = None,
     expect_source_counts: dict[str, int] | None = None,
@@ -238,8 +265,9 @@ def validate_gallery_v2_collection(
                     if val is not None and str(val).strip() != "" and str(val) != "unknown":
                         field_present_counts[field] += 1
 
-                # URL presence
-                if payload.get("image_url") or payload.get("thumbnail_url"):
+                # URL presence and format validation
+                img_url = payload.get("image_url") or payload.get("thumbnail_url")
+                if is_valid_http_url(str(img_url), allowed_hosts=allowed_image_hosts):
                     url_present_count += 1
 
                 # Schema version
@@ -263,6 +291,13 @@ def validate_gallery_v2_collection(
     if total_scanned_points == 0:
         print("[FAIL] Collection is empty (0 points).", file=sys.stderr)
         return False
+
+    # Verify reported points vs scanned points
+    if points_count > 0 and points_count != total_scanned_points:
+        print(
+            f"[WARN] Reported points_count ({points_count:,}) differs from actual scanned points ({total_scanned_points:,}).",
+            file=sys.stderr,
+        )
 
     # Check Total Count Expectation if provided
     if expect_total_count is not None and total_scanned_points != expect_total_count:
@@ -385,6 +420,38 @@ def validate_gallery_v2_collection(
     print("\n" + "=" * 60)
     print(f"[PASS] Pre-flight validation & activation gate passed for '{collection_name}'.")
     return True
+
+
+def main() -> None:
+    args = parse_args()
+
+    # Parse expect-source-count arguments
+    expect_source_counts: dict[str, int] = {}
+    for item in args.expect_source_count:
+        if "=" in item:
+            src, cnt_str = item.split("=", 1)
+            try:
+                expect_source_counts[src.strip()] = int(cnt_str.strip())
+            except ValueError:
+                print(f"[ERROR] Invalid --expect-source-count format: '{item}'", file=sys.stderr)
+                sys.exit(1)
+
+    success = validate_gallery_v2_collection(
+        collection_name=args.collection,
+        vector_sample_size=args.vector_sample_size,
+        min_image_url_coverage=args.min_image_url_coverage,
+        allowed_image_hosts=args.allowed_image_host if args.allowed_image_host else None,
+        allow_unverified_taxonomy=args.allow_unverified_taxonomy,
+        expect_total_count=args.expect_total_count,
+        expect_source_counts=expect_source_counts,
+        timeout=args.timeout,
+    )
+    if not success:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
 
 
 def main() -> None:
