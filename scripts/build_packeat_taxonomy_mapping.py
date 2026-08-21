@@ -91,17 +91,17 @@ def match_label(
 
     # 1. Exact match with canonical class
     if raw_clean in canonical_items:
-        return "EXACT_MATCH", raw_clean, f"Exact match with canonical key '{raw_clean}'"
+        return "EXACT", raw_clean, f"Exact match with canonical key '{raw_clean}'"
 
     # 2. Match in alias map
     if raw_clean in alias_map:
         canon = alias_map[raw_clean]
-        return "ALIAS_MATCH", canon, f"Matches registered alias for '{canon}'"
+        return "ALIAS", canon, f"Matches registered alias for '{canon}'"
 
     # 3. Normalized slug match
     if norm_clean in alias_map:
         canon = alias_map[norm_clean]
-        return "NORM_MATCH", canon, f"Matches normalized slug '{norm_clean}' -> '{canon}'"
+        return "NORMALIZED_EXACT", canon, f"Matches normalized slug '{norm_clean}' -> '{canon}'"
 
     # 4. Prefix / Substring heuristics (Flagged for manual review, never auto-assigned)
     for canon_key in canonical_items:
@@ -113,7 +113,7 @@ def match_label(
                 f"Prefix heuristic match with '{canon_key}' (requires human verification)",
             )
 
-    return "UNMAPPED", None, "No match found in current taxonomy.yaml"
+    return "UNMATCHED", None, "No match found in current taxonomy.yaml"
 
 
 def parse_csv_labels(csv_path: Path) -> list[dict[str, str]]:
@@ -171,8 +171,8 @@ def analyze_packeat(
             "canonical_class": canon,
             "reason": reason,
         }
-        # Only automatically map high-confidence matches (EXACT, ALIAS, NORM)
-        if canon and status in {"EXACT_MATCH", "ALIAS_MATCH", "NORM_MATCH"}:
+        # Only automatically map high-confidence matches (EXACT, ALIAS, NORMALIZED_EXACT)
+        if canon and status in {"EXACT", "ALIAS", "NORMALIZED_EXACT"}:
             mapping[label] = canon
         results.append(item_entry)
 
@@ -186,11 +186,11 @@ def generate_markdown_report(
 ) -> str:
     """Generate Markdown alignment summary report."""
     total = len(results)
-    exact = sum(1 for r in results if r["status"] == "EXACT_MATCH")
-    alias = sum(1 for r in results if r["status"] == "ALIAS_MATCH")
-    norm = sum(1 for r in results if r["status"] == "NORM_MATCH")
+    exact = sum(1 for r in results if r["status"] == "EXACT")
+    alias = sum(1 for r in results if r["status"] == "ALIAS")
+    norm = sum(1 for r in results if r["status"] == "NORMALIZED_EXACT")
     manual = sum(1 for r in results if r["status"] == "MANUAL_REVIEW")
-    unmapped = sum(1 for r in results if r["status"] == "UNMAPPED")
+    unmapped = sum(1 for r in results if r["status"] == "UNMATCHED")
 
     mapped = exact + alias + norm
     coverage_pct = (mapped / total * 100) if total > 0 else 0.0

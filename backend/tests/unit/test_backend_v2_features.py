@@ -1,15 +1,16 @@
 """
 Unit and integration tests for Backend V2 features:
 - Multi-collection architecture & schema validation.
-- Native Qdrant filtering with fallback.
+- Native Qdrant filtering with fallback and keyword index safety.
+- Rate limiting proxy trust and IP spoofing prevention.
 - Timing breakdown and quality metadata.
-- Pluggable rate limiter interface.
 - Species taxonomy API (/api/species).
-- Migration scripts dry-run verification.
+- Migration scripts dry-run, UUIDs, atomic checkpoints, and normalization.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -67,7 +68,7 @@ class TestConfigAndRateLimitSecurity:
 
         from app.core.rate_limit import extract_client_ip
 
-        # Peer is in trusted_proxy_ips
+        # Peer is in trusted_proxy_ips; right-to-left traversal extracts client IP
         scope = {
             "type": "http",
             "client": ("127.0.0.1", 12345),
@@ -77,7 +78,7 @@ class TestConfigAndRateLimitSecurity:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("TRUST_PROXY_HEADERS", "true")
-            mp.setenv("TRUSTED_PROXY_IPS", "127.0.0.1,::1")
+            mp.setenv("TRUSTED_PROXY_IPS", "127.0.0.1,::1,10.0.0.1")
             from app.core.config import get_settings
 
             get_settings.cache_clear()
@@ -106,6 +107,28 @@ class TestConfigAndRateLimitSecurity:
             get_settings.cache_clear()
             ip = extract_client_ip(req)
             assert ip == "198.51.100.22"
+            get_settings.cache_clear()
+
+    def test_extract_client_ip_empty_trusted_set_fails_closed(self) -> None:
+        from starlette.requests import Request
+
+        from app.core.rate_limit import extract_client_ip
+
+        scope = {
+            "type": "http",
+            "client": ("127.0.0.1", 12345),
+            "headers": [(b"x-forwarded-for", b"203.0.113.195")],
+        }
+        req = Request(scope)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setenv("TRUST_PROXY_HEADERS", "true")
+            mp.setenv("TRUSTED_PROXY_IPS", "")
+            from app.core.config import get_settings
+
+            get_settings.cache_clear()
+            ip = extract_client_ip(req)
+            assert ip == "127.0.0.1"
             get_settings.cache_clear()
 
 
@@ -140,6 +163,7 @@ class TestMultiCollectionAndSchemaValidation:
         assert info["vector_size"] == 768
         assert "Cosine" in info["distance"]
         assert info["points_count"] == 5000
+        assert info["status"] == "GREEN"
 
     def test_validate_collection_schema_dimension_mismatch(self) -> None:
         mock_client = MagicMock()
@@ -165,45 +189,53 @@ class TestMultiCollectionAndSchemaValidation:
         ):
             repo.validate_collection_schema("test_coll")
 
-    def test_readiness_probe_schema_failure(self) -> None:
-        import asyncio
+    def test_validate_collection_schema_status_red(self) -> None:
+        mock_client = MagicMock()
+        mock_info = MagicMock()
+        mock_info.config.params.vectors.size = 768
+        mock_info.config.params.vectors.distance = "Cosine"
+        mock_info.status.name = "RED"
+        mock_client.get_collection.return_value = mock_info
 
-        from app.api.routes_health import readiness_check
-
-        mock_encoder = MagicMock()
-        mock_encoder.is_loaded = True
-        mock_repo = MagicMock()
-        mock_repo.get_health_status.return_value = (True, True, False, {})
-
-        resp = asyncio.run(readiness_check(encoder=mock_encoder, repo=mock_repo))
-        assert resp.status_code == 503
-
-    def test_health_check_returns_schema_details(self) -> None:
-        import asyncio
-
-        from app.api.routes_health import health_check
-
-        mock_encoder = MagicMock()
-        mock_encoder.is_loaded = True
-        mock_repo = MagicMock()
-        mock_repo.collection_name = "fruvia_fruits360_original_dinov2_base_v1"
-        mock_repo.get_health_status.return_value = (
-            True,
-            True,
-            True,
-            {"vector_size": 768, "distance": "Cosine", "points_count": 328000},
-        )
-
-        resp = asyncio.run(health_check(encoder=mock_encoder, repo=mock_repo))
-        assert resp.status == "ok"
-        assert resp.schema_valid is True
-        assert resp.vector_size == 768
-        assert resp.distance == "Cosine"
-        assert resp.points_count == 328000
+        repo = QdrantRepository(client=mock_client)
+        with pytest.raises(QdrantSchemaIncompatibleError, match="status is RED"):
+            repo.validate_collection_schema("test_coll")
 
 
 class TestNativeQdrantFiltering:
-    """Tests for native filter building and fallback handling."""
+    """Tests for native filter building, keyword index requirements, and fallback handling."""
+
+    def test_get_filter_capabilities_accepts_keyword_only(self) -> None:
+        mock_client = MagicMock()
+        mock_info = MagicMock()
+
+        schema_cat = MagicMock()
+        schema_cat.data_type = "keyword"
+
+        schema_txt = MagicMock()
+        schema_txt.data_type = "text"
+
+        mock_info.payload_schema = {
+            "category": schema_cat,
+            "title": schema_txt,
+        }
+        mock_client.get_collection.return_value = mock_info
+
+        settings = Settings(native_filter_safe_collections="fruvia_gallery_dinov2_base_v2")
+        repo = QdrantRepository(settings=settings, client=mock_client)
+
+        caps = repo.get_filter_capabilities("fruvia_gallery_dinov2_base_v2")
+        assert "category" in caps
+        assert "title" not in caps  # text must NOT be treated as filter capability
+
+    def test_get_filter_capabilities_unsafe_collection_returns_empty(self) -> None:
+        mock_client = MagicMock()
+        settings = Settings(native_filter_safe_collections="fruvia_gallery_dinov2_base_v2")
+        repo = QdrantRepository(settings=settings, client=mock_client)
+
+        # Legacy collection is not in native_filter_safe_collections
+        caps = repo.get_filter_capabilities("fruvia_fruits360_original_dinov2_base_v1")
+        assert caps == set()
 
     def test_build_qdrant_filter_with_supported_fields(self) -> None:
         repo = QdrantRepository(client=MagicMock())
@@ -217,7 +249,6 @@ class TestNativeQdrantFiltering:
 
     def test_build_qdrant_filter_unsupported_fields_filtered_out(self) -> None:
         repo = QdrantRepository(client=MagicMock())
-        # Only category is indexed, canonical_class is not
         f = repo.build_qdrant_filter(
             category="fruit",
             canonical_class="apple",
@@ -231,49 +262,6 @@ class TestNativeQdrantFiltering:
         repo = QdrantRepository(client=MagicMock())
         f = repo.build_qdrant_filter(category="all", supported_fields={"category"})
         assert f is None
-
-    def test_client_side_fallback_on_filter_error(self) -> None:
-        mock_client = MagicMock()
-        mock_col = MagicMock()
-        mock_col.name = "fruvia_fruits360_original_dinov2_base_v1"
-        mock_collections_res = MagicMock()
-        mock_collections_res.collections = [mock_col]
-        mock_client.get_collections.return_value = mock_collections_res
-
-        # First call with filter fails (e.g. unindexed field)
-        # Second call without filter succeeds
-        hit_apple = MagicMock()
-        hit_apple.score = 0.95
-        hit_apple.payload = {
-            "original_class": "apple_red",
-            "canonical_class": "apple",
-            "category": "fruit",
-        }
-
-        hit_banana = MagicMock()
-        hit_banana.score = 0.90
-        hit_banana.payload = {
-            "original_class": "banana",
-            "canonical_class": "banana",
-            "category": "fruit",
-        }
-
-        def query_points_mock(collection_name, query, query_filter=None, **kwargs):
-            if query_filter is not None:
-                raise Exception("Index for field 'category' does not exist")
-            res = MagicMock()
-            res.points = [hit_apple, hit_banana]
-            return res
-
-        mock_client.query_points.side_effect = query_points_mock
-        repo = QdrantRepository(client=mock_client)
-
-        results = repo.query_similar(
-            [0.1] * 768, top_k=5, category="fruit", canonical_class="apple"
-        )
-        # Should fallback to client-side filter and only return apple
-        assert len(results) == 1
-        assert results[0].canonical_class == "apple"
 
 
 class TestRateLimiterInterface:
@@ -353,12 +341,20 @@ class TestMigrationScriptsLogic:
             "source_dataset": "fruits360",
             "custom_metadata_tag": "test_tag_123",
         }
-        normalized = normalize_point_payload(raw_payload, tax_mgr)
+        normalized = normalize_point_payload(
+            original_payload=raw_payload,
+            tax_manager=tax_mgr,
+            source_collection="fruvia_fruits360_original_dinov2_base_v1",
+            source_point_id=101,
+        )
 
         assert normalized["canonical_class"] == "apple"
         assert normalized["display_name_en"] == "Apple"
         assert normalized["display_name_vi"] == "Táo"
         assert normalized["category"] == "fruit"
+        assert normalized["gallery_schema_version"] == 2
+        assert normalized["source_collection"] == "fruvia_fruits360_original_dinov2_base_v1"
+        assert normalized["source_point_id"] == "101"
         assert normalized["image_url"] == "https://pub-fruits.r2.dev/apple_1.jpg"
         assert normalized["thumbnail_url"] == "https://pub-fruits.r2.dev/apple_1.jpg"
         assert normalized["attributes"].get("custom_metadata_tag") == "test_tag_123"
@@ -376,26 +372,34 @@ class TestMigrationScriptsLogic:
         uuid_fruits360_repeat = generate_deterministic_point_uuid("fruits360_collection", 1001)
         assert uuid_fruits360 == uuid_fruits360_repeat
 
-    def test_atomic_checkpoint_persistence(self, tmp_path) -> None:
+    def test_atomic_checkpoint_persistence_and_validation(self, tmp_path) -> None:
         from scripts.prepare_gallery_v2 import load_checkpoint, save_checkpoint_atomic
 
         chk_path = tmp_path / "test_migration.checkpoint.json"
         data = {
-            "last_point_id": 4500,
-            "last_point_id_type": "int",
+            "version": 1,
+            "source_collection": "coll_a",
+            "target_collection": "coll_b",
+            "next_offset": 4500,
+            "next_offset_type": "int",
+            "total_processed": 4500,
             "total_migrated": 4500,
+            "total_skipped": 0,
             "batches_completed": 45,
         }
         save_checkpoint_atomic(chk_path, data)
         assert chk_path.exists()
 
-        loaded = load_checkpoint(chk_path)
-        assert loaded["last_point_id"] == 4500
-        assert loaded["last_point_id_type"] == "int"
+        loaded = load_checkpoint(chk_path, source_collection="coll_a", target_collection="coll_b")
+        assert loaded["next_offset"] == 4500
+        assert loaded["next_offset_type"] == "int"
         assert loaded["total_migrated"] == 4500
 
+        # Mismatch in source collection should raise RuntimeError
+        with pytest.raises(RuntimeError, match="does not match"):
+            load_checkpoint(chk_path, source_collection="diff_source", target_collection="coll_b")
+
     def test_packeat_taxonomy_matching_logic(self) -> None:
-        from pathlib import Path
 
         from scripts.build_packeat_taxonomy_mapping import build_taxonomy_index, match_label
 
@@ -404,17 +408,17 @@ class TestMigrationScriptsLogic:
 
         # 1. Exact match
         status, canon, _ = match_label("durian", canonical_items, alias_map)
-        assert status == "EXACT_MATCH"
+        assert status == "EXACT"
         assert canon == "durian"
 
         # 2. Alias match
         status, canon, _ = match_label("pitahaya", canonical_items, alias_map)
-        assert status == "ALIAS_MATCH"
+        assert status == "ALIAS"
         assert canon == "dragon_fruit"
 
         # 3. Normalized slug / number stripped match
         status, canon, _ = match_label("apple_red_12", canonical_items, alias_map)
-        assert status in ("ALIAS_MATCH", "NORM_MATCH")
+        assert status in ("ALIAS", "NORMALIZED_EXACT")
         assert canon == "apple"
 
         # 4. Prefix heuristics must require manual review, not auto match

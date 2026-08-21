@@ -14,7 +14,7 @@ IMPORTANT:
 - Requires QDRANT_URL and QDRANT_API_KEY environment variables.
 - Never hardcodes credentials.
 - Idempotent and safe.
-- Default mode is informational / requires explicit collection name.
+- Returns non-zero exit code (1) if any index has an incompatible data type schema.
 """
 
 from __future__ import annotations
@@ -95,6 +95,8 @@ def main() -> None:
         collection_info = client.get_collection(collection_name=args.collection)
         existing_schema = getattr(collection_info, "payload_schema", {}) or {}
 
+        has_incompatible = False
+
         for field_name, schema_type in INDEX_FIELDS.items():
             expected_type_str = str(
                 schema_type.value if hasattr(schema_type, "value") else schema_type
@@ -111,7 +113,7 @@ def main() -> None:
                     data_type.value if hasattr(data_type, "value") else data_type
                 ).lower()
 
-                if expected_type_str in data_type_str or data_type_str in expected_type_str:
+                if "keyword" in data_type_str and "text" not in data_type_str:
                     print(
                         f"[EXISTS] Payload index for field='{field_name}' already exists (type='{data_type_str}')."
                     )
@@ -120,6 +122,7 @@ def main() -> None:
                         f"[INCOMPATIBLE] Payload index for field='{field_name}' exists with incompatible type '{data_type_str}' (expected '{expected_type_str}').",
                         file=sys.stderr,
                     )
+                    has_incompatible = True
             else:
                 if args.dry_run:
                     print(
@@ -137,7 +140,13 @@ def main() -> None:
                     print(f"[SUCCESS] Index created for '{field_name}'.")
 
         print("-" * 50)
-        print("Payload indexing operation completed.")
+        if has_incompatible:
+            print(
+                "[FAILED] One or more payload indexes have incompatible schemas.", file=sys.stderr
+            )
+            sys.exit(1)
+
+        print("Payload indexing operation completed successfully.")
 
     except Exception as e:
         print(f"[ERROR] Failed to create payload indexes: {e}", file=sys.stderr)

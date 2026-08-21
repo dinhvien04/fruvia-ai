@@ -118,6 +118,10 @@ class Settings(BaseSettings):
         default="127.0.0.1,::1",
         description="Comma-separated list of trusted reverse proxy IP addresses allowed to forward client IPs",
     )
+    native_filter_safe_collections: str = Field(
+        default="fruvia_gallery_dinov2_base_v2",
+        description="Comma-separated list of collection names guaranteed to have 100% payload indexing coverage for native filtering",
+    )
     max_concurrent_inferences: int = Field(
         default=4, ge=1, description="Max concurrent ML model inferences"
     )
@@ -150,6 +154,13 @@ class Settings(BaseSettings):
     def trusted_proxy_ip_list(self) -> set[str]:
         """Parse comma-separated trusted proxy IPs into a set."""
         return {ip.strip() for ip in self.trusted_proxy_ips.split(",") if ip.strip()}
+
+    @property
+    def native_filter_safe_collection_list(self) -> set[str]:
+        """Parse comma-separated native filter safe collection names into a set."""
+        return {
+            col.strip() for col in self.native_filter_safe_collections.split(",") if col.strip()
+        }
 
     @property
     def active_gallery_collection(self) -> str:

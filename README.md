@@ -235,8 +235,9 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 - **PackEat Dataset Processing**: High-resolution fruit variety imagery thumbnails being processed and mirrored to Cloudflare R2 object storage (`pub-r2.fruvia.ai/thumbnails/...`).
 - **Taxonomy Alignment**: `scripts/build_packeat_taxonomy_mapping.py` maps PackEat classes to `configs/taxonomy.yaml` canonical taxonomy.
 - **Migration & Payload Tooling**: 
-  - `scripts/create_qdrant_payload_indexes.py` (Payload index automation).
-  - `scripts/prepare_gallery_v2.py` (Resumable batch migration pipeline with `--dry-run`).
+  - `scripts/create_qdrant_payload_indexes.py` (Payload index automation with fail-closed schema validation).
+  - `scripts/prepare_gallery_v2.py` (Resumable batch migration pipeline with schema v1 atomic checkpointing, `--skip-invalid` reporting, and `--dry-run`).
+  - `scripts/validate_gallery_v2.py` (Read-only pre-flight validator for geometry, index health, and payload distribution).
 
 ### 3. FUTURE (Unified Gallery V2 Deployment)
 - **Unified Target Collection**: `fruvia_gallery_dinov2_base_v2`
@@ -244,18 +245,32 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
   ```json
   {
     "canonical_class": "apple",
+    "original_class": "apple_crimson_snow_1",
+    "display_name": "Apple",
     "display_name_en": "Apple",
     "display_name_vi": "Táo",
     "category": "fruit",
     "source_dataset": "fruits360",
     "dataset_name": "fruits360_original",
+    "dataset_version": "1",
+    "filename": "apple_001.jpg",
+    "relative_path": "gallery/apple/apple_001.jpg",
+    "original_split": "gallery",
     "image_url": "https://pub-r2.fruvia.ai/thumbnails/apple_001.webp",
     "thumbnail_url": "https://pub-r2.fruvia.ai/thumbnails/apple_001.webp",
-    "original_class": "apple_crimson_snow_1",
+    "r2_key": "thumbnails/apple_001.webp",
+    "embedding_model": "facebook/dinov2-base",
+    "embedding_dimension": 768,
+    "embedding_pooling": "cls",
+    "embedding_normalization": "l2",
+    "taxonomy_status": "EXACT",
+    "source_collection": "fruvia_fruits360_original_dinov2_base_v1",
+    "source_point_id": "1001",
+    "gallery_schema_version": 2,
     "attributes": {}
   }
   ```
-- **Live Cutover Process**: Zero-downtime transition via `FRUVIA_GALLERY_COLLECTION=fruvia_gallery_dinov2_base_v2` after full vector validation.
+- **Live Cutover Process**: Zero-downtime transition via `FRUVIA_GALLERY_COLLECTION=fruvia_gallery_dinov2_base_v2` after full vector and schema validation.
 
 ---
 

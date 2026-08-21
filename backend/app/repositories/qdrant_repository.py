@@ -79,7 +79,12 @@ class QdrantRepository:
         be used in native Qdrant query filters without falling back or failing.
 
         Cached for 60 seconds per collection.
-        Supported keyword fields: 'category', 'canonical_class', 'source_dataset', 'dataset_name'.
+        Policy:
+        - Accepts ONLY exact 'keyword' index type (never 'text').
+        - Enforces collection safety policy: only collections listed in
+          `native_filter_safe_collections` (or verified safe) are permitted to use
+          native filtering, ensuring legacy collections with partial payload coverage
+          safely default to robust Python-level filtering.
         """
         target = collection_name or self.collection_name
         now = time.monotonic()
@@ -89,6 +94,17 @@ class QdrantRepository:
             return cached[1]
 
         supported_fields: set[str] = set()
+
+        # Enforce safety check against native_filter_safe_collections
+        safe_collections = self.settings.native_filter_safe_collection_list
+        if safe_collections and target not in safe_collections:
+            logger.debug(
+                "Collection '%s' is not in native_filter_safe_collections; returning empty filter capabilities for safe client filtering.",
+                target,
+            )
+            self._capabilities_cache[target] = (now, supported_fields)
+            return supported_fields
+
         try:
             info = self.client.get_collection(collection_name=target)
             payload_schema = getattr(info, "payload_schema", None)
@@ -98,7 +114,8 @@ class QdrantRepository:
                         schema_info, "type", None
                     )
                     data_type_str = str(data_type).lower()
-                    if "keyword" in data_type_str or "text" in data_type_str:
+                    # Only accept exact keyword index types, reject text index types
+                    if "keyword" in data_type_str and "text" not in data_type_str:
                         supported_fields.add(field_name.lower().strip())
         except Exception as e:
             logger.debug("Failed to inspect payload schema for '%s': %s", target, e)
@@ -203,12 +220,25 @@ class QdrantRepository:
         points_count = (
             getattr(info, "points_count", None) or getattr(info, "vectors_count", None) or 0
         )
-        status_str = str(getattr(info, "status", "unknown"))
+        raw_status = getattr(info, "status", "unknown")
+        status_name = getattr(raw_status, "name", str(raw_status)).upper()
+
+        if status_name in {"RED", "ERROR"}:
+            raise QdrantSchemaIncompatibleError(
+                message=f"Collection '{target}' status is {status_name} (unhealthy).",
+                detail=f"Expected collection status GREEN or YELLOW, found {status_name}.",
+            )
+
+        if vector_size is None or distance_metric is None:
+            raise QdrantSchemaIncompatibleError(
+                message=f"Could not verify vector schema for collection '{target}'.",
+                detail="Collection vector size or distance metric could not be determined.",
+            )
 
         logger.info(
             "Validated Qdrant collection '%s': status=%s, points=%s, vector_size=%s, distance=%s",
             target,
-            status_str,
+            status_name,
             points_count,
             vector_size,
             distance_metric,
@@ -216,10 +246,10 @@ class QdrantRepository:
 
         return {
             "collection_name": target,
-            "status": status_str,
+            "status": status_name,
             "points_count": points_count,
-            "vector_size": vector_size or EXPECTED_VECTOR_SIZE,
-            "distance": distance_metric or EXPECTED_DISTANCE_METRIC,
+            "vector_size": vector_size,
+            "distance": distance_metric,
         }
 
     def get_health_status(self) -> tuple[bool, bool, bool, dict[str, Any] | None]:

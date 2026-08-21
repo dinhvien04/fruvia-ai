@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import ipaddress
 import time
 from collections import defaultdict
 from typing import Any
@@ -95,8 +96,11 @@ def extract_client_ip(request: Request) -> str:
     Security model:
     - By default (`trust_proxy_headers=False`), uses `request.client.host`.
     - `X-Forwarded-For` is only inspected if `trust_proxy_headers=True` AND
-      the immediate connecting peer (`request.client.host`) is in `trusted_proxy_ips`.
-    - Handles multiple comma-separated IPs deterministically.
+      `trusted_proxy_ips` is explicitly non-empty AND the immediate connecting peer
+      (`request.client.host`) is in `trusted_proxy_ips`.
+    - Traverses `X-Forwarded-For` right-to-left across trusted proxies to find the
+      first untrusted client IP.
+    - Validates IP addresses with `ipaddress.ip_address`.
     """
     settings = get_settings()
     peer_ip = request.client.host if request.client else "127.0.0.1"
@@ -104,22 +108,35 @@ def extract_client_ip(request: Request) -> str:
     if not settings.trust_proxy_headers:
         return peer_ip
 
-    # If proxy trust is enabled, verify the immediate peer is a trusted proxy
     trusted_set = settings.trusted_proxy_ip_list
-    if trusted_set and peer_ip not in trusted_set:
-        # Peer is not trusted; ignore forwarded headers
+    if not trusted_set or peer_ip not in trusted_set:
+        # Fails closed if trusted_proxy_ips is empty or immediate peer is not trusted
         return peer_ip
 
     forwarded_header = request.headers.get("X-Forwarded-For", "").strip()
     if not forwarded_header:
         return peer_ip
 
-    # Parse comma-separated IPs and take the client IP (first non-empty entry)
-    ips = [ip.strip() for ip in forwarded_header.split(",") if ip.strip()]
-    if not ips:
+    # Parse and clean comma-separated IPs
+    raw_ips = [ip.strip() for ip in forwarded_header.split(",") if ip.strip()]
+    if not raw_ips:
         return peer_ip
 
-    return ips[0]
+    # Walk right-to-left (from nearest upstream proxy to client)
+    client_ip = peer_ip
+    for raw_ip in reversed(raw_ips):
+        try:
+            parsed = str(ipaddress.ip_address(raw_ip))
+        except ValueError:
+            logger.warning("Invalid IP '%s' in X-Forwarded-For header; ignoring entry", raw_ip)
+            continue
+
+        if parsed in trusted_set:
+            continue
+        client_ip = parsed
+        break
+
+    return client_ip
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

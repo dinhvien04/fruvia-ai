@@ -144,6 +144,7 @@ class TaxonomyManager:
         original_class: str,
         payload_canonical: str | None = None,
         payload_display: str | None = None,
+        allow_heuristic: bool = True,
     ) -> tuple[str, str, str | None, str]:
         """
         Resolve raw class label or payload fields into:
@@ -153,7 +154,8 @@ class TaxonomyManager:
         1. If payload already has canonical_class, respect it!
         2. Explicit taxonomy alias match.
         3. Explicit class_mapping.yaml match.
-        4. Safe heuristic normalization.
+        4. Safe heuristic normalization (trailing numbers strip, prefix match) if allow_heuristic=True.
+        5. Fallback slug / unknown.
         """
         self.load()
 
@@ -231,11 +233,12 @@ class TaxonomyManager:
             tax_item = self._taxonomy_items[canonical]
             return canonical, tax_item.name_en, tax_item.name_vi, tax_item.category
 
-        # Check prefix matching against taxonomy canonical keys
-        for key, item in self._taxonomy_items.items():
-            key_spaces = key.replace("_", " ")
-            if without_numbers.startswith(key_spaces):
-                return key, item.name_en, item.name_vi, item.category
+        if allow_heuristic:
+            # Check prefix matching against taxonomy canonical keys
+            for key, item in self._taxonomy_items.items():
+                key_spaces = key.replace("_", " ")
+                if without_numbers.startswith(key_spaces):
+                    return key, item.name_en, item.name_vi, item.category
 
         # Case 5: Fallback slug
         clean_slug = without_numbers_slug or "unknown"
