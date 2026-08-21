@@ -27,6 +27,88 @@ from app.utils.taxonomy import get_taxonomy_manager
 pytestmark = pytest.mark.unit
 
 
+class TestConfigAndRateLimitSecurity:
+    """Tests for config validation and IP spoofing prevention."""
+
+    def test_settings_threshold_validation(self) -> None:
+        # Valid: medium <= high
+        s1 = Settings(quality_high_threshold=0.85, quality_medium_threshold=0.70)
+        assert s1.quality_medium_threshold == 0.70
+
+        # Invalid: medium > high
+        with pytest.raises(ValueError, match="must be <= quality_high_threshold"):
+            Settings(quality_high_threshold=0.60, quality_medium_threshold=0.75)
+
+    def test_extract_client_ip_default_no_trust(self) -> None:
+        from starlette.requests import Request
+
+        from app.core.rate_limit import extract_client_ip
+
+        # Mock request with spoofed X-Forwarded-For header
+        scope = {
+            "type": "http",
+            "client": ("192.168.1.50", 12345),
+            "headers": [(b"x-forwarded-for", b"203.0.113.195, 10.0.0.1")],
+        }
+        req = Request(scope)
+
+        # By default trust_proxy_headers is False -> peer IP returned
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setenv("TRUST_PROXY_HEADERS", "false")
+            from app.core.config import get_settings
+
+            get_settings.cache_clear()
+            ip = extract_client_ip(req)
+            assert ip == "192.168.1.50"
+            get_settings.cache_clear()
+
+    def test_extract_client_ip_with_trusted_proxy(self) -> None:
+        from starlette.requests import Request
+
+        from app.core.rate_limit import extract_client_ip
+
+        # Peer is in trusted_proxy_ips
+        scope = {
+            "type": "http",
+            "client": ("127.0.0.1", 12345),
+            "headers": [(b"x-forwarded-for", b"203.0.113.195, 10.0.0.1")],
+        }
+        req = Request(scope)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setenv("TRUST_PROXY_HEADERS", "true")
+            mp.setenv("TRUSTED_PROXY_IPS", "127.0.0.1,::1")
+            from app.core.config import get_settings
+
+            get_settings.cache_clear()
+            ip = extract_client_ip(req)
+            assert ip == "203.0.113.195"
+            get_settings.cache_clear()
+
+    def test_extract_client_ip_untrusted_peer_ignored(self) -> None:
+        from starlette.requests import Request
+
+        from app.core.rate_limit import extract_client_ip
+
+        # Peer is NOT in trusted_proxy_ips even though trust_proxy_headers is true
+        scope = {
+            "type": "http",
+            "client": ("198.51.100.22", 12345),
+            "headers": [(b"x-forwarded-for", b"203.0.113.195")],
+        }
+        req = Request(scope)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setenv("TRUST_PROXY_HEADERS", "true")
+            mp.setenv("TRUSTED_PROXY_IPS", "127.0.0.1,::1")
+            from app.core.config import get_settings
+
+            get_settings.cache_clear()
+            ip = extract_client_ip(req)
+            assert ip == "198.51.100.22"
+            get_settings.cache_clear()
+
+
 class TestMultiCollectionAndSchemaValidation:
     """Tests for multi-collection config override and schema validation."""
 
@@ -78,22 +160,76 @@ class TestMultiCollectionAndSchemaValidation:
         mock_client.get_collection.return_value = mock_info
 
         repo = QdrantRepository(client=mock_client)
-        with pytest.raises(QdrantSchemaIncompatibleError, match="is incompatible with expected 'Cosine'"):
+        with pytest.raises(
+            QdrantSchemaIncompatibleError, match="is incompatible with expected 'Cosine'"
+        ):
             repo.validate_collection_schema("test_coll")
+
+    def test_readiness_probe_schema_failure(self) -> None:
+        import asyncio
+
+        from app.api.routes_health import readiness_check
+
+        mock_encoder = MagicMock()
+        mock_encoder.is_loaded = True
+        mock_repo = MagicMock()
+        mock_repo.get_health_status.return_value = (True, True, False, {})
+
+        resp = asyncio.run(readiness_check(encoder=mock_encoder, repo=mock_repo))
+        assert resp.status_code == 503
+
+    def test_health_check_returns_schema_details(self) -> None:
+        import asyncio
+
+        from app.api.routes_health import health_check
+
+        mock_encoder = MagicMock()
+        mock_encoder.is_loaded = True
+        mock_repo = MagicMock()
+        mock_repo.collection_name = "fruvia_fruits360_original_dinov2_base_v1"
+        mock_repo.get_health_status.return_value = (
+            True,
+            True,
+            True,
+            {"vector_size": 768, "distance": "Cosine", "points_count": 328000},
+        )
+
+        resp = asyncio.run(health_check(encoder=mock_encoder, repo=mock_repo))
+        assert resp.status == "ok"
+        assert resp.schema_valid is True
+        assert resp.vector_size == 768
+        assert resp.distance == "Cosine"
+        assert resp.points_count == 328000
 
 
 class TestNativeQdrantFiltering:
     """Tests for native filter building and fallback handling."""
 
-    def test_build_qdrant_filter(self) -> None:
+    def test_build_qdrant_filter_with_supported_fields(self) -> None:
         repo = QdrantRepository(client=MagicMock())
-        f = repo.build_qdrant_filter(category="fruit", canonical_class="apple")
+        f = repo.build_qdrant_filter(
+            category="fruit",
+            canonical_class="apple",
+            supported_fields={"category", "canonical_class"},
+        )
         assert f is not None
         assert len(f.must) == 2
 
+    def test_build_qdrant_filter_unsupported_fields_filtered_out(self) -> None:
+        repo = QdrantRepository(client=MagicMock())
+        # Only category is indexed, canonical_class is not
+        f = repo.build_qdrant_filter(
+            category="fruit",
+            canonical_class="apple",
+            supported_fields={"category"},
+        )
+        assert f is not None
+        assert len(f.must) == 1
+        assert f.must[0].key == "category"
+
     def test_build_qdrant_filter_all_category(self) -> None:
         repo = QdrantRepository(client=MagicMock())
-        f = repo.build_qdrant_filter(category="all")
+        f = repo.build_qdrant_filter(category="all", supported_fields={"category"})
         assert f is None
 
     def test_client_side_fallback_on_filter_error(self) -> None:
@@ -108,11 +244,19 @@ class TestNativeQdrantFiltering:
         # Second call without filter succeeds
         hit_apple = MagicMock()
         hit_apple.score = 0.95
-        hit_apple.payload = {"original_class": "apple_red", "canonical_class": "apple", "category": "fruit"}
+        hit_apple.payload = {
+            "original_class": "apple_red",
+            "canonical_class": "apple",
+            "category": "fruit",
+        }
 
         hit_banana = MagicMock()
         hit_banana.score = 0.90
-        hit_banana.payload = {"original_class": "banana", "canonical_class": "banana", "category": "fruit"}
+        hit_banana.payload = {
+            "original_class": "banana",
+            "canonical_class": "banana",
+            "category": "fruit",
+        }
 
         def query_points_mock(collection_name, query, query_filter=None, **kwargs):
             if query_filter is not None:
@@ -124,7 +268,9 @@ class TestNativeQdrantFiltering:
         mock_client.query_points.side_effect = query_points_mock
         repo = QdrantRepository(client=mock_client)
 
-        results = repo.query_similar([0.1] * 768, top_k=5, category="fruit", canonical_class="apple")
+        results = repo.query_similar(
+            [0.1] * 768, top_k=5, category="fruit", canonical_class="apple"
+        )
         # Should fallback to client-side filter and only return apple
         assert len(results) == 1
         assert results[0].canonical_class == "apple"
@@ -195,7 +341,7 @@ class TestSpeciesAPI:
 
 
 class TestMigrationScriptsLogic:
-    """Tests for migration scripts dry-run and normalization functions."""
+    """Tests for migration scripts dry-run, UUIDs, atomic checkpoints, and normalization functions."""
 
     def test_prepare_gallery_v2_payload_normalization(self) -> None:
         from scripts.prepare_gallery_v2 import normalize_point_payload
@@ -205,6 +351,7 @@ class TestMigrationScriptsLogic:
             "original_class": "apple_crimson_snow",
             "image_url": "https://pub-fruits.r2.dev/apple_1.jpg",
             "source_dataset": "fruits360",
+            "custom_metadata_tag": "test_tag_123",
         }
         normalized = normalize_point_payload(raw_payload, tax_mgr)
 
@@ -214,6 +361,38 @@ class TestMigrationScriptsLogic:
         assert normalized["category"] == "fruit"
         assert normalized["image_url"] == "https://pub-fruits.r2.dev/apple_1.jpg"
         assert normalized["thumbnail_url"] == "https://pub-fruits.r2.dev/apple_1.jpg"
+        assert normalized["attributes"].get("custom_metadata_tag") == "test_tag_123"
+
+    def test_prepare_gallery_v2_deterministic_uuids(self) -> None:
+        from scripts.prepare_gallery_v2 import generate_deterministic_point_uuid
+
+        uuid_fruits360 = generate_deterministic_point_uuid("fruits360_collection", 1001)
+        uuid_packeat = generate_deterministic_point_uuid("packeat_collection", 1001)
+
+        # Same point ID from different source collections MUST produce distinct UUIDs
+        assert uuid_fruits360 != uuid_packeat
+
+        # Re-running on same collection and ID must produce identical UUID (idempotency)
+        uuid_fruits360_repeat = generate_deterministic_point_uuid("fruits360_collection", 1001)
+        assert uuid_fruits360 == uuid_fruits360_repeat
+
+    def test_atomic_checkpoint_persistence(self, tmp_path) -> None:
+        from scripts.prepare_gallery_v2 import load_checkpoint, save_checkpoint_atomic
+
+        chk_path = tmp_path / "test_migration.checkpoint.json"
+        data = {
+            "last_point_id": 4500,
+            "last_point_id_type": "int",
+            "total_migrated": 4500,
+            "batches_completed": 45,
+        }
+        save_checkpoint_atomic(chk_path, data)
+        assert chk_path.exists()
+
+        loaded = load_checkpoint(chk_path)
+        assert loaded["last_point_id"] == 4500
+        assert loaded["last_point_id_type"] == "int"
+        assert loaded["total_migrated"] == 4500
 
     def test_packeat_taxonomy_matching_logic(self) -> None:
         from pathlib import Path
@@ -236,6 +415,11 @@ class TestMigrationScriptsLogic:
         # 3. Normalized slug / number stripped match
         status, canon, _ = match_label("apple_red_12", canonical_items, alias_map)
         assert status in ("ALIAS_MATCH", "NORM_MATCH")
+        assert canon == "apple"
+
+        # 4. Prefix heuristics must require manual review, not auto match
+        status, canon, _ = match_label("apple_variety_special_xyz", canonical_items, alias_map)
+        assert status == "MANUAL_REVIEW"
         assert canon == "apple"
 
 

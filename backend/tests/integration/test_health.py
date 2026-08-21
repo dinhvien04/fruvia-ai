@@ -49,11 +49,17 @@ class TestHealthEndpoint:
         assert "version" in data
 
     def test_health_status_ok_when_fully_healthy(self) -> None:
-        """When encoder and Qdrant are ready, health status should be 'ok'."""
+        """When encoder and Qdrant are ready and schema is valid, health status should be 'ok'."""
         mock_encoder = MagicMock()
         mock_encoder.is_loaded = True
         mock_repo = MagicMock()
-        mock_repo.get_health_status.return_value = (True, True)
+        mock_repo.collection_name = "fruvia_fruits360_original_dinov2_base_v1"
+        mock_repo.get_health_status.return_value = (
+            True,
+            True,
+            True,
+            {"vector_size": 768, "distance": "Cosine", "points_count": 328190},
+        )
 
         app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
         app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo
@@ -67,6 +73,8 @@ class TestHealthEndpoint:
         assert data["model_loaded"] is True
         assert data["qdrant_connected"] is True
         assert data["collection_available"] is True
+        assert data["schema_valid"] is True
+        assert data["vector_size"] == 768
 
         app.dependency_overrides.clear()
 
@@ -75,7 +83,7 @@ class TestHealthEndpoint:
         mock_encoder = MagicMock()
         mock_encoder.is_loaded = True
         mock_repo = MagicMock()
-        mock_repo.get_health_status.return_value = (True, True)
+        mock_repo.get_health_status.return_value = (True, True, True, {"vector_size": 768})
 
         app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
         app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo
@@ -92,7 +100,7 @@ class TestHealthEndpoint:
         mock_encoder = MagicMock()
         mock_encoder.is_loaded = True
         mock_repo = MagicMock()
-        mock_repo.get_health_status.return_value = (False, False)
+        mock_repo.get_health_status.return_value = (False, False, False, {})
 
         app.dependency_overrides[get_image_encoder] = lambda: mock_encoder
         app.dependency_overrides[get_qdrant_repository] = lambda: mock_repo

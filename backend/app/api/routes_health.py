@@ -31,6 +31,13 @@ class HealthResponse(BaseModel):
     collection_available: bool = Field(
         ..., description="Whether the Qdrant collection is available"
     )
+    schema_valid: bool = Field(
+        default=True, description="Whether the Qdrant collection schema (768D Cosine) is valid"
+    )
+    collection_name: str | None = Field(default=None, description="Active gallery collection name")
+    vector_size: int | None = Field(default=None, description="Vector dimension")
+    distance: str | None = Field(default=None, description="Distance metric")
+    points_count: int | None = Field(default=None, description="Collection point count")
     version: str = Field(..., description="Application version")
 
 
@@ -43,7 +50,7 @@ async def health_check(
     Service health check.
 
     Returns cached health status (TTL 5s) to avoid unnecessary Qdrant load.
-    Combines Qdrant connection and collection availability check into a single call.
+    Combines Qdrant connection, collection availability, and schema inspection into a single call.
     """
     global _health_cache, _last_health_check_time
     now = time.monotonic()
@@ -54,10 +61,10 @@ async def health_check(
     settings = get_settings()
     model_loaded = encoder.is_loaded
 
-    # Single Qdrant health check call
-    qdrant_connected, collection_available = repo.get_health_status()
+    # Single Qdrant health & schema check call
+    qdrant_connected, collection_available, schema_valid, schema_info = repo.get_health_status()
 
-    is_fully_healthy = model_loaded and qdrant_connected and collection_available
+    is_fully_healthy = model_loaded and qdrant_connected and collection_available and schema_valid
     status = "ok" if is_fully_healthy else "degraded"
 
     result_data = {
@@ -65,6 +72,11 @@ async def health_check(
         "model_loaded": model_loaded,
         "qdrant_connected": qdrant_connected,
         "collection_available": collection_available,
+        "schema_valid": schema_valid,
+        "collection_name": repo.collection_name,
+        "vector_size": schema_info.get("vector_size") if schema_info else None,
+        "distance": schema_info.get("distance") if schema_info else None,
+        "points_count": schema_info.get("points_count") if schema_info else None,
         "version": settings.app_version,
     }
 
@@ -91,9 +103,12 @@ async def readiness_check(
     encoder: Annotated[ImageEncoder, Depends(get_image_encoder)],
     repo: Annotated[QdrantRepository, Depends(get_qdrant_repository)],
 ) -> JSONResponse:
-    """Readiness probe endpoint for Kubernetes / Docker container health checks."""
-    qdrant_ok, coll_ok = repo.get_health_status()
-    if encoder.is_loaded and qdrant_ok and coll_ok:
+    """
+    Readiness probe endpoint for Kubernetes / Docker container health checks.
+    Requires model loaded + Qdrant reachable + collection available + 768D Cosine schema valid.
+    """
+    qdrant_ok, coll_ok, schema_ok, _ = repo.get_health_status()
+    if encoder.is_loaded and qdrant_ok and coll_ok and schema_ok:
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"status": "ready"},

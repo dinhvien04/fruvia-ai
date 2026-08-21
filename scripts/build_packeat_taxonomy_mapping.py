@@ -40,7 +40,9 @@ def normalize_label(label: str) -> str:
     return clean.replace(" ", "_")
 
 
-def build_taxonomy_index(taxonomy_yaml_path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+def build_taxonomy_index(
+    taxonomy_yaml_path: Path,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """
     Build index of canonical classes and alias lookup dictionary.
     Returns: (canonical_items, alias_to_canonical_map)
@@ -79,7 +81,7 @@ def match_label(
     """
     Attempt to match a raw label against the canonical taxonomy index.
     Returns: (match_status, canonical_class, match_reason)
-    Match statuses: EXACT_MATCH | ALIAS_MATCH | NORM_MATCH | UNMAPPED
+    Match statuses: EXACT_MATCH | ALIAS_MATCH | NORM_MATCH | MANUAL_REVIEW | UNMAPPED
     """
     if not label or not label.strip():
         return "UNMAPPED", None, "Empty label"
@@ -101,11 +103,15 @@ def match_label(
         canon = alias_map[norm_clean]
         return "NORM_MATCH", canon, f"Matches normalized slug '{norm_clean}' -> '{canon}'"
 
-    # 4. Partial substring heuristics
+    # 4. Prefix / Substring heuristics (Flagged for manual review, never auto-assigned)
     for canon_key in canonical_items:
         canon_norm = canon_key.replace("_", " ")
         if norm_clean.replace("_", " ").startswith(canon_norm):
-            return "NORM_MATCH", canon_key, f"Prefix heuristic match with '{canon_key}'"
+            return (
+                "MANUAL_REVIEW",
+                canon_key,
+                f"Prefix heuristic match with '{canon_key}' (requires human verification)",
+            )
 
     return "UNMAPPED", None, "No match found in current taxonomy.yaml"
 
@@ -153,7 +159,9 @@ def analyze_packeat(
 
     # If no files provided, evaluate sample placeholder list or empty
     if not labels_to_evaluate:
-        print("[INFO] No external PackEat CSV files found/provided. Generating empty baseline alignment.")
+        print(
+            "[INFO] No external PackEat CSV files found/provided. Generating empty baseline alignment."
+        )
 
     for label in sorted(labels_to_evaluate):
         status, canon, reason = match_label(label, canonical_items, alias_map)
@@ -163,7 +171,8 @@ def analyze_packeat(
             "canonical_class": canon,
             "reason": reason,
         }
-        if canon:
+        # Only automatically map high-confidence matches (EXACT, ALIAS, NORM)
+        if canon and status in {"EXACT_MATCH", "ALIAS_MATCH", "NORM_MATCH"}:
             mapping[label] = canon
         results.append(item_entry)
 
@@ -180,6 +189,7 @@ def generate_markdown_report(
     exact = sum(1 for r in results if r["status"] == "EXACT_MATCH")
     alias = sum(1 for r in results if r["status"] == "ALIAS_MATCH")
     norm = sum(1 for r in results if r["status"] == "NORM_MATCH")
+    manual = sum(1 for r in results if r["status"] == "MANUAL_REVIEW")
     unmapped = sum(1 for r in results if r["status"] == "UNMAPPED")
 
     mapped = exact + alias + norm
@@ -191,10 +201,11 @@ def generate_markdown_report(
         "## Summary Statistics",
         f"- **Canonical Taxonomy Species**: {canonical_count}",
         f"- **Evaluated Source Labels**: {total}",
-        f"- **Mapped Labels**: {mapped} ({coverage_pct:.1f}%)",
+        f"- **Auto-Mapped Labels**: {mapped} ({coverage_pct:.1f}%)",
         f"  - **Exact Matches**: {exact}",
         f"  - **Alias Matches**: {alias}",
         f"  - **Normalized Heuristic Matches**: {norm}",
+        f"- **Manual Review Required**: {manual}",
         f"- **Unmapped Labels (Action Required)**: {unmapped}",
         "",
         "## Alignment Details",
@@ -204,7 +215,9 @@ def generate_markdown_report(
 
     for r in results:
         canon_display = r["canonical_class"] or "*None*"
-        lines.append(f"| `{r['source_label']}` | **{r['status']}** | `{canon_display}` | {r['reason']} |")
+        lines.append(
+            f"| `{r['source_label']}` | **{r['status']}** | `{canon_display}` | {r['reason']} |"
+        )
 
     content = "\n".join(lines) + "\n"
 
@@ -219,12 +232,36 @@ def generate_markdown_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PackEat Taxonomy Mapping and Alignment Tool")
-    parser.add_argument("--packeat-taxonomy", type=Path, default=None, help="Path to PackEat taxonomy.csv")
-    parser.add_argument("--variety-csv", type=Path, default=None, help="Path to PackEat variety_classification.csv")
-    parser.add_argument("--taxonomy-yaml", type=Path, default=Path("configs/taxonomy.yaml"), help="Path to configs/taxonomy.yaml")
-    parser.add_argument("--output-mapping", type=Path, default=Path("configs/packeat_mapping.json"), help="Output JSON mapping path")
-    parser.add_argument("--output-report", type=Path, default=Path("reports/packeat_alignment_report.md"), help="Output Markdown report path")
-    parser.add_argument("--dry-run", action="store_true", default=False, help="Perform dry-run without writing output files")
+    parser.add_argument(
+        "--packeat-taxonomy", type=Path, default=None, help="Path to PackEat taxonomy.csv"
+    )
+    parser.add_argument(
+        "--variety-csv", type=Path, default=None, help="Path to PackEat variety_classification.csv"
+    )
+    parser.add_argument(
+        "--taxonomy-yaml",
+        type=Path,
+        default=Path("configs/taxonomy.yaml"),
+        help="Path to configs/taxonomy.yaml",
+    )
+    parser.add_argument(
+        "--output-mapping",
+        type=Path,
+        default=Path("configs/packeat_mapping.json"),
+        help="Output JSON mapping path",
+    )
+    parser.add_argument(
+        "--output-report",
+        type=Path,
+        default=Path("reports/packeat_alignment_report.md"),
+        help="Output Markdown report path",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Perform dry-run without writing output files",
+    )
 
     args = parser.parse_args()
 

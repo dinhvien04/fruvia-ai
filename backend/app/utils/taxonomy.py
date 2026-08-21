@@ -63,7 +63,11 @@ class TaxonomyManager:
                     if not isinstance(val, dict):
                         continue
                     raw_aliases = val.get("aliases", [])
-                    aliases_list = [str(a).strip() for a in raw_aliases if str(a).strip()] if isinstance(raw_aliases, list) else []
+                    aliases_list = (
+                        [str(a).strip() for a in raw_aliases if str(a).strip()]
+                        if isinstance(raw_aliases, list)
+                        else []
+                    )
 
                     item = TaxonomyItem(
                         canonical_class=key,

@@ -66,7 +66,9 @@ def main() -> None:
     qdrant_api_key = os.getenv("QDRANT_API_KEY")
 
     if not qdrant_url or not qdrant_api_key:
-        print("[ERROR] QDRANT_URL or QDRANT_API_KEY environment variable is not set.", file=sys.stderr)
+        print(
+            "[ERROR] QDRANT_URL or QDRANT_API_KEY environment variable is not set.", file=sys.stderr
+        )
         sys.exit(1)
 
     print("=== Qdrant Payload Index Creator ===")
@@ -81,23 +83,58 @@ def main() -> None:
         existing = [c.name for c in collections.collections]
 
         if args.collection not in existing:
-            print(f"[ERROR] Target collection '{args.collection}' not found in Qdrant Cloud.", file=sys.stderr)
+            print(
+                f"[ERROR] Target collection '{args.collection}' not found in Qdrant Cloud.",
+                file=sys.stderr,
+            )
             print(f"Available collections: {existing}", file=sys.stderr)
             sys.exit(1)
 
         print(f"[OK] Collection '{args.collection}' found on Qdrant cluster.")
 
+        collection_info = client.get_collection(collection_name=args.collection)
+        existing_schema = getattr(collection_info, "payload_schema", {}) or {}
+
         for field_name, schema_type in INDEX_FIELDS.items():
-            if args.dry_run:
-                print(f"[DRY-RUN] Would create payload index: field='{field_name}', type='{schema_type}'")
-            else:
-                print(f"[APPLYING] Creating payload index: field='{field_name}', type='{schema_type}'...")
-                client.create_payload_index(
-                    collection_name=args.collection,
-                    field_name=field_name,
-                    field_schema=schema_type,
+            expected_type_str = str(
+                schema_type.value if hasattr(schema_type, "value") else schema_type
+            ).lower()
+
+            if field_name in existing_schema:
+                existing_info = existing_schema[field_name]
+                data_type = (
+                    getattr(existing_info, "data_type", None)
+                    or getattr(existing_info, "type", None)
+                    or str(existing_info)
                 )
-                print(f"[SUCCESS] Index created for '{field_name}'.")
+                data_type_str = str(
+                    data_type.value if hasattr(data_type, "value") else data_type
+                ).lower()
+
+                if expected_type_str in data_type_str or data_type_str in expected_type_str:
+                    print(
+                        f"[EXISTS] Payload index for field='{field_name}' already exists (type='{data_type_str}')."
+                    )
+                else:
+                    print(
+                        f"[INCOMPATIBLE] Payload index for field='{field_name}' exists with incompatible type '{data_type_str}' (expected '{expected_type_str}').",
+                        file=sys.stderr,
+                    )
+            else:
+                if args.dry_run:
+                    print(
+                        f"[WOULD_CREATE] Payload index: field='{field_name}', type='{expected_type_str}'"
+                    )
+                else:
+                    print(
+                        f"[CREATE] Creating payload index: field='{field_name}', type='{expected_type_str}'..."
+                    )
+                    client.create_payload_index(
+                        collection_name=args.collection,
+                        field_name=field_name,
+                        field_schema=schema_type,
+                    )
+                    print(f"[SUCCESS] Index created for '{field_name}'.")
 
         print("-" * 50)
         print("Payload indexing operation completed.")

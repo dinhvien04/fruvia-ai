@@ -27,7 +27,9 @@ class BaseRateLimiter(abc.ABC):
     """Abstract interface for rate limiters."""
 
     @abc.abstractmethod
-    def check_rate_limit(self, client_key: str, limit: int, window_seconds: float = 60.0) -> tuple[bool, int]:
+    def check_rate_limit(
+        self, client_key: str, limit: int, window_seconds: float = 60.0
+    ) -> tuple[bool, int]:
         """
         Check if request is allowed under rate limit.
 
@@ -86,6 +88,40 @@ def get_rate_limiter() -> BaseRateLimiter:
     return _global_rate_limiter
 
 
+def extract_client_ip(request: Request) -> str:
+    """
+    Extract the real client IP address safely without allowing header spoofing.
+
+    Security model:
+    - By default (`trust_proxy_headers=False`), uses `request.client.host`.
+    - `X-Forwarded-For` is only inspected if `trust_proxy_headers=True` AND
+      the immediate connecting peer (`request.client.host`) is in `trusted_proxy_ips`.
+    - Handles multiple comma-separated IPs deterministically.
+    """
+    settings = get_settings()
+    peer_ip = request.client.host if request.client else "127.0.0.1"
+
+    if not settings.trust_proxy_headers:
+        return peer_ip
+
+    # If proxy trust is enabled, verify the immediate peer is a trusted proxy
+    trusted_set = settings.trusted_proxy_ip_list
+    if trusted_set and peer_ip not in trusted_set:
+        # Peer is not trusted; ignore forwarded headers
+        return peer_ip
+
+    forwarded_header = request.headers.get("X-Forwarded-For", "").strip()
+    if not forwarded_header:
+        return peer_ip
+
+    # Parse comma-separated IPs and take the client IP (first non-empty entry)
+    ips = [ip.strip() for ip in forwarded_header.split(",") if ip.strip()]
+    if not ips:
+        return peer_ip
+
+    return ips[0]
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     Rate limiter middleware for API endpoints.
@@ -100,11 +136,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Only rate limit POST /api/retrieve
         if request.method == "POST" and request.url.path.endswith("/retrieve"):
             settings = get_settings()
-            # Extract client IP (respecting direct connection or standard proxy headers if present)
-            client_ip = (
-                request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-                or (request.client.host if request.client else "127.0.0.1")
-            )
+            client_ip = extract_client_ip(request)
 
             is_allowed, remaining = self.limiter.check_rate_limit(
                 client_key=client_ip,

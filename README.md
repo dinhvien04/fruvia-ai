@@ -145,14 +145,14 @@ fruvia-ai/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                 # FastAPI app, static mounts & clean URL routes
-│   │   ├── api/                    # Route handlers (/health, /ready, /retrieve)
+│   │   ├── api/                    # Route handlers (/health, /ready, /live, /species, /retrieve)
 │   │   ├── core/                   # Config, rate limiting, logging, exceptions
 │   │   ├── ml/                     # DINOv2 ImageEncoder (768D L2)
 │   │   ├── services/               # RetrievalService orchestration
-│   │   ├── repositories/           # QdrantRepository (Vector DB access)
+│   │   ├── repositories/           # QdrantRepository (Vector DB access & schema validation)
 │   │   ├── schemas/                # Multi-dataset Pydantic models
 │   │   └── utils/                  # TaxonomyManager, class_resolver, image_validation
-│   ├── tests/                      # 155 unit & integration tests
+│   ├── tests/                      # 181 unit & integration tests
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/                       # Fruvia Web V2 Application UI
@@ -336,7 +336,7 @@ Send a `multipart/form-data` request with an image file.
 Run the test suite and linters locally:
 
 ```bash
-# Run pytest (155 unit & integration tests)
+# Run pytest (181 unit & integration tests)
 python -m pytest
 
 # Run Ruff linter

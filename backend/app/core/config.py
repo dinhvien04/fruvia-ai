@@ -110,6 +110,14 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(
         default=60, ge=1, description="Max requests per minute per IP"
     )
+    trust_proxy_headers: bool = Field(
+        default=False,
+        description="Whether to trust X-Forwarded-For headers for client IP extraction (disabled by default to prevent spoofing)",
+    )
+    trusted_proxy_ips: str = Field(
+        default="127.0.0.1,::1",
+        description="Comma-separated list of trusted reverse proxy IP addresses allowed to forward client IPs",
+    )
     max_concurrent_inferences: int = Field(
         default=4, ge=1, description="Max concurrent ML model inferences"
     )
@@ -139,6 +147,11 @@ class Settings(BaseSettings):
     # --- Derived properties ---
 
     @property
+    def trusted_proxy_ip_list(self) -> set[str]:
+        """Parse comma-separated trusted proxy IPs into a set."""
+        return {ip.strip() for ip in self.trusted_proxy_ips.split(",") if ip.strip()}
+
+    @property
     def active_gallery_collection(self) -> str:
         """
         Return the active gallery collection name.
@@ -161,6 +174,17 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @field_validator("quality_medium_threshold")
+    @classmethod
+    def validate_quality_thresholds(cls, v: float, info) -> float:
+        """Ensure quality_medium_threshold <= quality_high_threshold."""
+        high = info.data.get("quality_high_threshold", 0.80)
+        if v > high:
+            raise ValueError(
+                f"quality_medium_threshold ({v}) must be <= quality_high_threshold ({high})"
+            )
+        return v
 
     @field_validator("log_level")
     @classmethod

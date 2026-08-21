@@ -27,7 +27,9 @@ class RetrievalTiming(BaseModel):
 class RetrievalQuality(BaseModel):
     """Provisional search quality assessment based on top similarity score."""
 
-    top_similarity: float = Field(..., ge=-1.0, le=1.0, description="Highest similarity score among retrieved results")
+    top_similarity: float = Field(
+        ..., ge=-1.0, le=1.0, description="Highest similarity score among retrieved results"
+    )
     quality: Literal["high_similarity", "medium_similarity", "low_similarity"] = Field(
         ...,
         description="Provisional similarity category (configured via thresholds, subject to validation calibration)",

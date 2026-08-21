@@ -48,6 +48,8 @@ class QdrantRepository:
         self.settings = settings or get_settings()
         self._client: Any = client
         self.collection_name = self.settings.active_gallery_collection
+        self._capabilities_cache: dict[str, tuple[float, set[str]]] = {}
+        self._capabilities_ttl_sec: float = 60.0
 
     @property
     def client(self) -> QdrantClient:
@@ -70,6 +72,39 @@ class QdrantRepository:
                 timeout=self.settings.qdrant_timeout,
             )
         return self._client
+
+    def get_filter_capabilities(self, collection_name: str | None = None) -> set[str]:
+        """
+        Inspect collection payload indexes and determine which fields can safely
+        be used in native Qdrant query filters without falling back or failing.
+
+        Cached for 60 seconds per collection.
+        Supported keyword fields: 'category', 'canonical_class', 'source_dataset', 'dataset_name'.
+        """
+        target = collection_name or self.collection_name
+        now = time.monotonic()
+
+        cached = self._capabilities_cache.get(target)
+        if cached is not None and (now - cached[0]) < self._capabilities_ttl_sec:
+            return cached[1]
+
+        supported_fields: set[str] = set()
+        try:
+            info = self.client.get_collection(collection_name=target)
+            payload_schema = getattr(info, "payload_schema", None)
+            if isinstance(payload_schema, dict):
+                for field_name, schema_info in payload_schema.items():
+                    data_type = getattr(schema_info, "data_type", None) or getattr(
+                        schema_info, "type", None
+                    )
+                    data_type_str = str(data_type).lower()
+                    if "keyword" in data_type_str or "text" in data_type_str:
+                        supported_fields.add(field_name.lower().strip())
+        except Exception as e:
+            logger.debug("Failed to inspect payload schema for '%s': %s", target, e)
+
+        self._capabilities_cache[target] = (now, supported_fields)
+        return supported_fields
 
     def is_connected(self) -> bool:
         """Check if Qdrant Cloud service is reachable."""
@@ -102,9 +137,7 @@ class QdrantRepository:
             )
             return False
 
-    def validate_collection_schema(
-        self, collection_name: str | None = None
-    ) -> dict[str, Any]:
+    def validate_collection_schema(self, collection_name: str | None = None) -> dict[str, Any]:
         """
         Validate target Qdrant collection schema for vector size (768),
         distance metric (Cosine), status, and point counts.
@@ -168,9 +201,7 @@ class QdrantRepository:
             )
 
         points_count = (
-            getattr(info, "points_count", None)
-            or getattr(info, "vectors_count", None)
-            or 0
+            getattr(info, "points_count", None) or getattr(info, "vectors_count", None) or 0
         )
         status_str = str(getattr(info, "status", "unknown"))
 
@@ -191,23 +222,31 @@ class QdrantRepository:
             "distance": distance_metric or EXPECTED_DISTANCE_METRIC,
         }
 
-    def get_health_status(self) -> tuple[bool, bool]:
+    def get_health_status(self) -> tuple[bool, bool, bool, dict[str, Any] | None]:
         """
-        Check Qdrant connectivity and collection availability in a single API call.
+        Check Qdrant connectivity, collection availability, and schema validity in a single API inspection.
 
         Returns
         -------
-        tuple[bool, bool]
-            (qdrant_connected, collection_available)
+        tuple[bool, bool, bool, dict[str, Any] | None]
+            (qdrant_connected, collection_available, schema_valid, schema_info)
         """
         try:
             collections_res = self.client.get_collections()
             existing_names = [col.name for col in collections_res.collections]
             collection_available = self.collection_name in existing_names
-            return True, collection_available
+            if not collection_available:
+                return True, False, False, None
+
+            try:
+                schema_info = self.validate_collection_schema(self.collection_name)
+                return True, True, True, schema_info
+            except QdrantSchemaIncompatibleError as schema_err:
+                logger.warning("Qdrant collection schema is incompatible: %s", schema_err)
+                return True, True, False, None
         except Exception as e:
-            logger.warning("Single Qdrant health check failed: %s", e)
-            return False, False
+            logger.warning("Qdrant health check failed: %s", e)
+            return False, False, False, None
 
     def build_qdrant_filter(
         self,
@@ -215,32 +254,44 @@ class QdrantRepository:
         canonical_class: str | None = None,
         source_dataset: str | None = None,
         dataset_name: str | None = None,
+        supported_fields: set[str] | None = None,
     ) -> Filter | None:
         """
-        Build a native Qdrant Filter object if any filter parameters are provided.
-        Safe for collections with indexed payload fields.
+        Build a native Qdrant Filter object ONLY for fields verified to have
+        payload keyword index capabilities on the target collection.
         """
         conditions: list[FieldCondition] = []
+        caps = (
+            supported_fields
+            if supported_fields is not None
+            else self.get_filter_capabilities(self.collection_name)
+        )
 
         if category and category.lower().strip() not in {"all", ""}:
-            conditions.append(
-                FieldCondition(key="category", match=MatchValue(value=category.lower().strip()))
-            )
+            cat_val = category.lower().strip()
+            if "category" in caps:
+                conditions.append(FieldCondition(key="category", match=MatchValue(value=cat_val)))
 
         if canonical_class and canonical_class.strip():
-            conditions.append(
-                FieldCondition(key="canonical_class", match=MatchValue(value=canonical_class.strip()))
-            )
+            canon_val = canonical_class.strip().lower()
+            if "canonical_class" in caps:
+                conditions.append(
+                    FieldCondition(key="canonical_class", match=MatchValue(value=canon_val))
+                )
 
         if source_dataset and source_dataset.strip():
-            conditions.append(
-                FieldCondition(key="source_dataset", match=MatchValue(value=source_dataset.strip()))
-            )
+            source_val = source_dataset.strip().lower()
+            if "source_dataset" in caps:
+                conditions.append(
+                    FieldCondition(key="source_dataset", match=MatchValue(value=source_val))
+                )
 
         if dataset_name and dataset_name.strip():
-            conditions.append(
-                FieldCondition(key="dataset_name", match=MatchValue(value=dataset_name.strip()))
-            )
+            ds_val = dataset_name.strip()
+            if "dataset_name" in caps:
+                conditions.append(
+                    FieldCondition(key="dataset_name", match=MatchValue(value=ds_val))
+                )
 
         if not conditions:
             return None
@@ -259,7 +310,7 @@ class QdrantRepository:
         use_native_filter: bool = True,
     ) -> list[RetrievalResult]:
         """
-        Execute vector similarity search in Qdrant Cloud with native filtering
+        Execute vector similarity search in Qdrant Cloud with capability-aware native filtering
         and graceful Python-level fallback for unindexed/legacy payloads.
 
         Parameters
@@ -279,7 +330,7 @@ class QdrantRepository:
         dataset_name : str | None
             Optional dataset name filter.
         use_native_filter : bool
-            Whether to attempt native Qdrant filtering first.
+            Whether to attempt native Qdrant filtering for supported fields.
 
         Returns
         -------
@@ -294,9 +345,21 @@ class QdrantRepository:
                 f"Query vector must be finite and exactly {EXPECTED_VECTOR_SIZE} dimensions."
             )
 
+        # Inspect supported payload filter capabilities
+        filter_caps = (
+            self.get_filter_capabilities(self.collection_name) if use_native_filter else set()
+        )
+
         # Calculate initial candidate limit and maximum candidate cap
         max_cap = self.settings.class_search_max_candidates
-        if mode == "class" or category != "all":
+        has_client_filtering_needed = (
+            (category != "all" and "category" not in filter_caps)
+            or (canonical_class and "canonical_class" not in filter_caps)
+            or (source_dataset and "source_dataset" not in filter_caps)
+            or (dataset_name and "dataset_name" not in filter_caps)
+        )
+
+        if mode == "class" or category != "all" or has_client_filtering_needed:
             initial_limit = max(
                 top_k * self.settings.class_search_candidate_multiplier,
                 self.settings.class_search_min_candidates,
@@ -312,6 +375,7 @@ class QdrantRepository:
                 canonical_class=canonical_class,
                 source_dataset=source_dataset,
                 dataset_name=dataset_name,
+                supported_fields=filter_caps,
             )
             if use_native_filter
             else None
@@ -368,7 +432,7 @@ class QdrantRepository:
                             continue
                         raise query_err
 
-                    raw_results: list[tuple[RetrievalResult, str]] = []
+                    raw_results: list[tuple[RetrievalResult, str, str, str]] = []
                     for hit in hits:
                         payload = getattr(hit, "payload", {}) or {}
                         similarity_score = float(getattr(hit, "score", 0.0))
@@ -385,19 +449,33 @@ class QdrantRepository:
                             payload_display=payload_display,
                         )
 
-                        # Backward-compatible dataset resolution
-                        ds_name = payload.get("dataset_name") or payload.get("source_dataset")
-                        if not ds_name:
-                            img_url = str(payload.get("image_url", ""))
-                            if "fruits262" in img_url or "fruits-262" in img_url:
-                                ds_name = "fruits262_full_original_v7"
-                            elif "packeat" in img_url:
-                                ds_name = "packeat_dinov2_base_v1"
+                        # Explicit source_dataset and dataset_name resolution
+                        raw_source = payload.get("source_dataset")
+                        raw_ds = payload.get("dataset_name")
+
+                        img_url = str(payload.get("image_url", ""))
+                        if not raw_source:
+                            if (
+                                "fruits262" in img_url
+                                or "fruits-262" in img_url
+                                or (raw_ds and "262" in str(raw_ds))
+                            ):
+                                raw_source = "fruits262"
+                            elif "packeat" in img_url or (raw_ds and "packeat" in str(raw_ds)):
+                                raw_source = "packeat"
                             else:
-                                ds_name = "fruits360_original"
+                                raw_source = "fruits360"
+
+                        if not raw_ds:
+                            if raw_source == "fruits262":
+                                raw_ds = "fruits262_full_original_v7"
+                            elif raw_source == "packeat":
+                                raw_ds = "packeat_dinov2_base_v1"
+                            else:
+                                raw_ds = "fruits360_original"
 
                         ds_version = payload.get("dataset_version") or (
-                            "7" if "262" in str(ds_name) else "1"
+                            "7" if "262" in str(raw_ds) else "1"
                         )
 
                         res = RetrievalResult(
@@ -406,7 +484,7 @@ class QdrantRepository:
                             display_name=display_en,
                             display_name_vi=display_vi,
                             category=cat_cls,
-                            dataset_name=str(ds_name),
+                            dataset_name=str(raw_ds),
                             dataset_version=str(ds_version),
                             filename=str(payload.get("filename", "unknown")),
                             relative_path=str(payload.get("relative_path", "")),
@@ -416,23 +494,23 @@ class QdrantRepository:
                             similarity=similarity_score,
                             image_url=payload.get("image_url"),
                         )
-                        raw_results.append((res, cat_cls))
+                        raw_results.append((res, cat_cls, str(raw_source), str(raw_ds)))
 
-                    # Apply Payload Filtering (if native filter was absent or fallback occurred)
+                    # Apply exact Payload Filtering (client-side fallback where native filter wasn't applied or was partial)
                     filtered_results: list[RetrievalResult] = []
                     target_cat = category.lower().strip()
                     target_canon = canonical_class.lower().strip() if canonical_class else None
                     target_source = source_dataset.lower().strip() if source_dataset else None
                     target_ds = dataset_name.lower().strip() if dataset_name else None
 
-                    for res, item_cat in raw_results:
+                    for res, item_cat, item_source, item_ds in raw_results:
                         if target_cat not in {"all", ""} and item_cat != target_cat:
                             continue
                         if target_canon and res.canonical_class.lower() != target_canon:
                             continue
-                        if target_source and target_source not in res.dataset_name.lower():
+                        if target_source and item_source.lower() != target_source:
                             continue
-                        if target_ds and target_ds not in res.dataset_name.lower():
+                        if target_ds and item_ds.lower() != target_ds:
                             continue
                         filtered_results.append(res)
 
@@ -493,15 +571,10 @@ class QdrantRepository:
             except Exception as e:
                 err_msg = str(e).lower()
                 if "not found" in err_msg or "404" in err_msg:
-                    logger.warning("Collection '%s' not found on Qdrant.", self.collection_name)
                     raise QdrantCollectionNotFoundError(
                         message=f"Collection '{self.collection_name}' is not available.",
                         detail=str(e),
                     ) from e
-
-                if isinstance(e, QdrantSchemaIncompatibleError):
-                    raise e
-
                 last_exception = e
                 logger.warning(
                     "Qdrant query attempt %d/%d failed: %s",
@@ -519,8 +592,8 @@ class QdrantRepository:
             exc_info=True,
         )
         raise QdrantConnectionError(
-            message="Failed to query vector database.",
-            detail=str(last_exception),
+            message="Failed to query vector database after multiple attempts.",
+            detail=str(last_exception) if last_exception else "Unknown error",
         ) from last_exception
 
 
