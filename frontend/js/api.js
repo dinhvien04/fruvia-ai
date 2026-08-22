@@ -254,5 +254,55 @@ const ApiClient = {
       }
       throw error;
     }
+  },
+
+  /**
+   * Fetch all canonical species list with optional category and search query filters
+   * @param {{category?: string, q?: string}} params
+   * @returns {Promise<{total: number, items: Array<{canonical_class: string, name_en: string, name_vi: string|null, category: string, is_fruit: boolean, aliases: string[], representative_image_url: string|null}>}>}
+   */
+  async listSpecies({ category = "all", q = "" } = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT_MS || 8000);
+
+    const queryParams = new URLSearchParams();
+    if (category && category !== "all") {
+      queryParams.set("category", category.trim());
+    }
+    if (q && q.trim()) {
+      queryParams.set("q", q.trim());
+    }
+
+    const queryString = queryParams.toString();
+    const url = `${CONFIG.API_BASE_URL}/api/species${queryString ? `?${queryString}` : ""}`;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const error = new Error(data?.detail || data?.message || `HTTP error ${response.status}`);
+        error.status = response.status;
+        error.errorCode = data?.error_code || "SPECIES_LIST_ERROR";
+        error.detail = data?.detail;
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === "AbortError") {
+        const timeoutError = new Error("Yêu cầu danh sách loài đã hết thời gian chờ.");
+        timeoutError.errorCode = "TIMEOUT";
+        throw timeoutError;
+      }
+      throw error;
+    }
   }
 };

@@ -1,9 +1,9 @@
 /**
- * Fruvia AI — Knowledge Utilities (knowledge-utils.js)
- * Pure, reusable helper functions for knowledge parsing, formatting,
- * error classification, and security sanitization.
- * Compatible with vanilla browser global and Node.js require() environments.
- */
+2	 * Fruvia AI — Knowledge & Web Utilities (knowledge-utils.js)
+3	 * Pure, reusable helper functions for knowledge parsing, formatting,
+4	 * error classification, and security sanitization.
+5	 * Compatible with vanilla browser global and Node.js require() environments.
+6	 */
 
 (function (root, factory) {
   if (typeof module === "object" && typeof module.exports === "object") {
@@ -32,12 +32,12 @@
   }
 
   /**
-   * Safe URL protocol validator ensuring only http: and https: links are accepted.
+   * Safe HTTP/HTTPS URL validator ensuring only http: and https: links are accepted.
    * Rejects javascript:, data:, file:, vbscript:, etc.
    * @param {string} url - Raw URL candidate.
    * @returns {string|null} - Normalized URL string or null if unsafe/invalid.
    */
-  function getSafeSourceUrl(url) {
+  function getSafeHttpUrl(url) {
     if (!url || typeof url !== "string") return null;
     const trimmed = url.trim();
     if (!trimmed) return null;
@@ -51,6 +51,15 @@
       return null;
     }
     return null;
+  }
+
+  /**
+   * Safe URL protocol validator ensuring only http: and https: links are accepted (alias).
+   * @param {string} url - Raw URL candidate.
+   * @returns {string|null} - Normalized URL string or null if unsafe/invalid.
+   */
+  function getSafeSourceUrl(url) {
+    return getSafeHttpUrl(url);
   }
 
   /**
@@ -156,6 +165,7 @@
 
   return {
     escapeHtml,
+    getSafeHttpUrl,
     getSafeSourceUrl,
     formatNutrientAmount,
     getNutrientBasisHtml,
