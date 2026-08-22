@@ -15,6 +15,7 @@ AI-powered multi-dataset fruit recognition, taxonomy resolution, and visual imag
 | **Taxonomy & Translation** | ✅ Implemented | 410 raw dataset classes normalized to canonical species with Vietnamese + English display names |
 | **Dual Search Modes** | ✅ Implemented | `mode=image` (Top-K images) & `mode=class` (Top-K deduplicated species with hit count) |
 | **Category Filtering** | ✅ Implemented | Filter retrieval by `fruit`, `vegetable`, `nut`, `seed`, or `all` |
+| **Fruvia Knowledge Subsystem** | ✅ Implemented | Semantic knowledge retrieval via BGE-M3 (1024D) & Qdrant Cloud (`fruvia_knowledge_bge_m3_v1`) |
 | **Fruvia Web V2 (Frontend)** | ✅ Implemented | Mobile-first visual search UX, Hero Search Widget, PWA/Offline support, Explore taxonomy browser & Search History |
 | **Fruit Classifier (ConvNeXt)** | 🔄 Planned / In Progress | Model training scripts present in notebooks; classification API in progress |
 
@@ -135,6 +136,55 @@ Send a `multipart/form-data` request with an image file.
   "processing_time_ms": 112.4
 }
 ```
+
+### `POST /api/knowledge/search`
+
+Perform semantic vector search on botanical and nutritional knowledge documents using BGE-M3 (1024D).
+
+#### Request Body
+```json
+{
+  "query": "What are the nutritional benefits of dragon fruit?",
+  "top_k": 5,
+  "canonical_class": "dragon_fruit",
+  "document_type": "nutrition"
+}
+```
+
+#### Example Response Body
+```json
+{
+  "query": "What are the nutritional benefits of dragon fruit?",
+  "canonical_class": "dragon_fruit",
+  "document_type": "nutrition",
+  "results": [
+    {
+      "id": "usda-pitaya-1",
+      "title": "Pitaya (Dragonfruit), raw",
+      "text": "Nutritional value per 100g: Energy 60 kcal, Vitamin C 20.5 mg, Dietary Fiber 2.9 g...",
+      "source": "usda_fooddata_central",
+      "canonical_class": "dragon_fruit",
+      "display_name": "Dragon Fruit",
+      "display_name_vi": "Thanh long",
+      "category": "fruit",
+      "document_type": "nutrition",
+      "similarity": 0.9145,
+      "metadata": {
+        "nutrients": {
+          "calories": 60,
+          "vitamin_c_mg": 20.5
+        }
+      }
+    }
+  ],
+  "result_count": 1,
+  "processing_time_ms": 42.8
+}
+```
+
+### `GET /api/species/{canonical_class}/knowledge`
+
+Retrieve knowledge documents and nutritional profile for a specific canonical species.
 
 ---
 

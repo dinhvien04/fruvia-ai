@@ -120,6 +120,38 @@ class QdrantSchemaIncompatibleError(FruviaError):
     message = "The search collection schema is incompatible with the current system."
 
 
+class KnowledgeDisabledError(FruviaError):
+    """Raised when knowledge retrieval endpoints are queried while knowledge subsystem is disabled."""
+
+    status_code = 503
+    error_code = "KNOWLEDGE_SERVICE_DISABLED"
+    message = "The knowledge retrieval service is currently disabled."
+
+
+class KnowledgeEncoderUnavailableError(FruviaError):
+    """Raised when the BGE-M3 text encoder model is not loaded or unavailable."""
+
+    status_code = 503
+    error_code = "KNOWLEDGE_ENCODER_UNAVAILABLE"
+    message = "The knowledge text encoder model is not available. Please try again later."
+
+
+class KnowledgeEncodingError(FruviaError):
+    """Raised when encoding text queries into BGE-M3 vector embeddings fails."""
+
+    status_code = 500
+    error_code = "KNOWLEDGE_ENCODING_FAILED"
+    message = "Failed to generate embeddings for the text query."
+
+
+class KnowledgeValidationError(FruviaError):
+    """Raised when knowledge search input parameters fail validation."""
+
+    status_code = 400
+    error_code = "INVALID_KNOWLEDGE_QUERY"
+    message = "Invalid knowledge search request."
+
+
 class LowConfidenceError(FruviaError):
     """Not really an error — used to signal low-confidence results."""
 

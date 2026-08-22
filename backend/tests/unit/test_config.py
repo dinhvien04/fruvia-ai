@@ -147,6 +147,61 @@ class TestSettings:
             assert s.qdrant_api_key == "read-only-key"
             assert s.qdrant_migration_api_key == "admin-key"
 
+    def test_knowledge_settings_defaults(self) -> None:
+        s = Settings()
+        assert s.knowledge_enabled is False
+        assert s.knowledge_qdrant_collection == "fruvia_knowledge_bge_m3_v1"
+        assert s.knowledge_model_name == "BAAI/bge-m3"
+        assert s.knowledge_model_revision == "main"
+        assert s.knowledge_vector_size == 1024
+        assert s.knowledge_device == "auto"
+
+    def test_knowledge_device_validation(self) -> None:
+        s = Settings(knowledge_device="CPU")
+        assert s.knowledge_device == "cpu"
+
+        with pytest.raises(ValueError, match="knowledge_device must be one of"):
+            Settings(knowledge_device="tpu")
+
+    def test_production_knowledge_revision_validation(self) -> None:
+        valid_sha = "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3"
+        with patch.dict(
+            os.environ,
+            {
+                "APP_ENV": "production",
+                "ALLOWED_HOSTS": "fruvia.ai",
+                "CORS_ORIGINS": "https://fruvia.ai",
+                "DINOV2_REVISION": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                "QDRANT_URL": "https://qdrant.cloud:6333",
+                "KNOWLEDGE_ENABLED": "true",
+                "KNOWLEDGE_MODEL_REVISION": valid_sha,
+            },
+            clear=True,
+        ):
+            s = Settings()
+            assert s.knowledge_model_revision == valid_sha
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "APP_ENV": "production",
+                    "ALLOWED_HOSTS": "fruvia.ai",
+                    "CORS_ORIGINS": "https://fruvia.ai",
+                    "DINOV2_REVISION": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                    "QDRANT_URL": "https://qdrant.cloud:6333",
+                    "KNOWLEDGE_ENABLED": "true",
+                    "KNOWLEDGE_MODEL_REVISION": "main",
+                },
+                clear=True,
+            ),
+            pytest.raises(
+                ValueError,
+                match="KNOWLEDGE_MODEL_REVISION must match exactly a 40-character hexadecimal commit SHA",
+            ),
+        ):
+            Settings()
+
 
 class TestLoadClassNames:
     """Tests for load_class_names helper."""

@@ -16,6 +16,7 @@ dependencies = [
     "torchvision>=0.16.0",
     "Pillow>=12.3.0,<13.0.0",
     "transformers>=5.5.0,<6.0.0",
+    "sentence-transformers>=2.2.2",
     "qdrant-client>=1.7.0,<2.0.0",
     "PyYAML>=6.0,<7.0",
 ]

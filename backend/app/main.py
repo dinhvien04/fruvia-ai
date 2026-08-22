@@ -21,6 +21,8 @@ from app.core.config import get_settings
 from app.core.exceptions import FruviaError, fruvia_error_handler, generic_error_handler
 from app.core.logging import get_logger, setup_logging
 from app.ml.image_encoder import get_image_encoder
+from app.ml.text_encoder import get_text_encoder
+from app.repositories.knowledge_repository import get_knowledge_repository
 from app.repositories.qdrant_repository import get_qdrant_repository
 
 logger = get_logger(__name__)
@@ -59,6 +61,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.qdrant_repo = qdrant_repo
     except Exception as e:
         logger.warning("Failed to initialize QdrantRepository during startup: %s", e)
+
+    # Initialize Knowledge Subsystem (BGE-M3 TextEncoder & KnowledgeRepository) if enabled
+    if settings.knowledge_enabled:
+        try:
+            text_encoder = get_text_encoder()
+            text_encoder.load_model()
+            app.state.text_encoder = text_encoder
+            logger.info("Knowledge TextEncoder initialized.")
+        except Exception as e:
+            logger.warning("Failed to initialize Knowledge TextEncoder during startup: %s", e)
+
+        try:
+            knowledge_repo = get_knowledge_repository()
+            if knowledge_repo.is_connected():
+                logger.info(
+                    "Connected to Knowledge Qdrant collection '%s'.", knowledge_repo.collection_name
+                )
+            else:
+                logger.warning("Knowledge Qdrant collection is not reachable during startup.")
+            app.state.knowledge_repo = knowledge_repo
+        except Exception as e:
+            logger.warning("Failed to initialize KnowledgeRepository during startup: %s", e)
+    else:
+        logger.info("Knowledge subsystem is disabled (KNOWLEDGE_ENABLED=false).")
 
     yield
 
@@ -128,11 +154,13 @@ def create_app() -> FastAPI:
     # --- API Routes ---
     from app.api.routes_fruits import router as species_router
     from app.api.routes_health import router as health_router
+    from app.api.routes_knowledge import router as knowledge_router
     from app.api.routes_retrieval import router as retrieval_router
 
     app.include_router(health_router, prefix="/api")
     app.include_router(retrieval_router, prefix="/api")
     app.include_router(species_router, prefix="/api")
+    app.include_router(knowledge_router, prefix="/api")
 
     # --- Serve Frontend Web Application Pages & Static Assets ---
     if FRONTEND_DIR.exists():

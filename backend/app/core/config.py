@@ -85,6 +85,44 @@ class Settings(BaseSettings):
     )
     qdrant_timeout: int = Field(default=10, description="Qdrant request timeout in seconds")
 
+    # --- Knowledge Subsystem (BGE-M3 Dense Semantic Retrieval) ---
+    knowledge_enabled: bool = Field(
+        default=False,
+        description="Whether the BGE-M3 semantic knowledge retrieval subsystem is enabled",
+    )
+    knowledge_qdrant_collection: str = Field(
+        default="fruvia_knowledge_bge_m3_v1",
+        description="Qdrant collection name storing BGE-M3 knowledge document embeddings",
+    )
+    knowledge_model_name: str = Field(
+        default="BAAI/bge-m3",
+        description="Hugging Face model repository ID for BGE-M3 dense text encoder",
+    )
+    knowledge_model_revision: str = Field(
+        default="main",
+        description="Pinned commit hash or revision tag for BGE-M3 text encoder model",
+    )
+    knowledge_vector_size: int = Field(
+        default=1024,
+        description="Expected vector dimensionality for BGE-M3 embeddings (1024D)",
+    )
+    knowledge_max_top_k: int = Field(
+        default=20,
+        ge=1,
+        le=50,
+        description="Maximum allowed top_k results for knowledge semantic search",
+    )
+    knowledge_max_query_chars: int = Field(
+        default=2000,
+        ge=1,
+        le=10000,
+        description="Maximum allowed character length for text queries in knowledge search",
+    )
+    knowledge_device: str = Field(
+        default="auto",
+        description="Execution device for BGE-M3 text encoder: auto | cpu | cuda",
+    )
+
     # --- Search Quality Thresholds (Provisional / Configurable) ---
     quality_high_threshold: float = Field(
         default=0.80,
@@ -294,6 +332,29 @@ class Settings(BaseSettings):
                     f"In production, DINOV2_REVISION must match exactly a 40-character hexadecimal commit SHA (^[0-9a-fA-F]{{40}}$), got '{v}'."
                 )
         return v_str
+
+    @field_validator("knowledge_model_revision")
+    @classmethod
+    def validate_production_knowledge_revision(cls, v: str, info) -> str:
+        env = info.data.get("app_env", "development")
+        knowledge_on = info.data.get("knowledge_enabled", False)
+        v_str = str(v).strip() if v else ""
+        if env == "production" and knowledge_on:
+            sha_pattern = r"^[0-9a-fA-F]{40}$"
+            if not re.match(sha_pattern, v_str):
+                raise ValueError(
+                    f"In production when knowledge is enabled, KNOWLEDGE_MODEL_REVISION must match exactly a 40-character hexadecimal commit SHA (^[0-9a-fA-F]{{40}}$), got '{v}'."
+                )
+        return v_str
+
+    @field_validator("knowledge_device")
+    @classmethod
+    def validate_knowledge_device(cls, v: str) -> str:
+        allowed = {"auto", "cpu", "cuda"}
+        clean = v.lower().strip()
+        if clean not in allowed:
+            raise ValueError(f"knowledge_device must be one of {allowed}, got '{v}'")
+        return clean
 
     @model_validator(mode="after")
     def validate_body_and_upload_limits(self) -> Settings:
