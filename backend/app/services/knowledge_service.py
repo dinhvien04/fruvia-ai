@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 
 class KnowledgeService:
     """
-    Service orchestrating text validation, BGE-M3 dense encoding, Qdrant semantic search,
+    Service orchestrating text validation, BGE-M3 dense encoding, Qdrant grouped semantic search,
     taxonomy resolution, and document provenance normalization.
     """
 
@@ -61,12 +61,12 @@ class KnowledgeService:
         Parameters
         ----------
         request : KnowledgeSearchRequest
-            Search request containing query string, top_k, and optional filters.
+            Search request containing query string, canonical_class, optional document_type, and limit.
 
         Returns
         -------
         KnowledgeSearchResponse
-            Retrieved knowledge documents with scores, provenance, and performance timing.
+            Retrieved unique knowledge documents with scores, provenance, and performance timing.
         """
         self._ensure_enabled()
         t_start = time.perf_counter()
@@ -85,27 +85,34 @@ class KnowledgeService:
                 detail=f"Query length: {len(clean_query)}",
             )
 
-        top_k = min(request.top_k, self.settings.knowledge_max_top_k)
+        # Handle limit with backwards compatibility for top_k alias
+        requested_limit = request.limit
+        if request.top_k is not None:
+            requested_limit = request.top_k
+        limit = min(requested_limit, self.settings.knowledge_max_top_k)
 
-        # Validate canonical_class filter if supplied
-        canonical_class = (
-            request.canonical_class.strip().lower() if request.canonical_class else None
-        )
-        if canonical_class:
-            tax_item = self.taxonomy.get_item(canonical_class)
-            if not tax_item:
-                logger.debug(
-                    "Search filtered on uncataloged canonical_class '%s' (not in taxonomy.yaml).",
-                    canonical_class,
-                )
+        # Validate required canonical_class filter
+        canonical_class = request.canonical_class.strip().lower()
+        if not canonical_class:
+            raise KnowledgeValidationError(
+                message="canonical_class is required for knowledge search.",
+                detail="Received empty canonical_class in KnowledgeSearchRequest.",
+            )
+
+        tax_item = self.taxonomy.get_item(canonical_class)
+        if not tax_item:
+            logger.debug(
+                "Search filtered on uncataloged canonical_class '%s' (not in taxonomy.yaml).",
+                canonical_class,
+            )
 
         doc_type = request.document_type.strip().lower() if request.document_type else None
 
         logger.info(
-            "Executing knowledge search for query='%s' (chars=%d, top_k=%d, canonical_class=%s, doc_type=%s)...",
+            "Executing knowledge search for query='%s' (chars=%d, limit=%d, canonical_class=%s, doc_type=%s)...",
             clean_query[:50],
             len(clean_query),
-            top_k,
+            limit,
             canonical_class,
             doc_type,
         )
@@ -115,13 +122,13 @@ class KnowledgeService:
         query_vector = self.encoder.encode_text(clean_query)
         embedding_ms = round((time.perf_counter() - t_emb_start) * 1000, 2)
 
-        # 2. Query Qdrant Cloud knowledge collection
+        # 2. Query Qdrant Cloud knowledge collection via native grouped retrieval
         t_search_start = time.perf_counter()
-        raw_hits = self.repo.query_knowledge(
+        raw_hits = self.repo.query_knowledge_grouped(
             vector=query_vector,
-            top_k=top_k,
             canonical_class=canonical_class,
             document_type=doc_type,
+            limit=limit,
         )
         vector_search_ms = round((time.perf_counter() - t_search_start) * 1000, 2)
 
@@ -129,38 +136,64 @@ class KnowledgeService:
         results: list[KnowledgeDocumentResult] = []
         for hit in raw_hits:
             payload = hit.get("payload", {})
-            score = hit.get("score", 0.0)
+            score = float(hit.get("score", 0.0))
             hit_id = hit.get("id")
+            doc_id = str(hit.get("document_id") or payload.get("document_id") or "")
 
-            doc_canon = str(payload.get("canonical_class") or "unknown").strip().lower()
-            tax_item = self.taxonomy.get_item(doc_canon)
+            doc_canon = str(payload.get("canonical_class") or canonical_class).strip().lower()
+            hit_tax_item = self.taxonomy.get_item(doc_canon) or tax_item
 
-            display_en = tax_item.name_en if tax_item else payload.get("display_name")
-            display_vi = tax_item.name_vi if tax_item else payload.get("display_name_vi")
-            category = tax_item.category if tax_item else (payload.get("category") or "fruit")
+            display_en = (
+                hit_tax_item.name_en
+                if hit_tax_item
+                else (payload.get("display_name") or doc_canon.capitalize())
+            )
+            display_vi = hit_tax_item.name_vi if hit_tax_item else payload.get("display_name_vi")
+            category = (
+                hit_tax_item.category if hit_tax_item else (payload.get("category") or "fruit")
+            )
 
-            # Extract nutrient dictionary or other structured metadata if present
             raw_metadata = payload.get("metadata") or {}
             if not isinstance(raw_metadata, dict):
                 raw_metadata = {}
 
-            # Incorporate top-level nutrients or nutritional properties if available
-            if "nutrients" in payload and isinstance(payload["nutrients"], dict):
-                raw_metadata["nutrients"] = payload["nutrients"]
-            if "usda_ndb_number" in payload:
-                raw_metadata["usda_ndb_number"] = payload["usda_ndb_number"]
+            # Extract specific structured properties if present in payload
+            nutrients = (
+                payload.get("nutrients") if isinstance(payload.get("nutrients"), dict) else None
+            )
+            taxonomy_data = (
+                payload.get("taxonomy") if isinstance(payload.get("taxonomy"), dict) else None
+            )
+            scientific_name = payload.get("scientific_name")
+            if (
+                not scientific_name
+                and hit_tax_item
+                and getattr(hit_tax_item, "scientific_name", None)
+            ):
+                scientific_name = getattr(hit_tax_item, "scientific_name", None)
+
+            source_dataset = payload.get("source_dataset")
+            source_url = payload.get("source_url")
+            language = payload.get("language")
 
             doc_res = KnowledgeDocumentResult(
                 id=hit_id,
-                title=str(payload.get("title") or payload.get("name") or "Untitled Document"),
-                text=str(payload.get("text") or payload.get("content") or ""),
-                source=str(payload.get("source") or payload.get("source_dataset") or "unknown"),
+                document_id=doc_id,
+                score=round(score, 4),
                 canonical_class=doc_canon,
                 display_name=display_en,
                 display_name_vi=display_vi,
                 category=category,
                 document_type=str(payload.get("document_type") or "general"),
-                similarity=round(score, 4),
+                source=str(payload.get("source") or payload.get("source_dataset") or "unknown"),
+                source_dataset=source_dataset,
+                language=language,
+                title=str(payload.get("title") or payload.get("name") or "Untitled Document"),
+                source_url=source_url,
+                text=str(payload.get("text") or payload.get("content") or ""),
+                scientific_name=scientific_name,
+                nutrients=nutrients,
+                taxonomy=taxonomy_data,
                 metadata=raw_metadata,
             )
             results.append(doc_res)
@@ -173,7 +206,7 @@ class KnowledgeService:
         )
 
         logger.info(
-            "Knowledge search completed in %.2f ms (emb: %.1fms, search: %.1fms). Found %d documents.",
+            "Knowledge search completed in %.2f ms (emb: %.1fms, search: %.1fms). Found %d unique documents.",
             total_ms,
             embedding_ms,
             vector_search_ms,
@@ -204,17 +237,23 @@ class KnowledgeService:
         canonical_class : str
             Canonical biological species identifier.
         limit : int
-            Maximum number of documents to return.
+            Maximum number of distinct documents to return.
 
         Returns
         -------
         SpeciesKnowledgeResponse
-            Taxonomy details and associated knowledge documents.
+            Taxonomy details and associated unique knowledge documents.
         """
         self._ensure_enabled()
         t_start = time.perf_counter()
 
         canon = canonical_class.strip().lower()
+        if not canon:
+            raise KnowledgeValidationError(
+                message="canonical_class cannot be empty.",
+                detail="Received empty canonical_class in get_species_knowledge.",
+            )
+
         tax_item = self.taxonomy.get_item(canon)
 
         display_en = tax_item.name_en if tax_item else canon.capitalize()
@@ -227,8 +266,8 @@ class KnowledgeService:
         )
         search_req = KnowledgeSearchRequest(
             query=query_text,
-            top_k=min(limit, self.settings.knowledge_max_top_k),
             canonical_class=canon,
+            limit=min(limit, self.settings.knowledge_max_top_k),
         )
 
         search_resp = self.search_knowledge(search_req)

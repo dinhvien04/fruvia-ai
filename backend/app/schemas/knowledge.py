@@ -16,21 +16,29 @@ class KnowledgeSearchRequest(BaseModel):
         ...,
         min_length=1,
         max_length=2000,
-        description="Natural language query or question about fruit botanical or nutritional info",
+        description="Natural language query or question about fruit botanical, encyclopedic, or nutritional info",
     )
-    top_k: int = Field(
-        default=5,
-        ge=1,
-        le=20,
-        description="Number of knowledge document passages to retrieve",
-    )
-    canonical_class: str | None = Field(
-        default=None,
-        description="Optional filter by canonical species identifier (e.g. 'apple', 'durian')",
+    canonical_class: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Required filter by canonical species identifier (e.g. 'apple', 'durian')",
     )
     document_type: str | None = Field(
         default=None,
-        description="Optional filter by document type (e.g. 'nutrition', 'botanical', 'general')",
+        description="Optional filter by document type (e.g. 'nutrition', 'encyclopedia', 'taxonomy_scientific', 'botanical')",
+    )
+    limit: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Number of distinct knowledge documents to retrieve",
+    )
+    top_k: int | None = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="Deprecated alias for limit (preserved for backwards compatibility)",
     )
 
 
@@ -38,14 +46,18 @@ class KnowledgeDocumentResult(BaseModel):
     """A single retrieved knowledge document or passage with full provenance."""
 
     id: str | int | None = Field(default=None, description="Qdrant point identifier")
-    title: str = Field(..., description="Document or section title")
-    text: str = Field(..., description="Full text snippet or passage")
-    source: str = Field(
-        default="unknown",
-        description="Provenance source identifier (e.g. 'usda_fooddata_central', 'wikipedia', 'botanical_guide')",
+    document_id: str = Field(
+        ...,
+        description="Canonical document identifier grouping multiple chunk vectors",
+    )
+    score: float = Field(
+        ...,
+        ge=-1.0,
+        le=1.0,
+        description="Cosine similarity score between query and document embedding (-1.0 to 1.0)",
     )
     canonical_class: str = Field(
-        default="unknown",
+        ...,
         description="Canonical biological species identifier associated with this document",
     )
     display_name: str | None = Field(
@@ -60,17 +72,41 @@ class KnowledgeDocumentResult(BaseModel):
     )
     document_type: str = Field(
         default="general",
-        description="Type of knowledge document: nutrition | botanical | culinary | general",
+        description="Type of knowledge document: nutrition | encyclopedia | taxonomy_scientific | botanical | general",
     )
-    similarity: float = Field(
-        ...,
-        ge=-1.0,
-        le=1.0,
-        description="Cosine similarity score between query and document embedding (-1.0 to 1.0)",
+    source: str = Field(
+        default="unknown",
+        description="Provenance source identifier (e.g. 'wikipedia', 'usda_fooddata_central')",
+    )
+    source_dataset: str | None = Field(
+        default=None,
+        description="Source dataset identifier if applicable",
+    )
+    language: str | None = Field(
+        default=None,
+        description="Language code of document (e.g. 'vi', 'en')",
+    )
+    title: str = Field(..., description="Document or section title")
+    source_url: str | None = Field(
+        default=None,
+        description="Authoritative source citation URL",
+    )
+    text: str = Field(..., description="Full text snippet or passage")
+    scientific_name: str | None = Field(
+        default=None,
+        description="Scientific / botanical Latin name when present",
+    )
+    nutrients: dict[str, Any] | None = Field(
+        default=None,
+        description="Nutrient profile dictionary when present",
+    )
+    taxonomy: dict[str, Any] | None = Field(
+        default=None,
+        description="Detailed biological taxonomy structure when present",
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
-        description="Additional structured metadata, raw USDA nutrient key-values, or citations",
+        description="Additional structured metadata or raw attributes",
     )
 
 
@@ -78,7 +114,7 @@ class KnowledgeSearchTiming(BaseModel):
     """Execution timing breakdown in milliseconds for knowledge search."""
 
     embedding_ms: float = Field(..., description="BGE-M3 text encoding duration in ms")
-    vector_search_ms: float = Field(..., description="Qdrant vector search duration in ms")
+    vector_search_ms: float = Field(..., description="Qdrant grouped vector search duration in ms")
     total_ms: float = Field(..., description="Total end-to-end processing duration in ms")
 
 
@@ -86,12 +122,12 @@ class KnowledgeSearchResponse(BaseModel):
     """Response body for POST /api/knowledge/search."""
 
     query: str = Field(..., description="The original query text")
-    canonical_class: str | None = Field(default=None, description="Canonical class filter applied")
+    canonical_class: str = Field(..., description="Canonical class filter applied")
     document_type: str | None = Field(default=None, description="Document type filter applied")
     results: list[KnowledgeDocumentResult] = Field(
-        ..., description="List of matching knowledge documents with provenance"
+        ..., description="List of matching unique knowledge documents with provenance"
     )
-    result_count: int = Field(..., description="Number of results returned")
+    result_count: int = Field(..., description="Number of unique documents returned")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")
     timing: KnowledgeSearchTiming | None = Field(
         default=None, description="Detailed stage-by-stage timing"
@@ -111,6 +147,6 @@ class SpeciesKnowledgeResponse(BaseModel):
         ..., description="Associated knowledge documents and nutritional profiles"
     )
     document_count: int = Field(
-        ..., description="Total count of knowledge documents for this species"
+        ..., description="Total count of unique knowledge documents for this species"
     )
     processing_time_ms: float = Field(..., description="Total query execution time in milliseconds")

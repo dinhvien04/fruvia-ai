@@ -2,7 +2,9 @@
 Qdrant Cloud repository for semantic knowledge document retrieval.
 
 Provides read-only access to BGE-M3 (1024D, Cosine) knowledge collections
-with strict schema validation, capability checks, and exact payload filtering.
+with strict schema validation, keyword payload index validation, and native
+grouped retrieval (group_by='document_id', group_size=1) to prevent duplicate
+chunks from the same document dominating search results.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ logger = get_logger(__name__)
 
 EXPECTED_KNOWLEDGE_VECTOR_SIZE = 1024
 EXPECTED_KNOWLEDGE_DISTANCE = "Cosine"
+REQUIRED_KNOWLEDGE_KEYWORD_INDEXES = {"canonical_class", "document_type", "document_id"}
 MAX_RETRIES = 2
 RETRY_DELAY_SEC = 1.0
 
@@ -36,7 +39,8 @@ class KnowledgeRepository:
     Data repository for Qdrant Cloud knowledge vector search.
 
     Manages connection, health verification, 1024D Cosine collection schema validation,
-    and capability-aware native keyword payload filtering (canonical_class, document_type).
+    strict keyword payload index verification (canonical_class, document_type, document_id),
+    and native grouped semantic retrieval via query_points_groups().
     """
 
     def __init__(
@@ -74,8 +78,8 @@ class KnowledgeRepository:
 
     def get_filter_capabilities(self, collection_name: str | None = None) -> set[str]:
         """
-        Inspect collection payload indexes and determine which fields can safely
-        be used in native Qdrant query filters (e.g. 'canonical_class', 'document_type').
+        Inspect collection payload indexes and determine which fields have
+        verified 'keyword' index type.
 
         Cached for 60 seconds per collection.
         Policy: Accepts ONLY exact 'keyword' index type.
@@ -97,7 +101,9 @@ class KnowledgeRepository:
                         supported_fields.add(field_name.lower().strip())
         except Exception as e:
             logger.debug(
-                "Failed to inspect payload schema for knowledge collection '%s': %s", target, e
+                "Failed to inspect payload schema for knowledge collection '%s': %s",
+                target,
+                e,
             )
             supported_fields = set()
 
@@ -130,8 +136,14 @@ class KnowledgeRepository:
 
     def validate_collection_schema(self, collection_name: str | None = None) -> dict[str, Any]:
         """
-        Validate target Qdrant knowledge collection schema for vector size (1024D),
-        distance metric (Cosine), status (GREEN or YELLOW), and point counts.
+        Validate target Qdrant knowledge collection schema for:
+        - Collection existence
+        - 1024D vector size
+        - Cosine distance metric
+        - Healthy Qdrant status (GREEN or YELLOW)
+        - Required keyword payload indexes: canonical_class, document_type, document_id
+
+        Fails closed with zero runtime mutations.
 
         Returns
         -------
@@ -143,7 +155,7 @@ class KnowledgeRepository:
         QdrantCollectionNotFoundError
             If collection does not exist.
         QdrantSchemaIncompatibleError
-            If vector size or distance metric does not match expected BGE-M3 configuration.
+            If vector size, distance metric, status, or required keyword indexes are missing/incompatible.
         """
         target = collection_name or self.collection_name
         try:
@@ -207,13 +219,29 @@ class KnowledgeRepository:
                 detail="Collection vector size or distance metric could not be determined.",
             )
 
+        # Validate required keyword payload indexes
+        payload_schema = getattr(info, "payload_schema", {}) or {}
+        indexed_keywords: set[str] = set()
+        if isinstance(payload_schema, dict):
+            for field_name, schema_info in payload_schema.items():
+                if is_keyword_index_type(schema_info):
+                    indexed_keywords.add(field_name.lower().strip())
+
+        missing_indexes = REQUIRED_KNOWLEDGE_KEYWORD_INDEXES - indexed_keywords
+        if missing_indexes:
+            raise QdrantSchemaIncompatibleError(
+                message=f"Knowledge collection '{target}' is missing required keyword payload indexes: {sorted(missing_indexes)}.",
+                detail=f"Required keyword indexes: {sorted(REQUIRED_KNOWLEDGE_KEYWORD_INDEXES)}, found: {sorted(indexed_keywords)}.",
+            )
+
         logger.info(
-            "Validated Knowledge Qdrant collection '%s': status=%s, points=%s, vector_size=%s, distance=%s",
+            "Validated Knowledge Qdrant collection '%s': status=%s, points=%s, vector_size=%s, distance=%s, keyword_indexes=%s",
             target,
             status_name,
             points_count,
             vector_size,
             distance_metric,
+            sorted(indexed_keywords),
         )
 
         return {
@@ -222,11 +250,12 @@ class KnowledgeRepository:
             "points_count": points_count,
             "vector_size": vector_size,
             "distance": distance_metric,
+            "keyword_indexes": sorted(indexed_keywords),
         }
 
     def get_health_status(self) -> tuple[bool, bool, bool, dict[str, Any] | None]:
         """
-        Check Qdrant connectivity, knowledge collection availability, and schema validity.
+        Check Qdrant connectivity, knowledge collection availability, and full schema validity.
 
         Returns
         -------
@@ -252,69 +281,64 @@ class KnowledgeRepository:
 
     def build_qdrant_filter(
         self,
-        canonical_class: str | None = None,
+        canonical_class: str,
         document_type: str | None = None,
-        supported_fields: set[str] | None = None,
-    ) -> Filter | None:
+    ) -> Filter:
         """
-        Build a native Qdrant Filter object for keyword-indexed fields.
+        Build exact native Qdrant Filter for canonical_class and optional document_type.
         """
-        conditions: list[FieldCondition] = []
-        caps = (
-            supported_fields
-            if supported_fields is not None
-            else self.get_filter_capabilities(self.collection_name)
-        )
-
-        if canonical_class and canonical_class.strip():
-            canon_val = canonical_class.strip().lower()
-            if "canonical_class" in caps:
-                conditions.append(
-                    FieldCondition(key="canonical_class", match=MatchValue(value=canon_val))
-                )
+        conditions: list[FieldCondition] = [
+            FieldCondition(
+                key="canonical_class",
+                match=MatchValue(value=canonical_class.strip().lower()),
+            )
+        ]
 
         if document_type and document_type.strip():
-            doc_type_val = document_type.strip().lower()
-            if "document_type" in caps:
-                conditions.append(
-                    FieldCondition(key="document_type", match=MatchValue(value=doc_type_val))
+            conditions.append(
+                FieldCondition(
+                    key="document_type",
+                    match=MatchValue(value=document_type.strip().lower()),
                 )
-
-        if not conditions:
-            return None
+            )
 
         return Filter(must=conditions)  # type: ignore[arg-type]
 
-    def query_knowledge(
+    def query_knowledge_grouped(
         self,
         vector: list[float],
-        top_k: int = 5,
-        canonical_class: str | None = None,
+        canonical_class: str,
         document_type: str | None = None,
+        limit: int = 5,
     ) -> list[dict[str, Any]]:
         """
-        Execute vector similarity search in Qdrant Cloud for knowledge documents.
+        Execute grouped vector similarity search in Qdrant Cloud for knowledge documents.
+
+        Groups multi-chunk passages by 'document_id' and returns the top chunk for each unique document.
 
         Parameters
         ----------
         vector : list[float]
             1024-dimensional L2-normalized query vector.
-        top_k : int
-            Number of documents to retrieve.
-        canonical_class : str | None
-            Optional canonical class filter.
+        canonical_class : str
+            Required canonical species identifier.
         document_type : str | None
-            Optional document type filter (e.g., 'nutrition', 'botanical', 'general').
+            Optional document type filter (e.g., 'nutrition', 'encyclopedia', 'taxonomy_scientific').
+        limit : int
+            Number of distinct knowledge documents to retrieve.
 
         Returns
         -------
         list[dict[str, Any]]
-            Raw retrieved hit dictionaries with score and payload.
+            Flattened list of top hit per document group, containing id, document_id, score, and payload.
         """
-        if not (1 <= top_k <= self.settings.knowledge_max_top_k):
+        if not (1 <= limit <= self.settings.knowledge_max_top_k):
             raise ValueError(
-                f"top_k must be between 1 and {self.settings.knowledge_max_top_k}, got {top_k}"
+                f"limit must be between 1 and {self.settings.knowledge_max_top_k}, got {limit}"
             )
+
+        if not canonical_class or not canonical_class.strip():
+            raise ValueError("canonical_class is required for knowledge search.")
 
         if len(vector) != EXPECTED_KNOWLEDGE_VECTOR_SIZE or not all(
             math.isfinite(x) for x in vector
@@ -323,83 +347,59 @@ class KnowledgeRepository:
                 f"Query vector must be finite and exactly {EXPECTED_KNOWLEDGE_VECTOR_SIZE} dimensions."
             )
 
-        filter_caps = self.get_filter_capabilities(self.collection_name)
         qdrant_filter = self.build_qdrant_filter(
             canonical_class=canonical_class,
             document_type=document_type,
-            supported_fields=filter_caps,
         )
 
         logger.info(
-            "Querying Knowledge collection '%s' (top_k=%d, canonical_class=%s, document_type=%s, native_filter=%s)...",
+            "Querying Knowledge grouped collection '%s' (group_by=document_id, limit=%d, group_size=1, canonical_class=%s, document_type=%s)...",
             self.collection_name,
-            top_k,
+            limit,
             canonical_class,
             document_type,
-            bool(qdrant_filter),
         )
 
         last_exception: Exception | None = None
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                hits: list[Any] = []
-                try:
-                    if hasattr(self.client, "query_points"):
-                        query_response = self.client.query_points(
-                            collection_name=self.collection_name,
-                            query=vector,
-                            query_filter=qdrant_filter,
-                            limit=top_k,
-                            with_payload=True,
-                            with_vectors=False,
-                        )
-                        hits = query_response.points
-                    else:
-                        hits = self.client.search(
-                            collection_name=self.collection_name,
-                            query_vector=vector,
-                            query_filter=qdrant_filter,
-                            limit=top_k,
-                            with_payload=True,
-                            with_vectors=False,
-                        )
-                except Exception as query_err:
-                    if qdrant_filter is not None:
-                        logger.warning(
-                            "Native Qdrant knowledge filter query failed (%s). Falling back to client-side filtering.",
-                            query_err,
-                        )
-                        qdrant_filter = None
-                        continue
-                    raise query_err
+                # Native Qdrant grouped query points execution
+                groups_response = self.client.query_points_groups(
+                    collection_name=self.collection_name,
+                    query=vector,
+                    query_filter=qdrant_filter,
+                    group_by="document_id",
+                    limit=limit,
+                    group_size=1,
+                    with_payload=True,
+                    with_vectors=False,
+                )
 
                 raw_hits: list[dict[str, Any]] = []
-                target_canon = canonical_class.lower().strip() if canonical_class else None
-                target_dtype = document_type.lower().strip() if document_type else None
+                groups = getattr(groups_response, "groups", []) or []
 
-                for hit in hits:
-                    payload = getattr(hit, "payload", {}) or {}
-                    score = float(getattr(hit, "score", 0.0))
-
-                    # Client-side fallback filter check if native filter was omitted or partial
-                    hit_canon = str(payload.get("canonical_class", "")).lower().strip()
-                    hit_dtype = str(payload.get("document_type", "")).lower().strip()
-
-                    if target_canon and hit_canon != target_canon:
+                for group in groups:
+                    hits = getattr(group, "hits", []) or []
+                    if not hits:
                         continue
-                    if target_dtype and hit_dtype != target_dtype:
-                        continue
+                    # Flatten to top hit per group
+                    top_hit = hits[0]
+                    payload = getattr(top_hit, "payload", {}) or {}
+                    score = float(getattr(top_hit, "score", 0.0))
+                    hit_id = getattr(top_hit, "id", None)
+                    group_doc_id = str(getattr(group, "id", "") or payload.get("document_id", ""))
 
                     raw_hits.append(
                         {
-                            "id": getattr(hit, "id", None),
+                            "id": hit_id,
+                            "document_id": group_doc_id,
                             "score": score,
                             "payload": payload,
                         }
                     )
 
-                return raw_hits[:top_k]
+                return raw_hits[:limit]
 
             except Exception as e:
                 err_msg = str(e).lower()
@@ -410,7 +410,7 @@ class KnowledgeRepository:
                     ) from e
                 last_exception = e
                 logger.warning(
-                    "Knowledge Qdrant query attempt %d/%d failed: %s",
+                    "Knowledge Qdrant grouped query attempt %d/%d failed: %s",
                     attempt,
                     MAX_RETRIES,
                     e,
@@ -419,7 +419,7 @@ class KnowledgeRepository:
                     time.sleep(RETRY_DELAY_SEC)
 
         logger.error(
-            "All Knowledge Qdrant query attempts failed for collection '%s': %s",
+            "All Knowledge Qdrant grouped query attempts failed for collection '%s': %s",
             self.collection_name,
             last_exception,
             exc_info=True,
