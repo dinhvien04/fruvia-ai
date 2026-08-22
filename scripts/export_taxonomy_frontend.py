@@ -3,9 +3,9 @@ Export taxonomy configurations from configs/taxonomy.yaml to frontend/data/speci
 
 This script parses taxonomy.yaml and produces a structured species JSON file
 used by the Fruvia frontend (Explore page, autocomplete, details).
-It strictly exports only ground truth taxonomy data (English & Vietnamese names,
-category, biological aliases, is_fruit flag). It NEVER fabricates nutrition or
-unsupported AI claims.
+It exports ground truth taxonomy fields and, when available, deterministic public
+representative image URLs from configs/representative_images.json. It NEVER
+fabricates nutrition or unsupported AI claims.
 """
 
 import json
@@ -16,6 +16,7 @@ import yaml
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 TAXONOMY_PATH = ROOT_DIR / "configs" / "taxonomy.yaml"
+REPRESENTATIVE_IMAGES_PATH = ROOT_DIR / "configs" / "representative_images.json"
 OUTPUT_PATH = ROOT_DIR / "frontend" / "data" / "species.json"
 
 
@@ -28,6 +29,17 @@ def export_taxonomy():
         data = yaml.safe_load(f)
 
     taxonomy = data.get("taxonomy", {})
+    representative_images = {}
+    if REPRESENTATIVE_IMAGES_PATH.exists():
+        with open(REPRESENTATIVE_IMAGES_PATH, encoding="utf-8") as f:
+            manifest = json.load(f)
+        raw_images = manifest.get("images", {}) if isinstance(manifest, dict) else {}
+        if isinstance(raw_images, dict):
+            for canonical_class, entry in raw_images.items():
+                image_url = entry.get("image_url") if isinstance(entry, dict) else entry
+                if isinstance(image_url, str) and image_url.strip():
+                    representative_images[str(canonical_class).strip().lower()] = image_url.strip()
+
     species_list = []
 
     for key, info in sorted(taxonomy.items()):
@@ -38,6 +50,7 @@ def export_taxonomy():
             "category": info.get("category", "other"),
             "is_fruit": info.get("is_fruit", True),
             "aliases": info.get("aliases", []),
+            "representative_image_url": representative_images.get(key.strip().lower()),
         }
         species_list.append(item)
 

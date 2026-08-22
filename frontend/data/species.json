@@ -5,7 +5,8 @@
     "name_vi": "Hạt hạnh nhân",
     "category": "nut",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00bbdab1-fb54-585b-9980-7eae68782875.webp"
   },
   {
     "id": "apple",
@@ -24,7 +25,8 @@
       "apple_red_delicious",
       "apple_red_yellow",
       "apple_hit"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001a259a-306a-5bcf-846f-2bfd1e54936a.webp"
   },
   {
     "id": "apricot",
@@ -32,7 +34,8 @@
     "name_vi": "Mơ",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0084f526-0473-5d97-8c1b-bb91ca2143ee.webp"
   },
   {
     "id": "avocado",
@@ -42,7 +45,8 @@
     "is_fruit": true,
     "aliases": [
       "avocado_ripe"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000fed5b-0e04-5562-9b62-a786d8abae46.webp"
   },
   {
     "id": "banana",
@@ -53,7 +57,8 @@
     "aliases": [
       "banana_lady_finger",
       "banana_red"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/003833d2-8356-5da8-9ffb-6ee3b615876c.webp"
   },
   {
     "id": "beetroot",
@@ -61,7 +66,8 @@
     "name_vi": "Củ dền",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "blackberry",
@@ -69,7 +75,8 @@
     "name_vi": "Quả mâm xôi đen",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000311e1-7d90-5c2e-a5ee-5dc61ede4dd8.webp"
   },
   {
     "id": "blueberry",
@@ -77,7 +84,8 @@
     "name_vi": "Việt quất",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0042b3db-681c-512b-8c6d-049677671b8b.webp"
   },
   {
     "id": "cabbage",
@@ -85,7 +93,8 @@
     "name_vi": "Bắp cải",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0045f77a-efc7-5401-a2c8-efb2977070c8.webp"
   },
   {
     "id": "cactus_fruit",
@@ -93,7 +102,8 @@
     "name_vi": "Trái xương rồng",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/002f4a6b-e1ae-58d1-9d07-5b44a9f4cbf5.webp"
   },
   {
     "id": "cantaloupe",
@@ -101,7 +111,8 @@
     "name_vi": "Dưa lưới",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00348c71-8784-522d-b428-f2856a95ea2f.webp"
   },
   {
     "id": "carambola",
@@ -113,7 +124,8 @@
       "carambula",
       "starfruit",
       "star_fruit"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0028c832-0e7c-541e-ab68-9697b77e0d58.webp"
   },
   {
     "id": "carrot",
@@ -121,7 +133,8 @@
     "name_vi": "Cà rốt",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/01581b26-5970-5fe3-82c1-92e8c28ae467.webp"
   },
   {
     "id": "cashew",
@@ -129,7 +142,8 @@
     "name_vi": "Hạt điều",
     "category": "nut",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0005bef7-f060-5d8c-b6da-f43572a68b57.webp"
   },
   {
     "id": "cauliflower",
@@ -137,7 +151,8 @@
     "name_vi": "Súp lơ",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "cherry",
@@ -150,7 +165,8 @@
       "cherry_wax_black",
       "cherry_wax_red",
       "cherry_wax_yellow"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00ab9036-38b2-5110-bb06-5dc0201972ce.webp"
   },
   {
     "id": "chestnut",
@@ -158,7 +174,8 @@
     "name_vi": "Hạt dẻ",
     "category": "nut",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "chili_pepper",
@@ -169,7 +186,8 @@
     "aliases": [
       "chili",
       "jalapeno"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00af34f3-5d6e-5f8b-9463-ea49a0d40d68.webp"
   },
   {
     "id": "clementine",
@@ -177,7 +195,8 @@
     "name_vi": "Quýt Clementine",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001e9c75-3304-5608-80b0-a9e195e6b02a.webp"
   },
   {
     "id": "coconut",
@@ -187,7 +206,8 @@
     "is_fruit": true,
     "aliases": [
       "cocos"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0061dd30-eeb0-5a27-b9b1-9870ecfb1d81.webp"
   },
   {
     "id": "corn",
@@ -198,7 +218,8 @@
     "aliases": [
       "corn_husk",
       "corn_kernel"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000cd637-92fa-569a-8565-93f7a9d8486f.webp"
   },
   {
     "id": "cucumber",
@@ -208,7 +229,8 @@
     "is_fruit": false,
     "aliases": [
       "cucumber_ripe"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00090847-7f15-5d34-9053-6197ffeb0703.webp"
   },
   {
     "id": "custard_apple",
@@ -218,7 +240,8 @@
     "is_fruit": true,
     "aliases": [
       "sugar_apple"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0019f2bc-bb35-5589-a5bf-b7e7e9be2939.webp"
   },
   {
     "id": "dates",
@@ -226,7 +249,8 @@
     "name_vi": "Chà là",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/004f3c27-ea0b-53a0-960c-1cb1311f8741.webp"
   },
   {
     "id": "dragon_fruit",
@@ -238,7 +262,8 @@
       "dragonfruit",
       "pitahaya",
       "pitahaya_red"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0001edb4-30d3-5761-aee9-5f6e65ec3e04.webp"
   },
   {
     "id": "duku",
@@ -248,7 +273,8 @@
     "is_fruit": true,
     "aliases": [
       "langsat"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/004670d9-5618-5192-99f5-1f30ff7c3e70.webp"
   },
   {
     "id": "durian",
@@ -256,7 +282,8 @@
     "name_vi": "Sầu riêng",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0035f02d-a4b5-5ea5-b5f8-f3fb72f3021e.webp"
   },
   {
     "id": "eggplant",
@@ -264,7 +291,8 @@
     "name_vi": "Cà tím",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/005432e3-eb2c-5c4f-9ea0-4475530e9b72.webp"
   },
   {
     "id": "fig",
@@ -272,7 +300,8 @@
     "name_vi": "Sung",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00695640-0367-52e7-b5a2-47a5d6d213c6.webp"
   },
   {
     "id": "garlic",
@@ -280,7 +309,8 @@
     "name_vi": "Tỏi",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "ginger",
@@ -290,7 +320,8 @@
     "is_fruit": false,
     "aliases": [
       "ginger_root"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000eef0c-8011-594b-8d2f-ea021f84f635.webp"
   },
   {
     "id": "granadilla",
@@ -300,7 +331,8 @@
     "is_fruit": true,
     "aliases": [
       "grenadilla"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/013732aa-3458-554a-9428-fd7ba608a3df.webp"
   },
   {
     "id": "grape",
@@ -312,7 +344,8 @@
       "grape_blue",
       "grape_pink",
       "grape_white"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00413d85-df03-52f6-901c-ab1b0f29fe8e.webp"
   },
   {
     "id": "grapefruit",
@@ -323,7 +356,8 @@
     "aliases": [
       "grapefruit_pink",
       "grapefruit_white"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001054f9-9386-591f-b0e3-07ff3de924ad.webp"
   },
   {
     "id": "guava",
@@ -331,7 +365,8 @@
     "name_vi": "Ổi",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00030ebd-ad17-5348-8336-a542a471362a.webp"
   },
   {
     "id": "hazelnut",
@@ -339,7 +374,8 @@
     "name_vi": "Hạt phỉ",
     "category": "nut",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "huckleberry",
@@ -347,7 +383,8 @@
     "name_vi": "Việt quất dại",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "jackfruit",
@@ -355,7 +392,8 @@
     "name_vi": "Mít",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000f4a22-3de3-525a-ac0a-fda3716ecfc6.webp"
   },
   {
     "id": "kaki",
@@ -365,7 +403,8 @@
     "is_fruit": true,
     "aliases": [
       "persimmon"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00700781-b170-5a99-bbc2-8d1dc83e4e5d.webp"
   },
   {
     "id": "kiwi",
@@ -373,7 +412,8 @@
     "name_vi": "Kiwi",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00114495-f2f6-5c6c-8483-75a4df5bfb23.webp"
   },
   {
     "id": "kohlrabi",
@@ -381,7 +421,8 @@
     "name_vi": "Su hào",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "kumquat",
@@ -389,7 +430,8 @@
     "name_vi": "Tắc / Quất",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00200a9b-6f17-50d4-b9aa-c1f415c0a2ca.webp"
   },
   {
     "id": "lemon",
@@ -399,7 +441,8 @@
     "is_fruit": true,
     "aliases": [
       "lemon_meyer"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00030505-aeb4-5435-bc18-71194ff58cb8.webp"
   },
   {
     "id": "lettuce",
@@ -409,7 +452,8 @@
     "is_fruit": false,
     "aliases": [
       "salad"
-    ]
+    ],
+    "representative_image_url": null
   },
   {
     "id": "lime",
@@ -419,7 +463,8 @@
     "is_fruit": true,
     "aliases": [
       "limes"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000d6f83-ca7b-5c9d-8103-790c76647165.webp"
   },
   {
     "id": "longan",
@@ -427,7 +472,8 @@
     "name_vi": "Nhãn",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00175c81-98ad-53b1-82aa-db5be4dab90b.webp"
   },
   {
     "id": "lotus_seed",
@@ -435,7 +481,8 @@
     "name_vi": "Hạt sen",
     "category": "seed",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "lychee",
@@ -443,7 +490,8 @@
     "name_vi": "Vải",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00392cd1-cf36-51e5-ae5c-e0e07d8d56b8.webp"
   },
   {
     "id": "mandarin",
@@ -453,7 +501,8 @@
     "is_fruit": true,
     "aliases": [
       "mandarine"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0040d879-e481-582b-9317-091f8519e213.webp"
   },
   {
     "id": "mango",
@@ -463,7 +512,8 @@
     "is_fruit": true,
     "aliases": [
       "mango_red"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000efea0-7bcb-5e77-b2c4-139dc881334e.webp"
   },
   {
     "id": "mangosteen",
@@ -471,7 +521,8 @@
     "name_vi": "Măng cụt",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000316b4-90d3-5fb9-8ad7-1f5edee21aa1.webp"
   },
   {
     "id": "melon",
@@ -484,7 +535,8 @@
       "muskmelon",
       "galia_melon",
       "horned_melon"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/003bb811-4cea-5a17-827d-5007d63acc22.webp"
   },
   {
     "id": "mushroom",
@@ -492,7 +544,8 @@
     "name_vi": "Nấm",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "nectarine",
@@ -502,7 +555,8 @@
     "is_fruit": true,
     "aliases": [
       "nectarine_flat"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00829093-8c74-57f0-8787-afcb5385454e.webp"
   },
   {
     "id": "nut",
@@ -513,7 +567,8 @@
     "aliases": [
       "nut_forest",
       "nut_pecan"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000bea7f-bbbd-5abd-8e83-b9e4eec91904.webp"
   },
   {
     "id": "onion",
@@ -525,7 +580,8 @@
       "onion_red",
       "onion_red_peeled",
       "onion_white"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001dbbe6-6a5d-585a-8ab2-084fe0aa6d9f.webp"
   },
   {
     "id": "orange",
@@ -533,7 +589,8 @@
     "name_vi": "Cam",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001c82b9-adbe-59c2-94f2-9c0b33e6b192.webp"
   },
   {
     "id": "papaya",
@@ -541,7 +598,8 @@
     "name_vi": "Đu đủ",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000a7ea9-bfc7-5a1f-bf03-56305cee481e.webp"
   },
   {
     "id": "passion_fruit",
@@ -549,7 +607,8 @@
     "name_vi": "Chanh dây",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00e1c64c-abaa-509f-9d20-e09a3fd4237d.webp"
   },
   {
     "id": "peach",
@@ -559,7 +618,8 @@
     "is_fruit": true,
     "aliases": [
       "peach_flat"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0003498d-dafd-53ba-83a2-91981037c6d1.webp"
   },
   {
     "id": "peanut",
@@ -567,7 +627,8 @@
     "name_vi": "Đậu phụng / Lạc",
     "category": "nut",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000ca100-6df6-5168-83d2-a53f56ecf723.webp"
   },
   {
     "id": "pear",
@@ -583,7 +644,8 @@
       "pear_red",
       "pear_stone",
       "pear_williams"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/006380cc-1478-5086-ad46-210a18c9eeac.webp"
   },
   {
     "id": "peas",
@@ -593,7 +655,8 @@
     "is_fruit": false,
     "aliases": [
       "pea"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0030f3f2-c22d-5458-9881-e82c3f1da652.webp"
   },
   {
     "id": "pepino",
@@ -603,7 +666,8 @@
     "is_fruit": true,
     "aliases": [
       "melon_pear"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0040335c-bf26-594a-8104-1baa1e4c4faf.webp"
   },
   {
     "id": "pepper",
@@ -615,7 +679,8 @@
       "pepper_green",
       "pepper_red",
       "pepper_yellow"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00113822-cdd2-5ec5-bb66-8d67e2c0f828.webp"
   },
   {
     "id": "physalis",
@@ -626,7 +691,8 @@
     "aliases": [
       "physalis_with_husk",
       "cape_gooseberry"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0018b4db-ab89-5416-8e6b-bbb888a0a42f.webp"
   },
   {
     "id": "pineapple",
@@ -636,7 +702,8 @@
     "is_fruit": true,
     "aliases": [
       "pineapple_mini"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0029640b-bdb7-5b9a-bcfa-ebd6e7a258c6.webp"
   },
   {
     "id": "pistachio",
@@ -644,7 +711,8 @@
     "name_vi": "Hạt dẻ cười",
     "category": "nut",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/009b3789-6878-5bce-944f-4f9623d82b6a.webp"
   },
   {
     "id": "plum",
@@ -652,7 +720,8 @@
     "name_vi": "Mận",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0018b3e9-eb05-5d08-b771-3d7441d46305.webp"
   },
   {
     "id": "pomegranate",
@@ -660,7 +729,8 @@
     "name_vi": "Lựu",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00392e68-e2bb-5b44-a352-699bd33b9683.webp"
   },
   {
     "id": "pomelo",
@@ -670,7 +740,8 @@
     "is_fruit": true,
     "aliases": [
       "pomelo_sweetie"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00332fcd-dfee-588b-87e1-e412d179f064.webp"
   },
   {
     "id": "potato",
@@ -683,7 +754,8 @@
       "potato_red_washed",
       "potato_sweet",
       "potato_white"
-    ]
+    ],
+    "representative_image_url": null
   },
   {
     "id": "pumpkin",
@@ -691,7 +763,8 @@
     "name_vi": "Bí đỏ",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00f12a39-75b9-5751-92e7-79b67ca3c42e.webp"
   },
   {
     "id": "quince",
@@ -699,7 +772,8 @@
     "name_vi": "Mộc qua",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0013f5f8-d6f3-59a5-b057-aaad326d9759.webp"
   },
   {
     "id": "radish",
@@ -709,7 +783,8 @@
     "is_fruit": false,
     "aliases": [
       "raddish"
-    ]
+    ],
+    "representative_image_url": null
   },
   {
     "id": "rambutan",
@@ -717,7 +792,8 @@
     "name_vi": "Chôm chôm",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0019fa0e-9ea8-57f9-8b5f-a06e785c17d4.webp"
   },
   {
     "id": "raspberry",
@@ -725,7 +801,8 @@
     "name_vi": "Mâm xôi",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0055856d-6f28-5091-a0ca-07a2e618384e.webp"
   },
   {
     "id": "redcurrant",
@@ -733,7 +810,8 @@
     "name_vi": "Chuỗi ngọc đỏ",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001e100b-aabb-54d6-99ea-eb94018b6a23.webp"
   },
   {
     "id": "salak",
@@ -743,7 +821,8 @@
     "is_fruit": true,
     "aliases": [
       "snake_fruit"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0016a1df-4af3-5587-8f66-7055bb1664d2.webp"
   },
   {
     "id": "sapodilla",
@@ -751,7 +830,8 @@
     "name_vi": "Hồng xiêm",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00692166-7ee5-5faf-b2b2-0bb46d0444c8.webp"
   },
   {
     "id": "soursop",
@@ -762,7 +842,8 @@
     "aliases": [
       "mountain_soursop",
       "guanabana"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0053d83c-8723-5b21-ad63-76149ae5c71e.webp"
   },
   {
     "id": "spinach",
@@ -770,7 +851,8 @@
     "name_vi": "Rau bina / Cải bó xôi",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "strawberry",
@@ -780,7 +862,8 @@
     "is_fruit": true,
     "aliases": [
       "strawberry_wedge"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00036c4f-b0e5-5add-91e5-c52efd4caca0.webp"
   },
   {
     "id": "tamarillo",
@@ -788,7 +871,8 @@
     "name_vi": "Cà chua thân gỗ",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00519367-8561-5753-a1df-0fd2d4007766.webp"
   },
   {
     "id": "tangelo",
@@ -796,7 +880,8 @@
     "name_vi": "Cam Tangelo",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/01abf5a9-51d3-5a99-8302-9f7713c82815.webp"
   },
   {
     "id": "tangerine",
@@ -804,7 +889,8 @@
     "name_vi": "Quýt",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "tomato",
@@ -817,7 +903,8 @@
       "tomato_heart",
       "tomato_maroon",
       "tomato_yellow"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/002aa2b0-8a83-58a9-bae0-56990285a64b.webp"
   },
   {
     "id": "walnut",
@@ -825,7 +912,8 @@
     "name_vi": "Óc chó",
     "category": "nut",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": null
   },
   {
     "id": "watermelon",
@@ -833,7 +921,8 @@
     "name_vi": "Dưa hấu",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0009a02c-620a-56b7-8d7f-a25b1b9953e7.webp"
   },
   {
     "id": "zucchini",
@@ -844,6 +933,7 @@
     "aliases": [
       "zucchini_dark",
       "zucchini_green"
-    ]
+    ],
+    "representative_image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00c31b67-5abf-5ac8-ba91-def423cf0c25.webp"
   }
 ]

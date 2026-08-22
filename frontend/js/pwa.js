@@ -2,6 +2,8 @@
  * Fruvia AI — PWA & Offline Support Module
  */
 const PwaManager = {
+  cachePrefix: "fruvia-v2-static-",
+
   init() {
     this.registerServiceWorker();
     this.initOfflineBanner();
@@ -18,27 +20,52 @@ const PwaManager = {
     );
 
     if (isLocalhost) {
-      // Unregister any active service worker during local development to avoid stale caching
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-          registration.unregister().then(() => {
-            console.log("Fruvia Dev: Unregistered ServiceWorker on localhost");
-          });
-        }
-      });
+      this.disableLocalServiceWorker();
       return;
     }
 
     window.addEventListener("load", () => {
       navigator.serviceWorker
-        .register("/service-worker.js")
+        .register("/service-worker.js", { updateViaCache: "none" })
         .then((registration) => {
           console.log("Fruvia: ServiceWorker registered successfully:", registration.scope);
+          return registration.update();
         })
         .catch((error) => {
           console.warn("Fruvia: ServiceWorker registration failed:", error);
         });
     });
+  },
+
+  async disableLocalServiceWorker() {
+    try {
+      const wasControlled = Boolean(navigator.serviceWorker.controller);
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+
+      if (typeof caches !== "undefined") {
+        const cacheNames = await caches.keys();
+        await Promise.all(
+          cacheNames
+            .filter((name) => name.startsWith(this.cachePrefix))
+            .map((name) => caches.delete(name))
+        );
+      }
+
+      console.log("Fruvia Dev: Cleared stale ServiceWorker and app-shell caches on localhost");
+
+      // unregister() does not release a tab that is already controlled. Reload
+      // exactly once so localhost receives current JS and response headers.
+      const reloadKey = "fruvia-dev-sw-cleanup-reloaded";
+      if (wasControlled && sessionStorage.getItem(reloadKey) !== "1") {
+        sessionStorage.setItem(reloadKey, "1");
+        window.location.reload();
+      } else if (!wasControlled) {
+        sessionStorage.removeItem(reloadKey);
+      }
+    } catch (error) {
+      console.warn("Fruvia Dev: Could not clear stale ServiceWorker state", error);
+    }
   },
 
   initOfflineBanner() {

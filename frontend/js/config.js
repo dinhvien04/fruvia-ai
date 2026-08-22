@@ -23,7 +23,8 @@ const CONFIG = {
   // Image Host Security Allowlist (Exact hostnames; do NOT allow arbitrary *.r2.dev)
   ALLOWED_IMAGE_HOSTS: [
     "localhost",
-    "127.0.0.1"
+    "127.0.0.1",
+    "pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev"
   ],
 
   // Product Stats (Single source of truth to avoid scattered hardcoded numbers)

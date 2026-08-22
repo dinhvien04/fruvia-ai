@@ -4,7 +4,8 @@
  * NEVER caches POST /api/retrieve, /api/*, or dynamic backend search requests.
  */
 
-const CACHE_NAME = "fruvia-v2-static-v8";
+const CACHE_PREFIX = "fruvia-v2-static-";
+const CACHE_NAME = `${CACHE_PREFIX}v9`;
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -83,6 +84,62 @@ function isCacheableStaticPath(pathname) {
   );
 }
 
+function shouldUseNetworkFirst(request, pathname) {
+  return (
+    request.mode === "navigate" ||
+    pathname.startsWith("/js/") ||
+    pathname.startsWith("/css/") ||
+    pathname.startsWith("/data/")
+  );
+}
+
+function isCacheableResponse(response) {
+  return Boolean(response && response.status === 200 && response.type === "basic");
+}
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const networkResponse = await fetch(request);
+    if (isCacheableResponse(networkResponse)) {
+      await cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) return cachedResponse;
+
+    if (request.mode === "navigate") {
+      const offlineResponse = await cache.match("/offline.html");
+      if (offlineResponse) return offlineResponse;
+    }
+
+    return new Response("Offline", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8" }
+    });
+  }
+}
+
+function cacheFirstWithRefresh(event, request) {
+  const cachePromise = caches.open(CACHE_NAME);
+  const refreshPromise = cachePromise.then(async (cache) => {
+    const networkResponse = await fetch(request);
+    if (isCacheableResponse(networkResponse)) {
+      await cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  });
+
+  // Keep the worker alive until the background update is actually persisted.
+  event.waitUntil(refreshPromise.then(() => undefined).catch(() => undefined));
+
+  return cachePromise
+    .then((cache) => cache.match(request))
+    .then((cachedResponse) => cachedResponse || refreshPromise)
+    .catch(() => new Response("Offline", { status: 503 }));
+}
+
 // Install Event
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -99,7 +156,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((name) => {
-          if (name !== CACHE_NAME) {
+          if (name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME) {
             console.log("Fruvia SW: Clearing old cache:", name);
             return caches.delete(name);
           }
@@ -125,26 +182,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Return cached version & fetch update in background for static assets
-        fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200 && networkResponse.type === "basic") {
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
-            }
-          })
-          .catch(() => {});
-        return cachedResponse;
-      }
+  if (shouldUseNetworkFirst(request, url.pathname)) {
+    // Online visits must receive current HTML (including CSP), JS and taxonomy.
+    event.respondWith(networkFirst(request));
+    return;
+  }
 
-      // Network Fallback
-      return fetch(request).catch(() => {
-        if (request.headers.get("accept")?.includes("text/html")) {
-          return caches.match("/offline.html");
-        }
-      });
-    })
-  );
+  event.respondWith(cacheFirstWithRefresh(event, request));
 });

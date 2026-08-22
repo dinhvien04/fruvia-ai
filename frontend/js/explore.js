@@ -8,15 +8,20 @@ const ExplorePage = {
   speciesList: [],
 
   async init() {
+    const gridEl = document.getElementById("species-grid");
+    if (!gridEl) return;
+
+    // Start the versioned static fallback immediately. Besides offline taxonomy,
+    // it carries deterministic representative URLs for API/config outages.
+    const staticSpeciesPromise = this.loadStaticSpecies();
+
     // Await public runtime configuration
     if (typeof RuntimeConfig !== "undefined" && typeof RuntimeConfig.load === "function") {
       await RuntimeConfig.load();
     }
 
-    const gridEl = document.getElementById("species-grid");
-    if (!gridEl) return;
-
-    // Load species data: Prefer GET /api/species, fallback to static species.json
+    // Load species data from the API and enrich missing images from the bundled
+    // deterministic fallback. This also supports an older/stale backend process.
     try {
       if (typeof ApiClient !== "undefined" && typeof ApiClient.listSpecies === "function") {
         const apiData = await ApiClient.listSpecies({ category: "all" });
@@ -37,26 +42,47 @@ const ExplorePage = {
       console.warn("Fruvia: Could not load species from API, falling back to static species.json", apiErr);
     }
 
-    // Static fallback if API didn't populate speciesList
+    const staticSpecies = await staticSpeciesPromise;
     if (!this.speciesList || this.speciesList.length === 0) {
-      try {
-        const response = await fetch("data/species.json");
-        if (!response.ok) throw new Error("Failed to load species taxonomy");
-        const rawJson = await response.json();
-        this.speciesList = rawJson.map((item) => ({
+      this.speciesList = staticSpecies;
+    } else if (staticSpecies.length > 0) {
+      const staticByClass = new Map(
+        staticSpecies.map((item) => [item.canonical_class || item.id, item])
+      );
+      this.speciesList = this.speciesList.map((item) => {
+        const fallback = staticByClass.get(item.canonical_class || item.id);
+        return {
           ...item,
-          canonical_class: item.id || item.canonical_class,
-          representative_image_url: item.representative_image_url || null
-        }));
-      } catch (e) {
-        console.warn("Fruvia: Could not load static species.json", e);
-        this.renderError(gridEl);
-        return;
-      }
+          representative_image_url:
+            item.representative_image_url || fallback?.representative_image_url || null
+        };
+      });
+    }
+
+    if (!this.speciesList || this.speciesList.length === 0) {
+      this.renderError(gridEl);
+      return;
     }
 
     this.bindEvents();
     this.render();
+  },
+
+  async loadStaticSpecies() {
+    try {
+      const response = await fetch("data/species.json", { cache: "no-cache" });
+      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+      const rawJson = await response.json();
+      if (!Array.isArray(rawJson)) throw new Error("Invalid species taxonomy payload");
+      return rawJson.map((item) => ({
+        ...item,
+        canonical_class: item.id || item.canonical_class,
+        representative_image_url: item.representative_image_url || null
+      }));
+    } catch (error) {
+      console.warn("Fruvia: Could not load static species.json", error);
+      return [];
+    }
   },
 
   bindEvents() {
@@ -122,10 +148,10 @@ const ExplorePage = {
       return;
     }
 
-    const getSafeUrl = typeof KnowledgeUtils !== "undefined" && typeof KnowledgeUtils.getSafeHttpUrl === "function"
-      ? KnowledgeUtils.getSafeHttpUrl
-      : (typeof Utils !== "undefined" && typeof Utils.getSafeImageUrl === "function"
-        ? (u) => (Utils.isSafeImageUrl(u) ? u : null)
+    const getSafeUrl = typeof Utils !== "undefined" && typeof Utils.isSafeImageUrl === "function"
+      ? (u) => (Utils.isSafeImageUrl(u) ? u : null)
+      : (typeof KnowledgeUtils !== "undefined" && typeof KnowledgeUtils.getSafeHttpUrl === "function"
+        ? KnowledgeUtils.getSafeHttpUrl
         : (u) => null);
 
     const escapeStr = typeof Utils !== "undefined" && typeof Utils.escapeHtml === "function"

@@ -212,6 +212,10 @@ def create_app() -> FastAPI:
             return FileResponse(
                 FRONTEND_DIR / "service-worker.js",
                 media_type="application/javascript",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Service-Worker-Allowed": "/",
+                },
             )
 
         @app.get("/offline.html", include_in_schema=False)

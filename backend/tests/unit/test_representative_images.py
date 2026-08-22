@@ -4,12 +4,14 @@ Unit and integration tests for RepresentativeImageService, CSP headers, and /api
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 from fastapi.testclient import TestClient
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.main import app, create_app
 from app.services.representative_image_service import (
     RepresentativeImageService,
@@ -51,6 +53,49 @@ def test_is_safe_image_url():
         is_safe_image_url("http://localhost:8000/img.jpg", allowed_hosts=[], is_production=True)
         is True
     )
+
+
+def test_bundled_manifest_hosts_are_allowed_by_default_config():
+    """Versioned manifest URLs and default CSP policy must never drift apart."""
+    project_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads(
+        (project_root / "configs" / "representative_images.json").read_text(encoding="utf-8")
+    )
+    manifest_hosts = {
+        urlparse(entry["image_url"]).hostname
+        for entry in manifest["images"].values()
+        if isinstance(entry, dict) and entry.get("image_url")
+    }
+    settings = Settings(_env_file=None)
+    assert manifest_hosts
+    assert manifest_hosts <= set(settings.allowed_image_host_list)
+
+
+def test_static_species_fallback_contains_manifest_images():
+    """An API outage must not turn every Explore card into a placeholder."""
+    project_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads(
+        (project_root / "configs" / "representative_images.json").read_text(encoding="utf-8")
+    )
+    static_species = json.loads(
+        (project_root / "frontend" / "data" / "species.json").read_text(encoding="utf-8")
+    )
+    static_by_id = {item["id"]: item for item in static_species}
+
+    assert len(static_species) == manifest["total_species"]
+    assert sum(bool(item.get("representative_image_url")) for item in static_species) == manifest[
+        "covered_species"
+    ]
+    for canonical_class, entry in manifest["images"].items():
+        assert static_by_id[canonical_class]["representative_image_url"] == entry["image_url"]
+
+
+def test_service_worker_script_is_never_http_cached():
+    """Browsers must revalidate the worker so stale Explore assets can be retired."""
+    response = TestClient(app).get("/service-worker.js")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-cache, no-store, must-revalidate"
+    assert response.headers["service-worker-allowed"] == "/"
 
 
 def test_representative_image_service_caching():

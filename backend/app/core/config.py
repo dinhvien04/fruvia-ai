@@ -26,13 +26,16 @@ def find_project_root() -> Path:
 
 
 PROJECT_ROOT = find_project_root()
+DEFAULT_ALLOWED_IMAGE_HOSTS = "pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev"
 
 
 class Settings(BaseSettings):
     """Central configuration read from environment / .env file."""
 
     model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"),
+        # Resolve from the repository root so IDE/shortcut launch working directories
+        # cannot silently skip the project's runtime configuration.
+        env_file=(PROJECT_ROOT / ".env",),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -212,7 +215,7 @@ class Settings(BaseSettings):
         description="Whether to send Strict-Transport-Security header (production HTTPS only)",
     )
     allowed_image_hosts: str = Field(
-        default="",
+        default=DEFAULT_ALLOWED_IMAGE_HOSTS,
         description="Comma-separated list of approved CDN/image hostnames for Content-Security-Policy img-src",
     )
     csp_connect_origins: str = Field(

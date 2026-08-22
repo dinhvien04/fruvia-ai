@@ -11,7 +11,12 @@ from unittest.mock import patch
 
 import pytest
 
-from app.core.config import Settings, load_class_names
+from app.core.config import (
+    DEFAULT_ALLOWED_IMAGE_HOSTS,
+    PROJECT_ROOT,
+    Settings,
+    load_class_names,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -29,6 +34,13 @@ class TestSettings:
         assert s.max_upload_mb == 10
         assert s.qdrant_collection == "fruvia_fruits360_original_dinov2_base_v1"
         assert s.log_level == "INFO"
+        assert s.allowed_image_host_list == [DEFAULT_ALLOWED_IMAGE_HOSTS]
+
+    def test_env_file_is_resolved_from_project_root(self) -> None:
+        """Launching from an IDE/shortcut must not change which .env is loaded."""
+        configured_env_files = Settings.model_config.get("env_file")
+        assert configured_env_files == (PROJECT_ROOT / ".env",)
+        assert Path(configured_env_files[0]).is_absolute()
 
     def test_max_upload_bytes(self) -> None:
         with patch.dict(os.environ, {"MAX_UPLOAD_MB": "5"}, clear=True):
