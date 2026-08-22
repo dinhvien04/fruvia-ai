@@ -271,3 +271,23 @@ def test_query_knowledge_invalid_vector():
     nan_vec[0] = float("nan")
     with pytest.raises(ValueError):
         repo.query_knowledge_grouped(vector=nan_vec, canonical_class="apple")
+
+
+def test_qdrant_client_supports_query_points_groups_api():
+    """Verify that the imported QdrantClient class supports query_points_groups method."""
+    import importlib.metadata
+
+    from packaging.version import parse as parse_version
+    from qdrant_client import QdrantClient
+
+    # Check method existence on the class
+    assert hasattr(QdrantClient, "query_points_groups"), (
+        "QdrantClient is missing query_points_groups method required for grouped retrieval"
+    )
+
+    # Check installed version satisfies minimum >= 1.10.0
+    installed_ver_str = importlib.metadata.version("qdrant-client")
+    installed_ver = parse_version(installed_ver_str)
+    assert installed_ver >= parse_version("1.10.0"), (
+        f"Installed qdrant-client version {installed_ver_str} must be >= 1.10.0"
+    )

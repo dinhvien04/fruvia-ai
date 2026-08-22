@@ -54,7 +54,7 @@ async def search_knowledge(
 @router.get("/species/{canonical_class}/knowledge", response_model=SpeciesKnowledgeResponse)
 async def get_species_knowledge(
     canonical_class: str,
-    limit: Annotated[int, Query(ge=1, le=20, description="Max documents to retrieve")] = 5,
+    limit: Annotated[int, Query(ge=1, le=50, description="Max documents to retrieve")] = 5,
     service: Annotated[KnowledgeService, Depends(get_knowledge_service)] = None,  # type: ignore[assignment]
 ) -> SpeciesKnowledgeResponse:
     """

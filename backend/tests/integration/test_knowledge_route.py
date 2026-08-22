@@ -193,3 +193,63 @@ def test_get_species_knowledge_endpoint(client_with_knowledge_mocks):
     assert data["documents"][0]["document_id"] == "usda-apple-001"
     assert data["documents"][0]["title"] == "Apple Nutrition Facts"
     assert data["documents"][0]["nutrients"]["Protein"]["amount"] == 0.0859375
+
+
+def test_get_species_knowledge_limit_behavior(client_with_knowledge_mocks):
+    """Integration test verifying GET knowledge limit acceptance and service-level rejection bounds."""
+    _, mock_encoder, mock_repo = client_with_knowledge_mocks
+
+    # 1. Custom Settings with knowledge_max_top_k=40
+    custom_settings = Settings(knowledge_enabled=True, knowledge_max_top_k=40)
+    service = KnowledgeService(
+        text_encoder=mock_encoder,
+        knowledge_repo=mock_repo,
+        settings=custom_settings,
+    )
+
+    app.dependency_overrides[get_knowledge_service] = lambda: service
+    client = TestClient(app)
+
+    try:
+        # GET limit=30 is accepted when knowledge_max_top_k=40
+        resp_30 = client.get("/api/species/apple/knowledge?limit=30")
+        assert resp_30.status_code == 200
+
+        # POST limit=30 is also accepted (consistent behavior)
+        resp_post_30 = client.post(
+            "/api/knowledge/search",
+            json={"query": "Apple", "canonical_class": "apple", "limit": 30},
+        )
+        assert resp_post_30.status_code == 200
+
+        # GET limit=41 is rejected by service with 400 KnowledgeValidationError when knowledge_max_top_k=40
+        resp_41 = client.get("/api/species/apple/knowledge?limit=41")
+        assert resp_41.status_code == 400
+        data_41 = resp_41.json()
+        assert data_41["error"] is True
+        assert data_41["error_code"] == "INVALID_KNOWLEDGE_QUERY"
+        assert "exceeds maximum allowed" in data_41["message"]
+
+        # POST limit=41 is also rejected by service (consistent behavior)
+        resp_post_41 = client.post(
+            "/api/knowledge/search",
+            json={"query": "Apple", "canonical_class": "apple", "limit": 41},
+        )
+        assert resp_post_41.status_code == 400
+        data_post_41 = resp_post_41.json()
+        assert data_post_41["error_code"] == "INVALID_KNOWLEDGE_QUERY"
+
+        # GET limit=51 is rejected by FastAPI Query schema (422 Unprocessable Entity)
+        resp_51 = client.get("/api/species/apple/knowledge?limit=51")
+        assert resp_51.status_code == 422
+
+        # POST limit=51 is rejected by Pydantic schema (422 Unprocessable Entity)
+        resp_post_51 = client.post(
+            "/api/knowledge/search",
+            json={"query": "Apple", "canonical_class": "apple", "limit": 51},
+        )
+        assert resp_post_51.status_code == 422
+    finally:
+        app.dependency_overrides[get_knowledge_service] = (
+            lambda: client_with_knowledge_mocks[0]  # will be cleared in fixture
+        )
