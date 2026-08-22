@@ -126,7 +126,9 @@ const ExplorePage = {
     gridEl.querySelectorAll(".species-card").forEach((card) => {
       const speciesId = card.getAttribute("data-species-id");
       const navigate = () => {
-        if (speciesId) window.location.href = `species.html?id=${speciesId}`;
+        if (speciesId) {
+          window.location.href = `/species?id=${encodeURIComponent(speciesId.trim().toLowerCase())}`;
+        }
       };
       card.addEventListener("click", navigate);
       card.addEventListener("keydown", (e) => {

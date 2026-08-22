@@ -249,11 +249,11 @@ const SpeciesPage = {
         })
       ]);
 
-      // Check if knowledge subsystem returned disabled (503)
+      // Check specifically if knowledge service is globally disabled (KNOWLEDGE_SERVICE_DISABLED)
       const isKnowledgeDisabled =
-        (overviewRes.status === "rejected" && overviewRes.reason?.status === 503) ||
-        (taxonomyRes.status === "rejected" && taxonomyRes.reason?.status === 503) ||
-        (nutritionRes.status === "rejected" && nutritionRes.reason?.status === 503);
+        (overviewRes.status === "rejected" && overviewRes.reason?.errorCode === "KNOWLEDGE_SERVICE_DISABLED") ||
+        (taxonomyRes.status === "rejected" && taxonomyRes.reason?.errorCode === "KNOWLEDGE_SERVICE_DISABLED") ||
+        (nutritionRes.status === "rejected" && nutritionRes.reason?.errorCode === "KNOWLEDGE_SERVICE_DISABLED");
 
       if (isKnowledgeDisabled) {
         this.renderKnowledgeDisabledState();
@@ -261,17 +261,25 @@ const SpeciesPage = {
       }
 
       const overviewData = overviewRes.status === "fulfilled" ? overviewRes.value : null;
-      const taxonomyData = taxonomyRes.status === "fulfilled" ? taxonomyRes.value : null;
-      const nutritionData = nutritionRes.status === "fulfilled" ? nutritionRes.value : null;
+      const overviewErr = overviewRes.status === "rejected" ? overviewRes.reason : null;
 
-      // Fallback: If type-filtered searches yielded empty results, attempt general species knowledge query
+      const taxonomyData = taxonomyRes.status === "fulfilled" ? taxonomyRes.value : null;
+      const taxonomyErr = taxonomyRes.status === "rejected" ? taxonomyRes.reason : null;
+
+      const nutritionData = nutritionRes.status === "fulfilled" ? nutritionRes.value : null;
+      const nutritionErr = nutritionRes.status === "rejected" ? nutritionRes.reason : null;
+
+      // Fallback: If all 3 type-filtered searches yielded empty results (no error, just 0 items),
+      // attempt a general species knowledge query
       let generalDocs = [];
-      const hasAnyDocs =
+      const hasAnyFulfilledDocs =
         (overviewData?.results?.length || 0) +
         (taxonomyData?.results?.length || 0) +
         (nutritionData?.results?.length || 0) > 0;
 
-      if (!hasAnyDocs) {
+      const hasAnyNonError = overviewData || taxonomyData || nutritionData;
+
+      if (!hasAnyFulfilledDocs && hasAnyNonError) {
         try {
           const genRes = await ApiClient.getSpeciesKnowledge(canonicalClass, 10);
           if (genRes && genRes.documents) {
@@ -284,8 +292,11 @@ const SpeciesPage = {
 
       const aggregatedData = {
         overview: overviewData,
+        overviewErr: overviewErr,
         taxonomy: taxonomyData,
+        taxonomyErr: taxonomyErr,
         nutrition: nutritionData,
+        nutritionErr: nutritionErr,
         generalDocs: generalDocs
       };
 
@@ -318,6 +329,24 @@ const SpeciesPage = {
     if (sourcesEl) sourcesEl.innerHTML = `<p class="text-muted">Chưa có nguồn dẫn chứng khi dịch vụ tri thức bị tắt.</p>`;
   },
 
+  renderSectionUnavailable(containerId, sectionTitle, error) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const errMsg = error?.message || error?.detail || "Dịch vụ tra cứu tạm thời không khả dụng.";
+    const codeBadge = error?.errorCode ? `<span class="badge badge-neutral" style="margin-left: 6px;">${Utils.escapeHtml(error.errorCode)}</span>` : "";
+
+    container.innerHTML = `
+      <div class="knowledge-alert knowledge-alert-warning">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          <strong>Không thể tải dữ liệu ${Utils.escapeHtml(sectionTitle)}.${codeBadge}</strong>
+          <p>${Utils.escapeHtml(errMsg)}</p>
+        </div>
+      </div>
+    `;
+  },
+
   renderKnowledgeUnavailableState(detail) {
     const errorMsg = `
       <div class="knowledge-alert knowledge-alert-warning">
@@ -348,14 +377,26 @@ const SpeciesPage = {
     if (data.nutrition?.results) allDocs.push(...data.nutrition.results);
     if (data.generalDocs) allDocs.push(...data.generalDocs);
 
-    // 1. Render Overview
-    this.renderOverviewSection(data.overview, data.generalDocs);
+    // 1. Render Overview (with partial error handling)
+    if (data.overviewErr) {
+      this.renderSectionUnavailable("overview-content", "tổng quan bách khoa", data.overviewErr);
+    } else {
+      this.renderOverviewSection(data.overview, data.generalDocs);
+    }
 
-    // 2. Render Scientific Taxonomy
-    this.renderTaxonomySection(data.taxonomy, data.generalDocs);
+    // 2. Render Scientific Taxonomy (with partial error handling)
+    if (data.taxonomyErr) {
+      this.renderSectionUnavailable("taxonomy-content", "phân loại khoa học", data.taxonomyErr);
+    } else {
+      this.renderTaxonomySection(data.taxonomy, data.generalDocs);
+    }
 
-    // 3. Render Nutrition Facts
-    this.renderNutritionSection(data.nutrition, data.generalDocs);
+    // 3. Render Nutrition Facts (with partial error handling)
+    if (data.nutritionErr) {
+      this.renderSectionUnavailable("nutrition-content", "thành phần dinh dưỡng", data.nutritionErr);
+    } else {
+      this.renderNutritionSection(data.nutrition, data.generalDocs);
+    }
 
     // 4. Render Sources Provenance
     this.renderSourcesSection(allDocs);
@@ -404,6 +445,11 @@ const SpeciesPage = {
       .join("");
   },
 
+  /**
+   * Scientific Taxonomy Rendering:
+   * STRICT PROVENANCE RULE: Never merge scientific_name from doc A with taxonomy from doc B
+   * under a single provenance label. Render distinct complete taxonomy records or the most complete record.
+   */
   renderTaxonomySection(taxonomyData, generalDocs) {
     const container = document.getElementById("taxonomy-content");
     if (!container) return;
@@ -413,32 +459,14 @@ const SpeciesPage = {
       docs = generalDocs.filter((d) => d.document_type === "taxonomy_scientific" || d.taxonomy || d.scientific_name);
     }
 
-    // Extract best scientific structure
-    let scientificName = null;
-    let taxObj = null;
-    let docSource = null;
-    let docUrl = null;
-    let docSnippet = null;
+    // Filter docs that have taxonomy information
+    const validTaxDocs = docs.filter(
+      (d) =>
+        (d.taxonomy && typeof d.taxonomy === "object" && Object.keys(d.taxonomy).length > 0) ||
+        (d.scientific_name && typeof d.scientific_name === "string" && d.scientific_name.trim().length > 0)
+    );
 
-    for (const doc of docs) {
-      if (doc.scientific_name && !scientificName) {
-        scientificName = doc.scientific_name;
-      }
-      if (doc.taxonomy && typeof doc.taxonomy === "object" && !taxObj) {
-        taxObj = doc.taxonomy;
-      }
-      if (doc.source && !docSource) {
-        docSource = doc.source;
-      }
-      if (doc.source_url && !docUrl) {
-        docUrl = doc.source_url;
-      }
-      if (doc.text && !docSnippet) {
-        docSnippet = doc.text;
-      }
-    }
-
-    if (!scientificName && !taxObj && !docs.length) {
+    if (!validTaxDocs.length) {
       container.innerHTML = `
         <div class="knowledge-empty">
           <p>Chưa có thông tin phân loại thực vật học chi tiết cho loài này.</p>
@@ -447,60 +475,113 @@ const SpeciesPage = {
       return;
     }
 
-    const safeUrl = this.getSafeSourceUrl(docUrl);
-    const sourceLabel = Utils.escapeHtml(docSource || "Wikidata Taxon / GBIF");
+    // Prefer complete document (with both structured taxonomy and scientific_name), or render records
+    container.innerHTML = validTaxDocs
+      .map((doc) => {
+        const scientificName = doc.scientific_name || null;
+        const taxObj = doc.taxonomy && typeof doc.taxonomy === "object" ? doc.taxonomy : null;
+        const sourceLabel = Utils.escapeHtml(doc.source || doc.source_dataset || "Dữ liệu phân loại");
+        const safeUrl = this.getSafeSourceUrl(doc.source_url);
+        const docSnippet = doc.text ? Utils.escapeHtml(doc.text) : "";
 
-    let taxonomyRowsHtml = "";
-    if (taxObj) {
-      const fieldLabels = {
-        kingdom: "Giới (Kingdom)",
-        clade: "Nhánh (Clade)",
-        order: "Bộ (Order)",
-        family: "Họ (Family)",
-        subfamily: "Phân họ (Subfamily)",
-        genus: "Chi (Genus)",
-        species: "Loài (Species)"
-      };
+        let taxonomyRowsHtml = "";
+        if (taxObj) {
+          const fieldLabels = {
+            kingdom: "Giới (Kingdom)",
+            clade: "Nhánh (Clade)",
+            order: "Bộ (Order)",
+            family: "Họ (Family)",
+            subfamily: "Phân họ (Subfamily)",
+            genus: "Chi (Genus)",
+            species: "Loài (Species)"
+          };
 
-      for (const [key, label] of Object.entries(fieldLabels)) {
-        if (taxObj[key]) {
-          taxonomyRowsHtml += `
-            <div class="taxonomy-grid-item">
-              <span class="taxonomy-key">${Utils.escapeHtml(label)}</span>
-              <span class="taxonomy-val">${Utils.escapeHtml(taxObj[key])}</span>
-            </div>
-          `;
-        }
-      }
-    }
-
-    container.innerHTML = `
-      <div class="taxonomy-display-card">
-        ${
-          scientificName
-            ? `
-          <div class="scientific-name-block">
-            <span class="scientific-label">Danh pháp khoa học (Latin)</span>
-            <div class="scientific-name-val"><em>${Utils.escapeHtml(scientificName)}</em></div>
-          </div>
-        `
-            : ""
+          for (const [key, label] of Object.entries(fieldLabels)) {
+            if (taxObj[key]) {
+              taxonomyRowsHtml += `
+                <div class="taxonomy-grid-item">
+                  <span class="taxonomy-key">${Utils.escapeHtml(label)}</span>
+                  <span class="taxonomy-val">${Utils.escapeHtml(taxObj[key])}</span>
+                </div>
+              `;
+            }
+          }
         }
 
-        ${taxonomyRowsHtml ? `<div class="taxonomy-grid">${taxonomyRowsHtml}</div>` : ""}
-
-        ${docSnippet ? `<div class="knowledge-doc-text" style="margin-top: var(--space-md);">${Utils.escapeHtml(docSnippet)}</div>` : ""}
-
-        <div class="knowledge-doc-footer" style="margin-top: var(--space-md);">
-          <span class="knowledge-source-badge">Nguồn phân loại: ${sourceLabel}</span>
+        return `
+        <div class="taxonomy-display-card" style="margin-bottom: var(--space-md);">
           ${
-            safeUrl
-              ? `<a href="${Utils.escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" class="knowledge-source-link">Dẫn chứng phân loại ↗</a>`
+            scientificName
+              ? `
+            <div class="scientific-name-block">
+              <span class="scientific-label">Danh pháp khoa học (Latin)</span>
+              <div class="scientific-name-val"><em>${Utils.escapeHtml(scientificName)}</em></div>
+            </div>
+          `
               : ""
           }
+
+          ${taxonomyRowsHtml ? `<div class="taxonomy-grid">${taxonomyRowsHtml}</div>` : ""}
+
+          ${docSnippet ? `<div class="knowledge-doc-text" style="margin-top: var(--space-md);">${docSnippet}</div>` : ""}
+
+          <div class="knowledge-doc-footer" style="margin-top: var(--space-md);">
+            <span class="knowledge-source-badge">Nguồn phân loại: ${sourceLabel}</span>
+            ${
+              safeUrl
+                ? `<a href="${Utils.escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" class="knowledge-source-link">Dẫn chứng phân loại ↗</a>`
+                : ""
+            }
+          </div>
         </div>
-      </div>
-    `;
+      `;
+      })
+      .join("");
+  },
+
+  /**
+   * Nutrient Amount Formatter:
+   * STRICT FIDELITY: Returns exact raw amount without toFixed rounding or unit conversion.
+   * e.g. 0.0859375 -> "0.0859375" (never 0.086)
+   */
+  formatNutrientAmount(valObj) {
+    if (valObj === null || valObj === undefined) {
+      return { amountStr: "—", unitStr: "" };
+    }
+
+    let amountStr = "—";
+    let unitStr = "";
+
+    if (typeof valObj === "object") {
+      if (valObj.amount !== undefined && valObj.amount !== null) {
+        amountStr = String(valObj.amount);
+      }
+      if (valObj.unit) {
+        unitStr = String(valObj.unit);
+      }
+    } else if (typeof valObj === "number" || typeof valObj === "string") {
+      amountStr = String(valObj);
+    }
+
+    return { amountStr, unitStr };
+  },
+
+  /**
+   * Nutrient Basis Formatter:
+   * STRICT INTEGRITY: Only renders a basis badge if metadata explicitly provides
+   * structured nutrient_basis. Never fabricates "100g tiêu chuẩn" or infers from title/source.
+   */
+  getNutrientBasisHtml(doc) {
+    const basis = doc?.metadata?.nutrient_basis;
+    if (basis && typeof basis === "object") {
+      const amount = basis.amount !== undefined && basis.amount !== null ? String(basis.amount) : "";
+      const unit = basis.unit ? String(basis.unit) : "";
+      const basisText = `${amount} ${unit}`.trim();
+      if (basisText) {
+        return `<span class="badge badge-neutral">${Utils.escapeHtml(basisText)} tiêu chuẩn</span>`;
+      }
+    }
+    return "";
   },
 
   renderNutritionSection(nutritionData, generalDocs) {
@@ -531,23 +612,11 @@ const SpeciesPage = {
         const sourceName = Utils.escapeHtml(doc.source || doc.source_dataset || "USDA FoodData Central");
         const safeUrl = this.getSafeSourceUrl(doc.source_url);
         const nutrients = doc.nutrients || {};
+        const basisBadgeHtml = this.getNutrientBasisHtml(doc);
 
         let nutrientItemsHtml = "";
         for (const [nutrientName, valObj] of Object.entries(nutrients)) {
-          let amountStr = "—";
-          let unitStr = "";
-
-          if (valObj !== null && typeof valObj === "object") {
-            if (valObj.amount !== undefined && valObj.amount !== null) {
-              const num = Number(valObj.amount);
-              amountStr = isNaN(num) ? String(valObj.amount) : num % 1 === 0 ? num.toString() : num.toFixed(3);
-            }
-            if (valObj.unit) {
-              unitStr = String(valObj.unit);
-            }
-          } else if (typeof valObj === "number" || typeof valObj === "string") {
-            amountStr = String(valObj);
-          }
+          const { amountStr, unitStr } = this.formatNutrientAmount(valObj);
 
           nutrientItemsHtml += `
             <div class="nutrient-item">
@@ -561,7 +630,7 @@ const SpeciesPage = {
         <div class="nutrition-record-card">
           <div class="nutrition-record-header">
             <h3 class="nutrition-record-title">${title}</h3>
-            <span class="badge badge-neutral">100g tiêu chuẩn</span>
+            ${basisBadgeHtml}
           </div>
 
           <div class="nutrient-grid">
@@ -657,4 +726,5 @@ const SpeciesPage = {
 };
 
 document.addEventListener("DOMContentLoaded", () => SpeciesPage.init());
+
 
