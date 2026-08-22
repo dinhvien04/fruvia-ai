@@ -2,8 +2,8 @@
 Service for discovering and caching representative gallery images per canonical species.
 
 Retrieves public image URLs from Qdrant Gallery collection payloads using payload-only
-bounded scrolling/filtering, verified against taxonomy, sanitized for safe HTTP/HTTPS schemes,
-and cached in-memory with a thread-safe TTL cache.
+MatchAny filtering (when indexed) or bounded scrolling, verified against taxonomy, sanitized
+for safe HTTP/HTTPS schemes, and cached in-memory with a thread-safe TTL cache.
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ logger = get_logger(__name__)
 DEFAULT_TTL_SECONDS = 900.0  # 15 minutes TTL
 MAX_BOUNDED_SCROLL_BATCHES = 8
 SCROLL_BATCH_SIZE = 500
+
+_logged_empty_hosts_warning = False
 
 
 def is_safe_image_url(
@@ -59,11 +61,14 @@ def is_safe_image_url(
             return False
 
         if allowed_hosts and len(allowed_hosts) > 0:
-            return any(
+            allowed = any(
                 host == ah.lower() or host.endswith("." + ah.lower())
                 for ah in allowed_hosts
                 if ah.strip()
             )
+            if not allowed:
+                logger.debug("Image host '%s' rejected by ALLOWED_IMAGE_HOSTS allowlist.", host)
+            return allowed
 
         # When allowed_hosts is empty: fail closed in production for external remote hosts
         if is_production:
@@ -95,6 +100,16 @@ class RepresentativeImageService:
         # Cache structure: canonical_class -> (timestamp, representative_image_url_or_none)
         self._cache: dict[str, tuple[float, str | None]] = {}
 
+        self._check_startup_allowed_hosts()
+
+    def _check_startup_allowed_hosts(self) -> None:
+        global _logged_empty_hosts_warning
+        if not _logged_empty_hosts_warning and not self.settings.allowed_image_host_list:
+            _logged_empty_hosts_warning = True
+            logger.warning(
+                "Remote representative images are not allowed by CSP because ALLOWED_IMAGE_HOSTS is empty."
+            )
+
     def get_representative_image(self, canonical_class: str) -> str | None:
         """
         Get representative image URL for a single canonical species.
@@ -120,6 +135,7 @@ class RepresentativeImageService:
         """
         Retrieve representative image URLs for a list of canonical species (or all taxonomy species).
         Thread-safe, TTL cached, resilient to Qdrant downtime.
+        Does NOT cache negative results on transient Qdrant errors.
         """
         self.taxonomy.load()
         if canonical_classes is None:
@@ -142,37 +158,36 @@ class RepresentativeImageService:
         if not missing_classes:
             return result
 
-        # Retrieve missing species images from Qdrant Gallery in a single bounded scan
-        fetched_images = self._fetch_from_qdrant(missing_classes)
+        # Retrieve missing species images from Qdrant Gallery
+        fetched_images, is_transient_error = self._fetch_from_qdrant(missing_classes)
 
         with self._lock:
             now_write = time.monotonic()
             for cls_name in missing_classes:
                 img_url = fetched_images.get(cls_name)
-                self._cache[cls_name] = (now_write, img_url)
+                if not is_transient_error:
+                    self._cache[cls_name] = (now_write, img_url)
                 result[cls_name] = img_url
 
         return result
 
-    def _fetch_from_qdrant(self, target_classes: list[str]) -> dict[str, str | None]:
+    def _fetch_from_qdrant(self, target_classes: list[str]) -> tuple[dict[str, str | None], bool]:
         """
-        Internal retrieval from Qdrant Gallery using a single bounded batch scroll.
-        Never executes N separate queries for N species.
-        Continues checking candidate points until a valid, allowed image_url is found.
-        Gracefully returns None for species not found or when Qdrant is unavailable.
+        Internal retrieval from Qdrant Gallery.
+        Uses MatchAny indexed payload filter when canonical_class index is available;
+        falls back to single bounded batch scrolling for legacy collections.
+        Returns: (found_map, is_transient_error)
         """
         found_map: dict[str, str | None] = {cls_name: None for cls_name in target_classes}
         remaining_targets = set(target_classes)
         if not remaining_targets:
-            return found_map
+            return found_map, False
 
         try:
             client = self.qdrant_repo.client
             collection_name = self.qdrant_repo.collection_name
             allowed_hosts = self.settings.allowed_image_host_list or None
             is_prod = self.settings.is_production
-
-            offset: Any = None
             payload_fields = [
                 "canonical_class",
                 "original_class",
@@ -180,6 +195,62 @@ class RepresentativeImageService:
                 "image_url",
             ]
 
+            filter_caps = self.qdrant_repo.get_filter_capabilities(collection_name)
+
+            # Strategy A: Indexed MatchAny filter if canonical_class has keyword index
+            if "canonical_class" in filter_caps:
+                from qdrant_client.models import FieldCondition, Filter, MatchAny
+
+                try:
+                    scroll_filter = Filter(
+                        must=[
+                            FieldCondition(
+                                key="canonical_class",
+                                match=MatchAny(any=list(remaining_targets)),
+                            )
+                        ]
+                    )
+                    offset: Any = None
+                    for _ in range(MAX_BOUNDED_SCROLL_BATCHES):
+                        if not remaining_targets:
+                            break
+                        points, offset = client.scroll(
+                            collection_name=collection_name,
+                            scroll_filter=scroll_filter,
+                            limit=SCROLL_BATCH_SIZE,
+                            offset=offset,
+                            with_payload=payload_fields,
+                            with_vectors=False,
+                        )
+                        if not points:
+                            break
+                        for pt in points:
+                            pl = pt.payload or {}
+                            raw_url = pl.get("image_url")
+                            if not raw_url or not is_safe_image_url(
+                                raw_url, allowed_hosts=allowed_hosts, is_production=is_prod
+                            ):
+                                continue
+                            c_cls, _, _, _ = self.taxonomy.resolve(
+                                original_class=pl.get("original_class") or "",
+                                payload_canonical=pl.get("canonical_class"),
+                                payload_display=pl.get("display_name"),
+                            )
+                            if c_cls in remaining_targets:
+                                found_map[c_cls] = raw_url
+                                remaining_targets.remove(c_cls)
+                        if not offset:
+                            break
+
+                    return found_map, False
+                except Exception as filter_err:
+                    logger.debug(
+                        "MatchAny indexed scroll failed, falling back to bounded scroll: %s",
+                        filter_err,
+                    )
+
+            # Strategy B: Bounded payload-only scroll for collections without keyword index
+            offset = None
             for batch_idx in range(MAX_BOUNDED_SCROLL_BATCHES):
                 if not remaining_targets:
                     break
@@ -198,7 +269,7 @@ class RepresentativeImageService:
                         batch_idx + 1,
                         e,
                     )
-                    break
+                    return found_map, True
 
                 if not points:
                     break
@@ -227,12 +298,13 @@ class RepresentativeImageService:
                 if not offset:
                     break
 
+            return found_map, False
+
         except Exception as qdrant_err:
             logger.warning(
                 "Failed to fetch representative gallery images from Qdrant: %s", qdrant_err
             )
-
-        return found_map
+            return found_map, True
 
     def clear_cache(self) -> None:
         """Clear all cached representative images."""
