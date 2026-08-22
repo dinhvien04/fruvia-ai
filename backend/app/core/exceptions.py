@@ -152,6 +152,14 @@ class KnowledgeValidationError(FruviaError):
     message = "Invalid knowledge search request."
 
 
+class KnowledgeSpeciesNotFoundError(FruviaError):
+    """Raised when a requested canonical species does not exist in the taxonomy."""
+
+    status_code = 404
+    error_code = "SPECIES_NOT_FOUND"
+    message = "The requested species was not found in the taxonomy."
+
+
 class LowConfidenceError(FruviaError):
     """Not really an error — used to signal low-confidence results."""
 

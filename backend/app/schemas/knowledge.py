@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class KnowledgeSearchRequest(BaseModel):
@@ -15,7 +15,7 @@ class KnowledgeSearchRequest(BaseModel):
     query: str = Field(
         ...,
         min_length=1,
-        max_length=2000,
+        max_length=10000,
         description="Natural language query or question about fruit botanical, encyclopedic, or nutritional info",
     )
     canonical_class: str = Field(
@@ -26,20 +26,31 @@ class KnowledgeSearchRequest(BaseModel):
     )
     document_type: str | None = Field(
         default=None,
+        max_length=100,
         description="Optional filter by document type (e.g. 'nutrition', 'encyclopedia', 'taxonomy_scientific', 'botanical')",
     )
     limit: int = Field(
         default=5,
         ge=1,
-        le=20,
+        le=50,
         description="Number of distinct knowledge documents to retrieve",
     )
     top_k: int | None = Field(
         default=None,
         ge=1,
-        le=20,
+        le=50,
         description="Deprecated alias for limit (preserved for backwards compatibility)",
     )
+
+    @field_validator("document_type", mode="before")
+    @classmethod
+    def normalize_document_type(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip().lower()
+            return s if s else None
+        return str(v).strip().lower()
 
 
 class KnowledgeDocumentResult(BaseModel):
@@ -67,7 +78,7 @@ class KnowledgeDocumentResult(BaseModel):
         default=None, description="Vietnamese display name resolved from taxonomy"
     )
     category: str = Field(
-        default="fruit",
+        default="other",
         description="Biological/culinary category: fruit | vegetable | nut | seed | other",
     )
     document_type: str = Field(
