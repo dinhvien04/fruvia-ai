@@ -250,6 +250,8 @@ def test_get_species_knowledge_limit_behavior(client_with_knowledge_mocks):
         )
         assert resp_post_51.status_code == 422
     finally:
-        app.dependency_overrides[get_knowledge_service] = (
-            lambda: client_with_knowledge_mocks[0]  # will be cleared in fixture
+        app.dependency_overrides[get_knowledge_service] = lambda: KnowledgeService(
+            text_encoder=mock_encoder,
+            knowledge_repo=mock_repo,
+            settings=Settings(knowledge_enabled=True),
         )
