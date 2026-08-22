@@ -39,6 +39,14 @@ def load_yaml_config(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
+def load_json_file(path: Path) -> dict | list:
+    """Load a JSON file safely."""
+    import json
+
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def load_class_list(classes_yaml_path: Path) -> list[str]:
     """Load the ordered class list from classes.yaml."""
     cfg = load_yaml_config(classes_yaml_path)

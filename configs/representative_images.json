@@ -1,0 +1,383 @@
+{
+  "schema_version": 1,
+  "collection": "fruvia_fruits360_original_dinov2_base_v1",
+  "total_species": 90,
+  "covered_species": 75,
+  "images": {
+    "almond": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00bbdab1-fb54-585b-9980-7eae68782875.webp",
+      "original_class": "Almonds 1",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "apple": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001a259a-306a-5bcf-846f-2bfd1e54936a.webp",
+      "original_class": "apple",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "apricot": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0084f526-0473-5d97-8c1b-bb91ca2143ee.webp",
+      "original_class": "apricot",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "avocado": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000fed5b-0e04-5562-9b62-a786d8abae46.webp",
+      "original_class": "avocado",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "banana": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/003833d2-8356-5da8-9ffb-6ee3b615876c.webp",
+      "original_class": "banana",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "blackberry": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000311e1-7d90-5c2e-a5ee-5dc61ede4dd8.webp",
+      "original_class": "Blackberry 3",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "blueberry": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0042b3db-681c-512b-8c6d-049677671b8b.webp",
+      "original_class": "blueberry",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "cabbage": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0045f77a-efc7-5401-a2c8-efb2977070c8.webp",
+      "original_class": "cabbage_white_1",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "cactus_fruit": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/002f4a6b-e1ae-58d1-9d07-5b44a9f4cbf5.webp",
+      "original_class": "Cactus fruit green 1",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "cantaloupe": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00348c71-8784-522d-b428-f2856a95ea2f.webp",
+      "original_class": "cantaloupe",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "carambola": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0028c832-0e7c-541e-ab68-9697b77e0d58.webp",
+      "original_class": "carambola",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "carrot": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/01581b26-5970-5fe3-82c1-92e8c28ae467.webp",
+      "original_class": "Carrot 1",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "cashew": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0005bef7-f060-5d8c-b6da-f43572a68b57.webp",
+      "original_class": "cashew",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "cherry": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00ab9036-38b2-5110-bb06-5dc0201972ce.webp",
+      "original_class": "cherry",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "chili_pepper": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00af34f3-5d6e-5f8b-9463-ea49a0d40d68.webp",
+      "original_class": "jalapeno",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "clementine": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001e9c75-3304-5608-80b0-a9e195e6b02a.webp",
+      "original_class": "clementine",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "coconut": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0061dd30-eeb0-5a27-b9b1-9870ecfb1d81.webp",
+      "original_class": "coconut",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "corn": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000cd637-92fa-569a-8565-93f7a9d8486f.webp",
+      "original_class": "corn kernel",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "cucumber": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00090847-7f15-5d34-9053-6197ffeb0703.webp",
+      "original_class": "Cucumber 6",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "custard_apple": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0019f2bc-bb35-5589-a5bf-b7e7e9be2939.webp",
+      "original_class": "custard apple",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "dates": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/004f3c27-ea0b-53a0-960c-1cb1311f8741.webp",
+      "original_class": "Dates 2",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "dragon_fruit": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0001edb4-30d3-5761-aee9-5f6e65ec3e04.webp",
+      "original_class": "dragonfruit",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "duku": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/004670d9-5618-5192-99f5-1f30ff7c3e70.webp",
+      "original_class": "langsat",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "durian": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0035f02d-a4b5-5ea5-b5f8-f3fb72f3021e.webp",
+      "original_class": "durian",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "eggplant": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/005432e3-eb2c-5c4f-9ea0-4475530e9b72.webp",
+      "original_class": "eggplant",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "fig": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00695640-0367-52e7-b5a2-47a5d6d213c6.webp",
+      "original_class": "fig",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "ginger": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000eef0c-8011-594b-8d2f-ea021f84f635.webp",
+      "original_class": "Ginger 2",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "granadilla": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/013732aa-3458-554a-9428-fd7ba608a3df.webp",
+      "original_class": "grenadilla",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "grape": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00413d85-df03-52f6-901c-ab1b0f29fe8e.webp",
+      "original_class": "grape",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "grapefruit": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001054f9-9386-591f-b0e3-07ff3de924ad.webp",
+      "original_class": "grapefruit",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "guava": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00030ebd-ad17-5348-8336-a542a471362a.webp",
+      "original_class": "guava",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "jackfruit": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000f4a22-3de3-525a-ac0a-fda3716ecfc6.webp",
+      "original_class": "jackfruit",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "kaki": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00700781-b170-5a99-bbc2-8d1dc83e4e5d.webp",
+      "original_class": "persimmon",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "kiwi": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00114495-f2f6-5c6c-8483-75a4df5bfb23.webp",
+      "original_class": "kiwi",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "kumquat": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00200a9b-6f17-50d4-b9aa-c1f415c0a2ca.webp",
+      "original_class": "kumquat",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "lemon": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00030505-aeb4-5435-bc18-71194ff58cb8.webp",
+      "original_class": "lemon",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "lime": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000d6f83-ca7b-5c9d-8103-790c76647165.webp",
+      "original_class": "lime",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "longan": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00175c81-98ad-53b1-82aa-db5be4dab90b.webp",
+      "original_class": "longan",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "lychee": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00392cd1-cf36-51e5-ae5c-e0e07d8d56b8.webp",
+      "original_class": "lychee",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "mandarin": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0040d879-e481-582b-9317-091f8519e213.webp",
+      "original_class": "mandarine",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "mango": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000efea0-7bcb-5e77-b2c4-139dc881334e.webp",
+      "original_class": "mango",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "mangosteen": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000316b4-90d3-5fb9-8ad7-1f5edee21aa1.webp",
+      "original_class": "mangosteen",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "melon": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/003bb811-4cea-5a17-827d-5007d63acc22.webp",
+      "original_class": "muskmelon",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "nectarine": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00829093-8c74-57f0-8787-afcb5385454e.webp",
+      "original_class": "nectarine",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "nut": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000bea7f-bbbd-5abd-8e83-b9e4eec91904.webp",
+      "original_class": "Nut 2",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "onion": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001dbbe6-6a5d-585a-8ab2-084fe0aa6d9f.webp",
+      "original_class": "Onion 2",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "orange": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001c82b9-adbe-59c2-94f2-9c0b33e6b192.webp",
+      "original_class": "orange",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "papaya": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000a7ea9-bfc7-5a1f-bf03-56305cee481e.webp",
+      "original_class": "papaya",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "passion_fruit": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00e1c64c-abaa-509f-9d20-e09a3fd4237d.webp",
+      "original_class": "passion fruit",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "peach": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0003498d-dafd-53ba-83a2-91981037c6d1.webp",
+      "original_class": "Peach 3",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "peanut": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/000ca100-6df6-5168-83d2-a53f56ecf723.webp",
+      "original_class": "peanut",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "pear": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/006380cc-1478-5086-ad46-210a18c9eeac.webp",
+      "original_class": "pear",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "peas": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0030f3f2-c22d-5458-9881-e82c3f1da652.webp",
+      "original_class": "pea",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "pepino": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0040335c-bf26-594a-8104-1baa1e4c4faf.webp",
+      "original_class": "melon pear",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "pepper": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00113822-cdd2-5ec5-bb66-8d67e2c0f828.webp",
+      "original_class": "Pepper Orange 2",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "physalis": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0018b4db-ab89-5416-8e6b-bbb888a0a42f.webp",
+      "original_class": "cape gooseberry",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "pineapple": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0029640b-bdb7-5b9a-bcfa-ebd6e7a258c6.webp",
+      "original_class": "pineapple",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "pistachio": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/009b3789-6878-5bce-944f-4f9623d82b6a.webp",
+      "original_class": "Pistachio 1",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "plum": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0018b3e9-eb05-5d08-b771-3d7441d46305.webp",
+      "original_class": "Plum 5",
+      "source_dataset": "fruits-360-original-size"
+    },
+    "pomegranate": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00392e68-e2bb-5b44-a352-699bd33b9683.webp",
+      "original_class": "pomegranate",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "pomelo": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00332fcd-dfee-588b-87e1-e412d179f064.webp",
+      "original_class": "pomelo",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "pumpkin": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00f12a39-75b9-5751-92e7-79b67ca3c42e.webp",
+      "original_class": "pumpkin",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "quince": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0013f5f8-d6f3-59a5-b057-aaad326d9759.webp",
+      "original_class": "quince",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "rambutan": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0019fa0e-9ea8-57f9-8b5f-a06e785c17d4.webp",
+      "original_class": "rambutan",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "raspberry": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0055856d-6f28-5091-a0ca-07a2e618384e.webp",
+      "original_class": "raspberry",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "redcurrant": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/001e100b-aabb-54d6-99ea-eb94018b6a23.webp",
+      "original_class": "redcurrant",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "salak": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0016a1df-4af3-5587-8f66-7055bb1664d2.webp",
+      "original_class": "salak",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "sapodilla": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00692166-7ee5-5faf-b2b2-0bb46d0444c8.webp",
+      "original_class": "sapodilla",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "soursop": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0053d83c-8723-5b21-ad63-76149ae5c71e.webp",
+      "original_class": "mountain soursop",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "strawberry": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00036c4f-b0e5-5add-91e5-c52efd4caca0.webp",
+      "original_class": "strawberry",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "tamarillo": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00519367-8561-5753-a1df-0fd2d4007766.webp",
+      "original_class": "tamarillo",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "tangelo": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/01abf5a9-51d3-5a99-8302-9f7713c82815.webp",
+      "original_class": "tangelo",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "tomato": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/002aa2b0-8a83-58a9-bae0-56990285a64b.webp",
+      "original_class": "tomato",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "watermelon": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/0009a02c-620a-56b7-8d7f-a25b1b9953e7.webp",
+      "original_class": "watermelon",
+      "source_dataset": "fruits262_full_original_v7"
+    },
+    "zucchini": {
+      "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/thumbnails/00c31b67-5abf-5ac8-ba91-def423cf0c25.webp",
+      "original_class": "zucchini",
+      "source_dataset": "fruits262_full_original_v7"
+    }
+  }
+}

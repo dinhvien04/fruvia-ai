@@ -195,6 +195,10 @@ class Settings(BaseSettings):
         default=PROJECT_ROOT / "configs" / "taxonomy.yaml",
         description="Path to taxonomy YAML file",
     )
+    representative_images_manifest_path: Path = Field(
+        default=PROJECT_ROOT / "configs" / "representative_images.json",
+        description="Path to pre-generated deterministic representative images manifest JSON",
+    )
 
     # --- CORS ---
     cors_origins: str = Field(default="http://localhost:3000")

@@ -4,6 +4,7 @@ Unit and integration tests for RepresentativeImageService, CSP headers, and /api
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -53,7 +54,7 @@ def test_is_safe_image_url():
 
 
 def test_representative_image_service_caching():
-    """Verify RepresentativeImageService caches results and does not make repeated Qdrant calls."""
+    """Verify RepresentativeImageService uses manifest first, and falls back to Qdrant if manifest is absent."""
     mock_qdrant_repo = MagicMock()
     mock_client = MagicMock()
     mock_qdrant_repo.client = mock_client
@@ -85,7 +86,11 @@ def test_representative_image_service_caching():
     }
     mock_tax_mgr.resolve.return_value = ("apple", "Apple", "Táo", "fruit")
 
+    # Service with missing manifest path -> uses Qdrant fallback
+    from pathlib import Path
+
     service = RepresentativeImageService(
+        manifest_path=Path("non_existent_manifest.json"),
         qdrant_repo=mock_qdrant_repo,
         taxonomy_manager=mock_tax_mgr,
         ttl_seconds=300.0,
@@ -130,7 +135,10 @@ def test_representative_image_service_indexed_match_any():
     }
     mock_tax_mgr.resolve.return_value = ("apple", "Apple", "Táo", "fruit")
 
+    from pathlib import Path
+
     service = RepresentativeImageService(
+        manifest_path=Path("non_existent_manifest.json"),
         qdrant_repo=mock_qdrant_repo,
         taxonomy_manager=mock_tax_mgr,
         ttl_seconds=300.0,
@@ -183,7 +191,10 @@ def test_representative_image_service_scans_past_null_images():
     }
     mock_tax_mgr.resolve.return_value = ("apple", "Apple", "Táo", "fruit")
 
+    from pathlib import Path
+
     service = RepresentativeImageService(
+        manifest_path=Path("non_existent_manifest.json"),
         qdrant_repo=mock_qdrant_repo,
         taxonomy_manager=mock_tax_mgr,
         ttl_seconds=300.0,
@@ -210,14 +221,15 @@ def test_representative_image_service_qdrant_down_resilience_and_no_negative_cac
     }
 
     service = RepresentativeImageService(
+        manifest_path=Path("non_existent_manifest.json"),
         qdrant_repo=mock_qdrant_repo,
         taxonomy_manager=mock_tax_mgr,
     )
 
     images = service.get_representative_images(["apple"])
     assert images.get("apple") is None
-    # Cache should NOT hold negative result
-    assert "apple" not in service._cache
+    # Fallback cache should NOT hold negative result
+    assert "apple" not in service._fallback_cache
 
 
 def test_csp_header_matches_allowed_image_hosts(monkeypatch):
@@ -325,3 +337,166 @@ def test_taxonomy_alias_resolution_for_gallery_species():
         assert canonical == expected_canonical, (
             f"Expected '{raw_label}' to resolve to '{expected_canonical}', got '{canonical}'"
         )
+
+
+def test_representative_image_manifest_loading_and_runtime_validation(tmp_path):
+    """Verify RepresentativeImageService loads manifest JSON and validates URL security at runtime."""
+    manifest_file = tmp_path / "test_manifest.json"
+    manifest_content = {
+        "schema_version": 1,
+        "collection": "test_col",
+        "total_species": 3,
+        "covered_species": 3,
+        "images": {
+            "apple": {
+                "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/apple.webp",
+                "original_class": "apple",
+                "source_dataset": "fruits262",
+            },
+            "corn": {
+                "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/corn.webp",
+                "original_class": "corn kernel",
+                "source_dataset": "fruits262",
+            },
+            "unsafe_species": {
+                "image_url": "javascript:alert(1)",
+                "original_class": "unsafe",
+                "source_dataset": "evil",
+            },
+        },
+    }
+    import json
+
+    manifest_file.write_text(json.dumps(manifest_content), encoding="utf-8")
+
+    mock_tax_mgr = MagicMock()
+    mock_tax_mgr.taxonomy = {
+        "apple": TaxonomyItem(
+            canonical_class="apple", name_en="Apple", name_vi="Táo", category="fruit", is_fruit=True
+        ),
+        "corn": TaxonomyItem(
+            canonical_class="corn", name_en="Corn", name_vi="Bắp", category="seed", is_fruit=False
+        ),
+        "unsafe_species": TaxonomyItem(
+            canonical_class="unsafe_species",
+            name_en="Unsafe",
+            name_vi="Không an toàn",
+            category="other",
+            is_fruit=False,
+        ),
+        "chestnut": TaxonomyItem(
+            canonical_class="chestnut",
+            name_en="Chestnut",
+            name_vi="Hạt dẻ",
+            category="nut",
+            is_fruit=False,
+        ),
+    }
+
+    mock_qdrant_repo = MagicMock()
+
+    service = RepresentativeImageService(
+        manifest_path=manifest_file,
+        qdrant_repo=mock_qdrant_repo,
+        taxonomy_manager=mock_tax_mgr,
+    )
+
+    # 1. Manifest loaded successfully
+    assert service._manifest_loaded is True
+
+    # 2. Lookup for manifest items is O(1) without Qdrant calls
+    images = service.get_representative_images(["apple", "corn", "unsafe_species"])
+    assert images["apple"] == "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/apple.webp"
+    assert images["corn"] == "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/corn.webp"
+    # Unsafe URL rejected by runtime validation
+    assert images["unsafe_species"] is None
+    # Qdrant was NOT called for species present in manifest
+    assert mock_qdrant_repo.client.scroll.call_count == 0
+
+
+def test_manifest_generator_alias_resolution_logic(tmp_path):
+    """Verify build_manifest correctly resolves points with aliases and missing canonical fields."""
+    from scripts.build_representative_image_manifest import build_manifest
+
+    # Mock Qdrant points with varying payloads
+    pt_corn = MagicMock()
+    pt_corn.id = "00000000-0000-0000-0000-000000000001"
+    pt_corn.payload = {
+        "original_class": "Corn Kernel",
+        "canonical_class": None,
+        "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/corn.webp",
+        "source_dataset": "fruits262",
+    }
+
+    pt_chili = MagicMock()
+    pt_chili.id = "00000000-0000-0000-0000-000000000002"
+    pt_chili.payload = {
+        "original_class": "Jalapeno",
+        "canonical_class": "jalapeno",
+        "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/jalapeno.webp",
+        "source_dataset": "fruits262",
+    }
+
+    pt_apple = MagicMock()
+    pt_apple.id = "00000000-0000-0000-0000-000000000003"
+    pt_apple.payload = {
+        "original_class": "Apple 1",
+        "canonical_class": "apple",
+        "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/apple.webp",
+        "source_dataset": "fruits-360",
+    }
+
+    mock_client = MagicMock()
+    mock_client.scroll.side_effect = [
+        ([pt_corn, pt_chili, pt_apple], None),
+    ]
+
+    mock_qdrant_repo = MagicMock()
+    mock_qdrant_repo.client = mock_client
+    mock_qdrant_repo.collection_name = "test_collection"
+
+    out_file = tmp_path / "gen_manifest.json"
+
+    with MagicMock() as mock_settings:
+        mock_settings.allowed_image_host_list = ["r2.dev"]
+        mock_settings.is_production = False
+
+        from unittest.mock import patch
+
+        with (
+            patch(
+                "scripts.build_representative_image_manifest.get_qdrant_repository",
+                return_value=mock_qdrant_repo,
+            ),
+            patch(
+                "scripts.build_representative_image_manifest.get_settings",
+                return_value=mock_settings,
+            ),
+        ):
+            manifest_data = build_manifest(output_path=out_file, early_exit_if_all_found=False)
+
+    assert manifest_data["schema_version"] == 1
+    assert "corn" in manifest_data["images"]
+    assert (
+        manifest_data["images"]["corn"]["image_url"]
+        == "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/corn.webp"
+    )
+
+    assert "chili_pepper" in manifest_data["images"]
+    assert (
+        manifest_data["images"]["chili_pepper"]["image_url"]
+        == "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/jalapeno.webp"
+    )
+
+    assert "apple" in manifest_data["images"]
+    assert (
+        manifest_data["images"]["apple"]["image_url"]
+        == "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/apple.webp"
+    )
+
+    # Verify JSON file exists and is valid JSON
+    assert out_file.exists()
+    import json
+
+    loaded = json.loads(out_file.read_text(encoding="utf-8"))
+    assert loaded == manifest_data

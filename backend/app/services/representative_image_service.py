@@ -1,26 +1,28 @@
 """
 Service for discovering and caching representative gallery images per canonical species.
 
-Retrieves public image URLs from Qdrant Gallery collection payloads using payload-only
-MatchAny filtering (when indexed) or bounded scrolling, verified against taxonomy, sanitized
-for safe HTTP/HTTPS schemes, and cached in-memory with a thread-safe TTL cache.
+Primary Source: Deterministic pre-generated manifest (`configs/representative_images.json`).
+Provides O(1) in-memory lookup with runtime HTTP/HTTPS scheme and allowed-host security validation.
+Maintains an optional fallback to Qdrant Gallery bounded payload scrolling when the manifest is missing.
 """
 
 from __future__ import annotations
 
 import threading
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.repositories.qdrant_repository import QdrantRepository, get_qdrant_repository
+from app.utils.file_utils import load_json_file
 from app.utils.taxonomy import TaxonomyManager, get_taxonomy_manager
 
 logger = get_logger(__name__)
 
-DEFAULT_TTL_SECONDS = 900.0  # 15 minutes TTL
+DEFAULT_TTL_SECONDS = 900.0  # 15 minutes TTL for fallback cache
 MAX_BOUNDED_SCROLL_BATCHES = 8
 SCROLL_BATCH_SIZE = 2000
 
@@ -81,26 +83,36 @@ def is_safe_image_url(
 
 class RepresentativeImageService:
     """
-    Service responsible for retrieving and caching representative images for canonical species
-    from the active Qdrant Gallery collection without invoking DINOv2 embedding or vector search.
+    Service responsible for retrieving and caching representative images for canonical species.
+    Uses configs/representative_images.json as primary deterministic source with runtime URL validation.
+    Falls back to payload-only Qdrant Gallery inspection if the manifest is unavailable.
     """
 
     def __init__(
         self,
+        manifest_path: Path | None = None,
         qdrant_repo: QdrantRepository | None = None,
         taxonomy_manager: TaxonomyManager | None = None,
         settings: Settings | None = None,
         ttl_seconds: float = DEFAULT_TTL_SECONDS,
     ) -> None:
+        self.settings = settings or get_settings()
+        self.manifest_path = manifest_path or self.settings.representative_images_manifest_path
         self.qdrant_repo = qdrant_repo or get_qdrant_repository()
         self.taxonomy = taxonomy_manager or get_taxonomy_manager()
-        self.settings = settings or get_settings()
         self.ttl_seconds = ttl_seconds
         self._lock = threading.RLock()
-        # Cache structure: canonical_class -> (timestamp, representative_image_url_or_none)
-        self._cache: dict[str, tuple[float, str | None]] = {}
+
+        # In-memory manifest storage: canonical_class -> image_url
+        self._manifest_loaded = False
+        self._manifest_images: dict[str, str | None] = {}
+        self._manifest_collection: str | None = None
+
+        # Fallback cache structure: canonical_class -> (timestamp, representative_image_url_or_none)
+        self._fallback_cache: dict[str, tuple[float, str | None]] = {}
 
         self._check_startup_allowed_hosts()
+        self.load_manifest()
 
     def _check_startup_allowed_hosts(self) -> None:
         global _logged_empty_hosts_warning
@@ -110,22 +122,71 @@ class RepresentativeImageService:
                 "Remote representative images are not allowed by CSP because ALLOWED_IMAGE_HOSTS is empty."
             )
 
+    def load_manifest(self, force_reload: bool = False) -> bool:
+        """
+        Load deterministic representative images manifest from JSON file.
+        Thread-safe, executes once unless force_reload=True.
+        """
+        with self._lock:
+            if self._manifest_loaded and not force_reload:
+                return True
+
+            if not self.manifest_path or not self.manifest_path.exists():
+                logger.info(
+                    "Representative image manifest not found at %s. Will use Qdrant fallback if needed.",
+                    self.manifest_path,
+                )
+                self._manifest_loaded = False
+                self._manifest_images = {}
+                return False
+
+            try:
+                data = load_json_file(self.manifest_path)
+                if not isinstance(data, dict):
+                    logger.warning("Invalid manifest format at %s", self.manifest_path)
+                    return False
+
+                self._manifest_collection = data.get("collection")
+                raw_images = data.get("images", {})
+                loaded_map: dict[str, str | None] = {}
+
+                if isinstance(raw_images, dict):
+                    for canon_cls, entry in raw_images.items():
+                        canon_key = str(canon_cls).strip().lower()
+                        if isinstance(entry, dict):
+                            img_url = entry.get("image_url")
+                        elif isinstance(entry, str):
+                            img_url = entry
+                        else:
+                            img_url = None
+
+                        if img_url and isinstance(img_url, str):
+                            loaded_map[canon_key] = img_url.strip()
+                        else:
+                            loaded_map[canon_key] = None
+
+                self._manifest_images = loaded_map
+                self._manifest_loaded = True
+                logger.info(
+                    "Loaded representative image manifest from %s (%d species covered).",
+                    self.manifest_path,
+                    len(self._manifest_images),
+                )
+                return True
+            except Exception as e:
+                logger.warning("Failed to load representative image manifest: %s", e)
+                self._manifest_loaded = False
+                self._manifest_images = {}
+                return False
+
     def get_representative_image(self, canonical_class: str) -> str | None:
         """
         Get representative image URL for a single canonical species.
-        Reuses cached value if still valid; otherwise retrieves and caches.
+        O(1) lookup from manifest with runtime URL safety validation.
         """
         if not canonical_class:
             return None
         canon = canonical_class.strip().lower()
-
-        now = time.monotonic()
-        with self._lock:
-            cached = self._cache.get(canon)
-            if cached is not None and (now - cached[0]) < self.ttl_seconds:
-                return cached[1]
-
-        # Fetch for missing species
         images_map = self.get_representative_images([canon])
         return images_map.get(canon)
 
@@ -134,8 +195,9 @@ class RepresentativeImageService:
     ) -> dict[str, str | None]:
         """
         Retrieve representative image URLs for a list of canonical species (or all taxonomy species).
-        Thread-safe, TTL cached, resilient to Qdrant downtime.
-        Does NOT cache negative results on transient Qdrant errors.
+        Primary source: Manifest JSON (O(1) in-memory lookup).
+        Applies runtime URL security validation (scheme & allowed hosts).
+        Falls back to Qdrant Gallery bounded scan only if manifest is absent or species is missing.
         """
         self.taxonomy.load()
         if canonical_classes is None:
@@ -143,37 +205,71 @@ class RepresentativeImageService:
         else:
             target_classes = [c.strip().lower() for c in canonical_classes if c and c.strip()]
 
+        allowed_hosts = self.settings.allowed_image_host_list or None
+        is_prod = self.settings.is_production
         now = time.monotonic()
-        missing_classes: list[str] = []
+
         result: dict[str, str | None] = {}
+        missing_for_fallback: list[str] = []
 
         with self._lock:
-            for cls_name in target_classes:
-                cached = self._cache.get(cls_name)
-                if cached is not None and (now - cached[0]) < self.ttl_seconds:
-                    result[cls_name] = cached[1]
-                else:
-                    missing_classes.append(cls_name)
+            # 1. First pass: check pre-loaded manifest
+            if self._manifest_loaded:
+                for cls_name in target_classes:
+                    if cls_name in self._manifest_images:
+                        raw_url = self._manifest_images[cls_name]
+                        if raw_url and is_safe_image_url(
+                            raw_url, allowed_hosts=allowed_hosts, is_production=is_prod
+                        ):
+                            result[cls_name] = raw_url
+                        else:
+                            result[cls_name] = None
+                    else:
+                        # Check fallback cache
+                        cached = self._fallback_cache.get(cls_name)
+                        if cached is not None and (now - cached[0]) < self.ttl_seconds:
+                            result[cls_name] = cached[1]
+                        else:
+                            missing_for_fallback.append(cls_name)
+            else:
+                # Manifest not available: check fallback TTL cache
+                for cls_name in target_classes:
+                    cached = self._fallback_cache.get(cls_name)
+                    if cached is not None and (now - cached[0]) < self.ttl_seconds:
+                        result[cls_name] = cached[1]
+                    else:
+                        missing_for_fallback.append(cls_name)
 
-        if not missing_classes:
+        if not missing_for_fallback:
             return result
 
-        # Retrieve missing species images from Qdrant Gallery
-        fetched_images, is_transient_error = self._fetch_from_qdrant(missing_classes)
+        # 2. Fallback pass: retrieve missing species from Qdrant Gallery
+        fetched_images, is_transient_error = self._fetch_from_qdrant(missing_for_fallback)
 
         with self._lock:
             now_write = time.monotonic()
-            for cls_name in missing_classes:
-                img_url = fetched_images.get(cls_name)
+            for cls_name in missing_for_fallback:
+                raw_url = fetched_images.get(cls_name)
+                valid_url = (
+                    raw_url
+                    if (
+                        raw_url
+                        and is_safe_image_url(
+                            raw_url, allowed_hosts=allowed_hosts, is_production=is_prod
+                        )
+                    )
+                    else None
+                )
+
                 if not is_transient_error:
-                    self._cache[cls_name] = (now_write, img_url)
-                result[cls_name] = img_url
+                    self._fallback_cache[cls_name] = (now_write, valid_url)
+                result[cls_name] = valid_url
 
         return result
 
     def _fetch_from_qdrant(self, target_classes: list[str]) -> tuple[dict[str, str | None], bool]:
         """
-        Internal retrieval from Qdrant Gallery.
+        Optional fallback retrieval from Qdrant Gallery when manifest is not available.
         Uses MatchAny indexed payload filter when canonical_class index is available;
         falls back to single bounded batch scrolling for legacy collections.
         Returns: (found_map, is_transient_error)
@@ -282,7 +378,7 @@ class RepresentativeImageService:
                     ):
                         continue
 
-                    # Resolve canonical class
+                    # Resolve canonical class via TaxonomyManager
                     c_cls, _, _, _ = self.taxonomy.resolve(
                         original_class=pl.get("original_class") or "",
                         payload_canonical=pl.get("canonical_class"),
@@ -302,14 +398,17 @@ class RepresentativeImageService:
 
         except Exception as qdrant_err:
             logger.warning(
-                "Failed to fetch representative gallery images from Qdrant: %s", qdrant_err
+                "Failed to fetch representative gallery images from Qdrant fallback: %s",
+                qdrant_err,
             )
             return found_map, True
 
     def clear_cache(self) -> None:
-        """Clear all cached representative images."""
+        """Clear manifest and fallback cache."""
         with self._lock:
-            self._cache.clear()
+            self._manifest_loaded = False
+            self._manifest_images.clear()
+            self._fallback_cache.clear()
 
 
 _representative_image_service: RepresentativeImageService | None = None
