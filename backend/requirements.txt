@@ -20,7 +20,7 @@ sentence-transformers>=2.2.2
 qdrant-client>=1.11.0,<2.0.0
 
 # --- Config ---
-PyYAML>=6.0,<7.0
+PyYAML>=6.0.3,<7.0
 
 # --- Testing (dev) ---
 # pytest>=7.4.0
