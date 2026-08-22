@@ -10,7 +10,7 @@ pydantic-settings>=2.1.0,<3.0.0
 python-multipart>=0.0.32,<0.1.0
 
 # --- ML / Image / Text ---
-torch>=2.1.0
+torch>=2.13.0
 torchvision>=0.16.0
 Pillow>=12.3.0,<13.0.0
 transformers>=5.5.0,<6.0.0
