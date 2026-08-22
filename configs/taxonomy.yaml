@@ -144,6 +144,7 @@ taxonomy:
     is_fruit: false
     aliases:
       - "chili"
+      - "jalapeno"
 
   clementine:
     name_en: "Clementine"
@@ -166,6 +167,7 @@ taxonomy:
     is_fruit: false
     aliases:
       - "corn_husk"
+      - "corn_kernel"
 
   cucumber:
     name_en: "Cucumber"
@@ -244,6 +246,8 @@ taxonomy:
     name_vi: "Chanh dây ngọt"
     category: "fruit"
     is_fruit: true
+    aliases:
+      - "grenadilla"
 
   grape:
     name_en: "Grape"
@@ -385,6 +389,9 @@ taxonomy:
     is_fruit: true
     aliases:
       - "melon_piel_de_sapo"
+      - "muskmelon"
+      - "galia_melon"
+      - "horned_melon"
 
   mushroom:
     name_en: "Mushroom"
@@ -470,12 +477,16 @@ taxonomy:
     name_vi: "Đậu Hà Lan"
     category: "seed"
     is_fruit: false
+    aliases:
+      - "pea"
 
   pepino:
     name_en: "Pepino"
     name_vi: "Dưa Pepino"
     category: "fruit"
     is_fruit: true
+    aliases:
+      - "melon_pear"
 
   pepper:
     name_en: "Bell Pepper"
@@ -494,6 +505,7 @@ taxonomy:
     is_fruit: true
     aliases:
       - "physalis_with_husk"
+      - "cape_gooseberry"
 
   pineapple:
     name_en: "Pineapple"
@@ -597,6 +609,9 @@ taxonomy:
     name_vi: "Mãng cầu gai"
     category: "fruit"
     is_fruit: true
+    aliases:
+      - "mountain_soursop"
+      - "guanabana"
 
   spinach:
     name_en: "Spinach"

@@ -293,3 +293,35 @@ def test_api_species_unknown_returns_404():
     client = TestClient(app)
     response = client.get("/api/species/unknown_invalid_fruit_12345")
     assert response.status_code == 404
+
+
+def test_taxonomy_alias_resolution_for_gallery_species():
+    """Verify that previously missing species with aliases now resolve cleanly via TaxonomyManager."""
+    from app.utils.taxonomy import get_taxonomy_manager
+
+    tax_mgr = get_taxonomy_manager()
+    tax_mgr.load()
+
+    test_cases = [
+        ("Corn Kernel", "corn"),
+        ("Corn Husk", "corn"),
+        ("Grenadilla", "granadilla"),
+        ("Pea", "peas"),
+        ("Melon Pear", "pepino"),
+        ("Physalis with Husk", "physalis"),
+        ("Cape Gooseberry", "physalis"),
+        ("Mountain Soursop", "soursop"),
+        ("Guanabana", "soursop"),
+        ("Muskmelon", "melon"),
+        ("Galia Melon", "melon"),
+        ("Horned Melon", "melon"),
+        ("Melon Piel de Sapo", "melon"),
+        ("Jalapeno", "chili_pepper"),
+        ("Chili", "chili_pepper"),
+    ]
+
+    for raw_label, expected_canonical in test_cases:
+        canonical, _, _, _ = tax_mgr.resolve(original_class=raw_label)
+        assert canonical == expected_canonical, (
+            f"Expected '{raw_label}' to resolve to '{expected_canonical}', got '{canonical}'"
+        )

@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 DEFAULT_TTL_SECONDS = 900.0  # 15 minutes TTL
 MAX_BOUNDED_SCROLL_BATCHES = 8
-SCROLL_BATCH_SIZE = 500
+SCROLL_BATCH_SIZE = 2000
 
 _logged_empty_hosts_warning = False
 

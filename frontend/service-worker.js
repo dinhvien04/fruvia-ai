@@ -4,7 +4,7 @@
  * NEVER caches POST /api/retrieve, /api/*, or dynamic backend search requests.
  */
 
-const CACHE_NAME = "fruvia-v2-static-v7";
+const CACHE_NAME = "fruvia-v2-static-v8";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

@@ -167,7 +167,8 @@
     "category": "vegetable",
     "is_fruit": false,
     "aliases": [
-      "chili"
+      "chili",
+      "jalapeno"
     ]
   },
   {
@@ -195,7 +196,8 @@
     "category": "seed",
     "is_fruit": false,
     "aliases": [
-      "corn_husk"
+      "corn_husk",
+      "corn_kernel"
     ]
   },
   {
@@ -296,7 +298,9 @@
     "name_vi": "Chanh dây ngọt",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [
+      "grenadilla"
+    ]
   },
   {
     "id": "grape",
@@ -476,7 +480,10 @@
     "category": "fruit",
     "is_fruit": true,
     "aliases": [
-      "melon_piel_de_sapo"
+      "melon_piel_de_sapo",
+      "muskmelon",
+      "galia_melon",
+      "horned_melon"
     ]
   },
   {
@@ -584,7 +591,9 @@
     "name_vi": "Đậu Hà Lan",
     "category": "seed",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [
+      "pea"
+    ]
   },
   {
     "id": "pepino",
@@ -592,7 +601,9 @@
     "name_vi": "Dưa Pepino",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [
+      "melon_pear"
+    ]
   },
   {
     "id": "pepper",
@@ -613,7 +624,8 @@
     "category": "fruit",
     "is_fruit": true,
     "aliases": [
-      "physalis_with_husk"
+      "physalis_with_husk",
+      "cape_gooseberry"
     ]
   },
   {
@@ -747,7 +759,10 @@
     "name_vi": "Mãng cầu gai",
     "category": "fruit",
     "is_fruit": true,
-    "aliases": []
+    "aliases": [
+      "mountain_soursop",
+      "guanabana"
+    ]
   },
   {
     "id": "spinach",
