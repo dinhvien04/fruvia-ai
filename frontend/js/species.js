@@ -228,7 +228,7 @@ const SpeciesPage = {
 
     try {
       // Execute 3 focused queries in parallel via searchKnowledge for type-specific precision
-      const [overviewRes, taxonomyRes, nutritionRes] = await Promise.allSettled([
+      const settledResults = await Promise.allSettled([
         ApiClient.searchKnowledge({
           query: overviewQuery,
           canonical_class: canonicalClass,
@@ -249,35 +249,22 @@ const SpeciesPage = {
         })
       ]);
 
-      // Check specifically if knowledge service is globally disabled (KNOWLEDGE_SERVICE_DISABLED)
-      const isKnowledgeDisabled =
-        (overviewRes.status === "rejected" && overviewRes.reason?.errorCode === "KNOWLEDGE_SERVICE_DISABLED") ||
-        (taxonomyRes.status === "rejected" && taxonomyRes.reason?.errorCode === "KNOWLEDGE_SERVICE_DISABLED") ||
-        (nutritionRes.status === "rejected" && nutritionRes.reason?.errorCode === "KNOWLEDGE_SERVICE_DISABLED");
+      const processed = KnowledgeUtils.processKnowledgeResponses(settledResults);
 
-      if (isKnowledgeDisabled) {
+      if (processed.isGloballyDisabled) {
         this.renderKnowledgeDisabledState();
         return;
       }
-
-      const overviewData = overviewRes.status === "fulfilled" ? overviewRes.value : null;
-      const overviewErr = overviewRes.status === "rejected" ? overviewRes.reason : null;
-
-      const taxonomyData = taxonomyRes.status === "fulfilled" ? taxonomyRes.value : null;
-      const taxonomyErr = taxonomyRes.status === "rejected" ? taxonomyRes.reason : null;
-
-      const nutritionData = nutritionRes.status === "fulfilled" ? nutritionRes.value : null;
-      const nutritionErr = nutritionRes.status === "rejected" ? nutritionRes.reason : null;
 
       // Fallback: If all 3 type-filtered searches yielded empty results (no error, just 0 items),
       // attempt a general species knowledge query
       let generalDocs = [];
       const hasAnyFulfilledDocs =
-        (overviewData?.results?.length || 0) +
-        (taxonomyData?.results?.length || 0) +
-        (nutritionData?.results?.length || 0) > 0;
+        (processed.overview?.results?.length || 0) +
+        (processed.taxonomy?.results?.length || 0) +
+        (processed.nutrition?.results?.length || 0) > 0;
 
-      const hasAnyNonError = overviewData || taxonomyData || nutritionData;
+      const hasAnyNonError = processed.overview || processed.taxonomy || processed.nutrition;
 
       if (!hasAnyFulfilledDocs && hasAnyNonError) {
         try {
@@ -291,12 +278,12 @@ const SpeciesPage = {
       }
 
       const aggregatedData = {
-        overview: overviewData,
-        overviewErr: overviewErr,
-        taxonomy: taxonomyData,
-        taxonomyErr: taxonomyErr,
-        nutrition: nutritionData,
-        nutritionErr: nutritionErr,
+        overview: processed.overview,
+        overviewErr: processed.overviewErr,
+        taxonomy: processed.taxonomy,
+        taxonomyErr: processed.taxonomyErr,
+        nutrition: processed.nutrition,
+        nutritionErr: processed.nutritionErr,
         generalDocs: generalDocs
       };
 
@@ -425,7 +412,7 @@ const SpeciesPage = {
         const title = Utils.escapeHtml(doc.title || "Tổng quan");
         const text = Utils.escapeHtml(doc.text || "");
         const sourceName = Utils.escapeHtml(doc.source || doc.source_dataset || "Wikipedia");
-        const safeUrl = this.getSafeSourceUrl(doc.source_url);
+        const safeUrl = KnowledgeUtils.getSafeSourceUrl(doc.source_url);
 
         return `
         <article class="knowledge-doc-card">
@@ -475,13 +462,12 @@ const SpeciesPage = {
       return;
     }
 
-    // Prefer complete document (with both structured taxonomy and scientific_name), or render records
     container.innerHTML = validTaxDocs
       .map((doc) => {
         const scientificName = doc.scientific_name || null;
         const taxObj = doc.taxonomy && typeof doc.taxonomy === "object" ? doc.taxonomy : null;
         const sourceLabel = Utils.escapeHtml(doc.source || doc.source_dataset || "Dữ liệu phân loại");
-        const safeUrl = this.getSafeSourceUrl(doc.source_url);
+        const safeUrl = KnowledgeUtils.getSafeSourceUrl(doc.source_url);
         const docSnippet = doc.text ? Utils.escapeHtml(doc.text) : "";
 
         let taxonomyRowsHtml = "";
@@ -539,51 +525,6 @@ const SpeciesPage = {
       .join("");
   },
 
-  /**
-   * Nutrient Amount Formatter:
-   * STRICT FIDELITY: Returns exact raw amount without toFixed rounding or unit conversion.
-   * e.g. 0.0859375 -> "0.0859375" (never 0.086)
-   */
-  formatNutrientAmount(valObj) {
-    if (valObj === null || valObj === undefined) {
-      return { amountStr: "—", unitStr: "" };
-    }
-
-    let amountStr = "—";
-    let unitStr = "";
-
-    if (typeof valObj === "object") {
-      if (valObj.amount !== undefined && valObj.amount !== null) {
-        amountStr = String(valObj.amount);
-      }
-      if (valObj.unit) {
-        unitStr = String(valObj.unit);
-      }
-    } else if (typeof valObj === "number" || typeof valObj === "string") {
-      amountStr = String(valObj);
-    }
-
-    return { amountStr, unitStr };
-  },
-
-  /**
-   * Nutrient Basis Formatter:
-   * STRICT INTEGRITY: Only renders a basis badge if metadata explicitly provides
-   * structured nutrient_basis. Never fabricates "100g tiêu chuẩn" or infers from title/source.
-   */
-  getNutrientBasisHtml(doc) {
-    const basis = doc?.metadata?.nutrient_basis;
-    if (basis && typeof basis === "object") {
-      const amount = basis.amount !== undefined && basis.amount !== null ? String(basis.amount) : "";
-      const unit = basis.unit ? String(basis.unit) : "";
-      const basisText = `${amount} ${unit}`.trim();
-      if (basisText) {
-        return `<span class="badge badge-neutral">${Utils.escapeHtml(basisText)} tiêu chuẩn</span>`;
-      }
-    }
-    return "";
-  },
-
   renderNutritionSection(nutritionData, generalDocs) {
     const container = document.getElementById("nutrition-content");
     if (!container) return;
@@ -610,13 +551,13 @@ const SpeciesPage = {
       .map((doc) => {
         const title = Utils.escapeHtml(doc.title || "Bảng giá trị dinh dưỡng");
         const sourceName = Utils.escapeHtml(doc.source || doc.source_dataset || "USDA FoodData Central");
-        const safeUrl = this.getSafeSourceUrl(doc.source_url);
+        const safeUrl = KnowledgeUtils.getSafeSourceUrl(doc.source_url);
         const nutrients = doc.nutrients || {};
-        const basisBadgeHtml = this.getNutrientBasisHtml(doc);
+        const basisBadgeHtml = KnowledgeUtils.getNutrientBasisHtml(doc);
 
         let nutrientItemsHtml = "";
         for (const [nutrientName, valObj] of Object.entries(nutrients)) {
-          const { amountStr, unitStr } = this.formatNutrientAmount(valObj);
+          const { amountStr, unitStr } = KnowledgeUtils.formatNutrientAmount(valObj);
 
           nutrientItemsHtml += `
             <div class="nutrient-item">
@@ -683,7 +624,7 @@ const SpeciesPage = {
             const title = Utils.escapeHtml(doc.title || "Tài liệu không tiêu đề");
             const source = Utils.escapeHtml(doc.source || doc.source_dataset || "Dữ liệu tri thức");
             const lang = doc.language ? `<span class="source-lang-badge">${Utils.escapeHtml(doc.language.toUpperCase())}</span>` : "";
-            const safeUrl = this.getSafeSourceUrl(doc.source_url);
+            const safeUrl = KnowledgeUtils.getSafeSourceUrl(doc.source_url);
 
             return `
             <li class="source-list-item">
@@ -702,29 +643,10 @@ const SpeciesPage = {
           .join("")}
       </ul>
     `;
-  },
-
-  /**
-   * Safe URL protocol validator ensuring only http: and https: links are accepted.
-   * Rejects javascript:, data:, file:, etc.
-   */
-  getSafeSourceUrl(url) {
-    if (!url || typeof url !== "string") return null;
-    const trimmed = url.trim();
-    if (!trimmed) return null;
-
-    try {
-      const parsed = new URL(trimmed);
-      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-        return parsed.href;
-      }
-    } catch {
-      return null;
-    }
-    return null;
   }
 };
 
 document.addEventListener("DOMContentLoaded", () => SpeciesPage.init());
+
 
 

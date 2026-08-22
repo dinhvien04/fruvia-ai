@@ -1,89 +1,38 @@
 /**
  * Fruvia AI — Frontend Knowledge Integration Deterministic Test Suite
- * Tests exact nutrient amount preservation, scientific taxonomy provenance isolation,
- * 503 error classification, basis badge handling, and URL sanitization.
+ * Directly executes the production knowledge-utils.js module to guarantee
+ * 100% test integrity against production logic.
  */
 
 const assert = require("assert");
+const KnowledgeUtils = require("../js/knowledge-utils.js");
 
-// Minimal mock environment for testing SpeciesPage methods
-const Utils = {
-  escapeHtml(str) {
-    if (!str) return "";
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-};
+console.log("=== Testing Production KnowledgeUtils Module ===");
 
-// Extract functions from species.js logic to test deterministically
-const formatNutrientAmount = (valObj) => {
-  if (valObj === null || valObj === undefined) {
-    return { amountStr: "—", unitStr: "" };
-  }
-
-  let amountStr = "—";
-  let unitStr = "";
-
-  if (typeof valObj === "object") {
-    if (valObj.amount !== undefined && valObj.amount !== null) {
-      amountStr = String(valObj.amount);
-    }
-    if (valObj.unit) {
-      unitStr = String(valObj.unit);
-    }
-  } else if (typeof valObj === "number" || typeof valObj === "string") {
-    amountStr = String(valObj);
-  }
-
-  return { amountStr, unitStr };
-};
-
-const getNutrientBasisHtml = (doc) => {
-  const basis = doc?.metadata?.nutrient_basis;
-  if (basis && typeof basis === "object") {
-    const amount = basis.amount !== undefined && basis.amount !== null ? String(basis.amount) : "";
-    const unit = basis.unit ? String(basis.unit) : "";
-    const basisText = `${amount} ${unit}`.trim();
-    if (basisText) {
-      return `<span class="badge badge-neutral">${Utils.escapeHtml(basisText)} tiêu chuẩn</span>`;
-    }
-  }
-  return "";
-};
-
-const getSafeSourceUrl = (url) => {
-  if (!url || typeof url !== "string") return null;
-  const trimmed = url.trim();
-  if (!trimmed) return null;
-
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      return parsed.href;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-};
-
-// --- Test 1: Exact Nutrient Amount Fidelity (No toFixed rounding or unit mutation) ---
+// --- Test 1: Exact Nutrient Amount Fidelity ---
 console.log("Running Test 1: Nutrient amount preservation...");
 {
   const nutrientVal = { amount: 0.0859375, unit: "G" };
-  const res = formatNutrientAmount(nutrientVal);
-  assert.strictEqual(res.amountStr, "0.0859375", "Amount must exactly equal '0.0859375', not '0.086'");
+  const res = KnowledgeUtils.formatNutrientAmount(nutrientVal);
+  assert.strictEqual(
+    res.amountStr,
+    "0.0859375",
+    "Amount must strictly equal '0.0859375' (never rounded to 0.086)"
+  );
   assert.strictEqual(res.unitStr, "G", "Unit must remain 'G'");
 
   const intVal = { amount: 52, unit: "KCAL" };
-  assert.strictEqual(formatNutrientAmount(intVal).amountStr, "52");
+  assert.strictEqual(KnowledgeUtils.formatNutrientAmount(intVal).amountStr, "52");
 
   const floatVal = { amount: 7.099, unit: "MG" };
-  assert.strictEqual(formatNutrientAmount(floatVal).amountStr, "7.099");
+  assert.strictEqual(KnowledgeUtils.formatNutrientAmount(floatVal).amountStr, "7.099");
+
+  const scalarVal = 12.3456;
+  assert.strictEqual(KnowledgeUtils.formatNutrientAmount(scalarVal).amountStr, "12.3456");
+
+  const nullVal = KnowledgeUtils.formatNutrientAmount(null);
+  assert.strictEqual(nullVal.amountStr, "—");
+  assert.strictEqual(nullVal.unitStr, "");
 }
 console.log("✓ Test 1 passed: Exact nutrient amount preserved.");
 
@@ -96,7 +45,11 @@ console.log("Running Test 2: Nutrient basis badge integrity...");
     source: "USDA FoodData Central",
     nutrients: { Protein: { amount: 0.0859375, unit: "G" } }
   };
-  assert.strictEqual(getNutrientBasisHtml(docWithoutBasis), "", "Must not fabricate basis badge");
+  assert.strictEqual(
+    KnowledgeUtils.getNutrientBasisHtml(docWithoutBasis),
+    "",
+    "Must not fabricate basis badge when metadata.nutrient_basis is absent"
+  );
 
   // Metadata with explicit nutrient_basis
   const docWithBasis = {
@@ -106,14 +59,98 @@ console.log("Running Test 2: Nutrient basis badge integrity...");
     }
   };
   assert.strictEqual(
-    getNutrientBasisHtml(docWithBasis),
+    KnowledgeUtils.getNutrientBasisHtml(docWithBasis),
     '<span class="badge badge-neutral">100 ML tiêu chuẩn</span>'
   );
 }
 console.log("✓ Test 2 passed: Nutrient basis is strictly verified.");
 
-// --- Test 3: Scientific Taxonomy Provenance Isolation ---
-console.log("Running Test 3: Taxonomy provenance isolation...");
+// --- Test 3: Safe Provenance URL Validation ---
+console.log("Running Test 3: Security and safe URL protocol filtering...");
+{
+  // Valid http/https
+  assert.strictEqual(
+    KnowledgeUtils.getSafeSourceUrl("https://fdc.nal.usda.gov/fdc-app.html"),
+    "https://fdc.nal.usda.gov/fdc-app.html"
+  );
+  assert.strictEqual(
+    KnowledgeUtils.getSafeSourceUrl("http://example.com/fruit"),
+    "http://example.com/fruit"
+  );
+
+  // Malicious protocols neutralized
+  assert.strictEqual(KnowledgeUtils.getSafeSourceUrl("javascript:alert(1)"), null);
+  assert.strictEqual(KnowledgeUtils.getSafeSourceUrl("data:text/html,<script>alert(1)</script>"), null);
+  assert.strictEqual(KnowledgeUtils.getSafeSourceUrl("file:///etc/passwd"), null);
+  assert.strictEqual(KnowledgeUtils.getSafeSourceUrl("vbscript:msgbox"), null);
+  assert.strictEqual(KnowledgeUtils.getSafeSourceUrl(""), null);
+  assert.strictEqual(KnowledgeUtils.getSafeSourceUrl(null), null);
+}
+console.log("✓ Test 3 passed: Malicious URL schemes are completely neutralized.");
+
+// --- Test 4: Partial Failure & Error Classification Behavior ---
+console.log("Running Test 4: Partial failure and error classification...");
+{
+  // Scenario A: Overview fulfilled, Taxonomy fulfilled, Nutrition rejected with QDRANT_UNAVAILABLE 503
+  const settledScenarioA = [
+    {
+      status: "fulfilled",
+      value: { results: [{ title: "Táo Overview", text: "Táo là cây ăn quả." }] }
+    },
+    {
+      status: "fulfilled",
+      value: { results: [{ scientific_name: "Malus domestica", taxonomy: { family: "Rosaceae" } }] }
+    },
+    {
+      status: "rejected",
+      reason: { status: 503, errorCode: "QDRANT_UNAVAILABLE", message: "Qdrant connection refused" }
+    }
+  ];
+
+  const processedA = KnowledgeUtils.processKnowledgeResponses(settledScenarioA);
+  assert.strictEqual(
+    processedA.isGloballyDisabled,
+    false,
+    "QDRANT_UNAVAILABLE 503 must NOT trigger global disabled state"
+  );
+  assert.notStrictEqual(processedA.overview, null, "Overview must remain fulfilled and renderable");
+  assert.strictEqual(processedA.overviewErr, null);
+  assert.notStrictEqual(processedA.taxonomy, null, "Taxonomy must remain fulfilled and renderable");
+  assert.strictEqual(processedA.taxonomyErr, null);
+  assert.strictEqual(processedA.nutrition, null);
+  assert.strictEqual(
+    processedA.nutritionErr.errorCode,
+    "QDRANT_UNAVAILABLE",
+    "Nutrition must be individually tracked as an error"
+  );
+
+  // Scenario B: Global service disabled (KNOWLEDGE_SERVICE_DISABLED)
+  const settledScenarioB = [
+    {
+      status: "rejected",
+      reason: { status: 503, errorCode: "KNOWLEDGE_SERVICE_DISABLED", message: "Knowledge disabled" }
+    },
+    {
+      status: "rejected",
+      reason: { status: 503, errorCode: "KNOWLEDGE_SERVICE_DISABLED", message: "Knowledge disabled" }
+    },
+    {
+      status: "rejected",
+      reason: { status: 503, errorCode: "KNOWLEDGE_SERVICE_DISABLED", message: "Knowledge disabled" }
+    }
+  ];
+
+  const processedB = KnowledgeUtils.processKnowledgeResponses(settledScenarioB);
+  assert.strictEqual(
+    processedB.isGloballyDisabled,
+    true,
+    "KNOWLEDGE_SERVICE_DISABLED must trigger global disabled state"
+  );
+}
+console.log("✓ Test 4 passed: Partial failure and global disabled states behave as expected.");
+
+// --- Test 5: Scientific Taxonomy Provenance Isolation ---
+console.log("Running Test 5: Taxonomy provenance isolation...");
 {
   const wikidataDoc = {
     document_id: "wiki-apple",
@@ -139,52 +176,24 @@ console.log("Running Test 3: Taxonomy provenance isolation...");
       scientific_name: doc.scientific_name || null,
       family: doc.taxonomy?.family || null,
       source: doc.source,
-      source_url: getSafeSourceUrl(doc.source_url)
+      source_url: KnowledgeUtils.getSafeSourceUrl(doc.source_url)
     };
   });
 
-  // Check Wikidata record has null family and Wikidata source
+  // Verify Wikidata record has null family and Wikidata source
   assert.strictEqual(renderedRecords[0].source, "Wikidata Taxon");
-  assert.strictEqual(renderedRecords[0].family, null, "Wikidata record must NOT borrow Rosaceae from GBIF");
+  assert.strictEqual(
+    renderedRecords[0].family,
+    null,
+    "Wikidata record must NOT borrow Rosaceae from GBIF"
+  );
 
-  // Check GBIF record has Rosaceae and GBIF source
+  // Verify GBIF record has Rosaceae and GBIF source
   assert.strictEqual(renderedRecords[1].source, "GBIF Backbone Taxonomy");
   assert.strictEqual(renderedRecords[1].family, "Rosaceae");
 }
-console.log("✓ Test 3 passed: Taxonomy provenance is isolated per document.");
-
-// --- Test 4: Safe Provenance URL Validation ---
-console.log("Running Test 4: Security and safe URL protocol filtering...");
-{
-  // Valid http/https
-  assert.strictEqual(getSafeSourceUrl("https://fdc.nal.usda.gov"), "https://fdc.nal.usda.gov/");
-  assert.strictEqual(getSafeSourceUrl("http://example.com/fruit"), "http://example.com/fruit");
-
-  // Malicious protocols rejected
-  assert.strictEqual(getSafeSourceUrl("javascript:alert(1)"), null);
-  assert.strictEqual(getSafeSourceUrl("data:text/html,<script>alert(1)</script>"), null);
-  assert.strictEqual(getSafeSourceUrl("file:///etc/passwd"), null);
-  assert.strictEqual(getSafeSourceUrl("vbscript:msgbox"), null);
-  assert.strictEqual(getSafeSourceUrl(""), null);
-  assert.strictEqual(getSafeSourceUrl(null), null);
-}
-console.log("✓ Test 4 passed: Malicious URL schemes are completely neutralized.");
-
-// --- Test 5: Error Classification Logic ---
-console.log("Running Test 5: Error classification (disabled vs partial unavailable)...");
-{
-  const disabledError = { status: 503, errorCode: "KNOWLEDGE_SERVICE_DISABLED" };
-  const qdrantError = { status: 503, errorCode: "QDRANT_UNAVAILABLE" };
-  const encoderError = { status: 503, errorCode: "KNOWLEDGE_ENCODER_UNAVAILABLE" };
-
-  const isGloballyDisabled = (err) => err?.errorCode === "KNOWLEDGE_SERVICE_DISABLED";
-
-  assert.strictEqual(isGloballyDisabled(disabledError), true);
-  assert.strictEqual(isGloballyDisabled(qdrantError), false, "QDRANT_UNAVAILABLE must NOT trigger global disabled banner");
-  assert.strictEqual(isGloballyDisabled(encoderError), false, "KNOWLEDGE_ENCODER_UNAVAILABLE must NOT trigger global disabled banner");
-}
-console.log("✓ Test 5 passed: Error classification strictly distinguishes service disabled from backend faults.");
+console.log("✓ Test 5 passed: Taxonomy provenance isolation verified.");
 
 console.log("\n=======================================================");
-console.log("ALL FRONTEND KNOWLEDGE CORRECTNESS TESTS PASSED (5/5)!");
+console.log("ALL PRODUCTION KNOWLEDGE UTILITY TESTS PASSED (5/5)!");
 console.log("=======================================================");
