@@ -3,6 +3,11 @@
  * Coordinates UploadManager, ApiClient, ResultsRenderer, ResultModal, and SearchHistory.
  */
 document.addEventListener("DOMContentLoaded", () => {
+  // Load public runtime configuration in the background early
+  if (typeof RuntimeConfig !== "undefined" && typeof RuntimeConfig.load === "function") {
+    RuntimeConfig.load();
+  }
+
   // Initialize Modules
   UploadManager.init({
     dropzoneId: "dropzone",

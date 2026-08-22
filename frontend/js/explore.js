@@ -7,6 +7,11 @@ const ExplorePage = {
   speciesList: [],
 
   async init() {
+    // Load public runtime configuration
+    if (typeof RuntimeConfig !== "undefined" && typeof RuntimeConfig.load === "function") {
+      RuntimeConfig.load();
+    }
+
     const gridEl = document.getElementById("species-grid");
     if (!gridEl) return;
 

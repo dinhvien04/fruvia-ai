@@ -72,6 +72,29 @@ def is_keyword_index_type(schema_info: Any) -> bool:
     return dt_str in {"keyword", "payloadschematype.keyword"}
 
 
+def classify_gallery_eligibility(
+    source_collection: str,
+    payload: dict[str, Any] | None,
+) -> bool:
+    """
+    Pure helper to determine if a point from source_collection is eligible for Gallery V2 migration.
+
+    Rules:
+    - PackEat points (identified by collection name or payload['source_dataset'] == 'packeat'):
+      Strictly requires payload['gallery_eligible'] is True.
+      If False or missing -> Ineligible (excluded).
+    - Legacy / Non-PackEat points (e.g. Fruits-360):
+      Always eligible (does not require or look for gallery_eligible flag).
+    """
+    raw_payload = payload or {}
+    is_packeat_point = (
+        "packeat" in source_collection.lower() or raw_payload.get("source_dataset") == "packeat"
+    )
+    if is_packeat_point:
+        return raw_payload.get("gallery_eligible") is True
+    return True
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Unified Gallery V2 Point Migration Tool")
     parser.add_argument(
@@ -373,13 +396,17 @@ def generate_deterministic_point_uuid(source_collection: str, source_point_id: i
     return str(uuid.uuid5(FRUVIA_NAMESPACE, composite_key))
 
 
+APPROVED_TAXONOMY_MATCH_STATUSES = {"EXACT", "ALIAS", "NORMALIZED_EXACT"}
+
+
 def validate_taxonomy_mapping(
     mapping_data: Any,
     taxonomy_manager: Any,
 ) -> dict[str, Any]:
     """
-    Validate that approved taxonomy mapping is valid and targets real canonical classes.
-    Rejects nonexistent target species or malformed structures.
+    Validate that approved taxonomy mapping is valid, targets real canonical classes,
+    and contains only approved trusted match statuses (EXACT, ALIAS, NORMALIZED_EXACT).
+    Rejects nonexistent target species, malformed structures, or arbitrary status injection.
     """
     if not isinstance(mapping_data, dict):
         raise ValueError("Approved taxonomy mapping must be a JSON dictionary.")
@@ -403,9 +430,18 @@ def validate_taxonomy_mapping(
             if not isinstance(canon_val, str) or not canon_val.strip():
                 raise ValueError(f"Mapping entry for '{raw_label}' missing valid 'canonical_class'")
             canonical_target = canon_val.strip()
-            status = target.get("match_status", "ALIAS")
+            raw_status = target.get("match_status", "ALIAS")
+            if not isinstance(raw_status, str) or not raw_status.strip():
+                raise ValueError(f"Invalid match_status for '{raw_label}': {raw_status}")
+            status = raw_status.strip().upper()
+            if status not in APPROVED_TAXONOMY_MATCH_STATUSES:
+                raise ValueError(
+                    f"Invalid match_status '{status}' for '{raw_label}'. "
+                    f"Must be one of: {sorted(APPROVED_TAXONOMY_MATCH_STATUSES)}"
+                )
         elif isinstance(target, str) and target.strip():
             canonical_target = target.strip()
+            status = "ALIAS"
         else:
             raise ValueError(f"Invalid mapping value for '{raw_label}': {target}")
 
@@ -911,17 +947,10 @@ def main() -> None:
             for rec in records:
                 raw_payload = rec.payload or {}
 
-                # Check gallery eligibility for PackEat source
-                is_packeat_point = (
-                    "packeat" in args.source_collection.lower()
-                    or raw_payload.get("source_dataset") == "packeat"
-                )
-                if is_packeat_point:
-                    gallery_eligible = raw_payload.get("gallery_eligible")
-                    if gallery_eligible is not True:
-                        # gallery_eligible is False or missing -> fail-closed exclusion
-                        excluded_ineligible_this_batch += 1
-                        continue
+                # Check gallery eligibility via pure classify_gallery_eligibility helper
+                if not classify_gallery_eligibility(args.source_collection, raw_payload):
+                    excluded_ineligible_this_batch += 1
+                    continue
 
                 # Vector validation
                 vec = rec.vector

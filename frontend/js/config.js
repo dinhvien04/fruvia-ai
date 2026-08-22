@@ -36,5 +36,79 @@ const CONFIG = {
   }
 };
 
-// Freeze config to avoid accidental runtime mutations
+// Freeze static config to prevent accidental runtime mutations
 Object.freeze(CONFIG);
+
+/**
+ * Fruvia AI — Dynamic Runtime Configuration
+ * Manages mutable runtime state (such as dynamic allowed image hosts from GET /api/public-config)
+ * without mutating the immutable CONFIG object.
+ */
+const RuntimeConfig = {
+  _allowedImageHosts: new Set(
+    (CONFIG.ALLOWED_IMAGE_HOSTS || []).map((h) => h.toLowerCase().trim())
+  ),
+  _appVersion: null,
+  _isLoaded: false,
+  _loadPromise: null,
+
+  /**
+   * Return array of all currently approved image hostnames (lowercase).
+   * @returns {string[]}
+   */
+  getAllowedImageHosts() {
+    return Array.from(this._allowedImageHosts);
+  },
+
+  /**
+   * Check if a hostname is in the approved allowlist (exact match only).
+   * @param {string} hostname
+   * @returns {boolean}
+   */
+  isHostAllowed(hostname) {
+    if (!hostname || typeof hostname !== "string") return false;
+    return this._allowedImageHosts.has(hostname.toLowerCase().trim());
+  },
+
+  /**
+   * Fetch public runtime configuration from backend and merge allowed image hosts.
+   * Safe to call multiple times; uses memoized promise and fails gracefully.
+   * @returns {Promise<void>}
+   */
+  async load() {
+    if (this._isLoaded) return;
+    if (this._loadPromise) return this._loadPromise;
+
+    this._loadPromise = (async () => {
+      try {
+        if (typeof ApiClient !== "undefined" && ApiClient.getPublicConfig) {
+          const publicConfig = await ApiClient.getPublicConfig();
+          if (publicConfig && typeof publicConfig === "object") {
+            if (publicConfig.app_version) {
+              this._appVersion = publicConfig.app_version;
+            }
+            if (Array.isArray(publicConfig.allowed_image_hosts)) {
+              for (const host of publicConfig.allowed_image_hosts) {
+                if (host && typeof host === "string") {
+                  const cleaned = host.toLowerCase().trim();
+                  if (cleaned) {
+                    this._allowedImageHosts.add(cleaned);
+                  }
+                }
+              }
+            }
+          }
+          this._isLoaded = true;
+        }
+      } catch (err) {
+        console.warn(
+          "Fruvia: Could not fetch public runtime config; using default localhost image allowlist.",
+          err.message || err
+        );
+      }
+    })();
+
+    return this._loadPromise;
+  }
+};
+

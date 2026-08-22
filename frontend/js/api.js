@@ -29,6 +29,32 @@ const ApiClient = {
   },
 
   /**
+   * Fetch public runtime configuration (safe non-sensitive parameters)
+   * @returns {Promise<{app_version: string, allowed_image_hosts: string[]}>}
+   */
+  async getPublicConfig() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/public-config`, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  },
+
+  /**
    * Submit query image for similarity retrieval
    * @param {File} file
    * @param {number} topK

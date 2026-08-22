@@ -3,6 +3,11 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 0. Load public runtime configuration
+  if (typeof RuntimeConfig !== 'undefined' && typeof RuntimeConfig.load === 'function') {
+    RuntimeConfig.load();
+  }
+
   // 1. Single Source Stats Populate
   if (typeof CONFIG !== 'undefined' && CONFIG.STATS) {
     const vCount = document.getElementById('stat-vector-count');

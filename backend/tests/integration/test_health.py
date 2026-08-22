@@ -120,6 +120,8 @@ class TestHealthEndpoint:
         assert "app_version" in data
         assert "allowed_image_hosts" in data
         assert isinstance(data["allowed_image_hosts"], list)
+        # Strict key allowlist check: response MUST NOT contain any additional keys
+        assert set(data.keys()) <= {"app_version", "allowed_image_hosts"}
         # Ensure no secrets or API keys are exposed
         assert "qdrant_api_key" not in data
         assert "qdrant_migration_api_key" not in data

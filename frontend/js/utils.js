@@ -71,12 +71,18 @@ const Utils = {
         return true;
       }
 
-      // Check against CONFIG.ALLOWED_IMAGE_HOSTS (exact hostname match only - never trust entire *.r2.dev)
-      const allowedHosts = (typeof CONFIG !== "undefined" && CONFIG.ALLOWED_IMAGE_HOSTS) || [];
-      for (const allowed of allowedHosts) {
-        const cleanAllowed = allowed.toLowerCase().trim();
-        if (cleanAllowed && hostname === cleanAllowed) {
+      // Check against dynamic RuntimeConfig if available, falling back to CONFIG.ALLOWED_IMAGE_HOSTS
+      if (typeof RuntimeConfig !== "undefined" && typeof RuntimeConfig.isHostAllowed === "function") {
+        if (RuntimeConfig.isHostAllowed(hostname)) {
           return true;
+        }
+      } else {
+        const allowedHosts = (typeof CONFIG !== "undefined" && CONFIG.ALLOWED_IMAGE_HOSTS) || [];
+        for (const allowed of allowedHosts) {
+          const cleanAllowed = allowed.toLowerCase().trim();
+          if (cleanAllowed && hostname === cleanAllowed) {
+            return true;
+          }
         }
       }
     } catch {

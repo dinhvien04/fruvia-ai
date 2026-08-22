@@ -765,28 +765,75 @@ class TestProductionSecurityMiddlewareAndValidators:
             )
 
     def test_packeat_gallery_eligibility_filter_and_counters(self) -> None:
-        """PackEat points with gallery_eligible=False or missing must be excluded and tracked."""
-        from scripts.prepare_gallery_v2 import normalize_point_payload
+        """Test pure classify_gallery_eligibility helper across PackEat and legacy source rules."""
+        from scripts.prepare_gallery_v2 import classify_gallery_eligibility
 
-        from app.utils.taxonomy import get_taxonomy_manager
-
-        tax_mgr = get_taxonomy_manager()
-
-        # Eligible PackEat point
-        eligible_payload = {
-            "source_dataset": "packeat",
-            "original_class": "apple_granny_smith",
-            "canonical_class": "apple",
-            "gallery_eligible": True,
-        }
-        res_eligible = normalize_point_payload(
-            original_payload=eligible_payload,
-            tax_manager=tax_mgr,
-            source_collection="fruvia_packeat_dinov2_base_v1",
-            source_point_id="101",
+        # 1. PackEat True -> eligible
+        assert (
+            classify_gallery_eligibility(
+                "fruvia_packeat_dinov2_base_v1",
+                {"source_dataset": "packeat", "gallery_eligible": True},
+            )
+            is True
         )
-        assert res_eligible["canonical_class"] == "apple"
-        assert res_eligible["taxonomy_status"] in {"EXACT", "ALIAS"}
+
+        # 2. PackEat False -> excluded
+        assert (
+            classify_gallery_eligibility(
+                "fruvia_packeat_dinov2_base_v1",
+                {"source_dataset": "packeat", "gallery_eligible": False},
+            )
+            is False
+        )
+
+        # 3. PackEat missing gallery_eligible -> excluded (fail-closed)
+        assert (
+            classify_gallery_eligibility(
+                "fruvia_packeat_dinov2_base_v1",
+                {"source_dataset": "packeat"},
+            )
+            is False
+        )
+        assert (
+            classify_gallery_eligibility(
+                "fruvia_packeat_dinov2_base_v1",
+                {"gallery_eligible": None},
+            )
+            is False
+        )
+
+        # 4. Legacy Fruits-360 missing gallery_eligible -> MUST remain eligible
+        assert (
+            classify_gallery_eligibility(
+                "fruvia_fruits360_original_dinov2_base_v1",
+                {"source_dataset": "fruits360", "original_class": "apple_fuji"},
+            )
+            is True
+        )
+        assert (
+            classify_gallery_eligibility(
+                "fruvia_fruits360_original_dinov2_base_v1",
+                {},
+            )
+            is True
+        )
+
+        # 5. Small batch accounting test
+        mock_batch = [
+            {"source_dataset": "packeat", "gallery_eligible": True},
+            {"source_dataset": "packeat", "gallery_eligible": True},
+            {"source_dataset": "packeat", "gallery_eligible": False},
+            {"source_dataset": "packeat"},  # missing
+        ]
+        eligible_count = sum(
+            1
+            for p in mock_batch
+            if classify_gallery_eligibility("fruvia_packeat_dinov2_base_v1", p)
+        )
+        excluded_count = len(mock_batch) - eligible_count
+        assert len(mock_batch) == 4
+        assert eligible_count == 2
+        assert excluded_count == 2
 
     def test_taxonomy_fallback_unknown_is_unmapped(self) -> None:
         """Unknown taxonomy item not in taxonomy.yaml must resolve to UNMAPPED, never EXACT."""
@@ -849,34 +896,90 @@ class TestProductionSecurityMiddlewareAndValidators:
             is False
         )
 
-    def test_packeat_csv_mapping_granny_smith_override_and_composite(self) -> None:
-        """PackEat CSV tool handles composite keys and ('apple', 'granny') -> ('apple', 'granny_smith')."""
+    def test_packeat_csv_mapping_granny_smith_override_and_composite(self, tmp_path: Path) -> None:
+        """Test full PackEat CSV pipeline with composite key join and granny->granny_smith override."""
+        import csv
+
         from scripts.build_packeat_taxonomy_mapping import (
-            PackEatRecord,
+            analyze_packeat_records,
             build_taxonomy_index,
-            match_packeat_record,
+            parse_packeat_csvs,
         )
 
-        tax_path = Path("configs/taxonomy.yaml")
-        canonical_items, alias_map = build_taxonomy_index(tax_path)
+        tax_yaml_path = Path("configs/taxonomy.yaml")
+        canonical_items, alias_map = build_taxonomy_index(tax_yaml_path)
 
-        # Explicit override: species='apple', variety='granny' -> apple
-        rec_granny = PackEatRecord(
-            raw_label="granny",
-            variety="granny",
-            species="apple",
-        )
-        status, canon, _ = match_packeat_record(rec_granny, canonical_items, alias_map)
-        assert status in {"EXACT", "ALIAS", "NORMALIZED_EXACT"}
-        assert canon == "apple"
+        # Create temporary taxonomy.csv with multiple apple rows
+        tax_csv = tmp_path / "taxonomy.csv"
+        with open(tax_csv, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["common name", "common variety", "fruit"])
+            writer.writerow(["apple", "fuji", "apple"])
+            writer.writerow(["apple", "granny_smith", "apple"])
+            writer.writerow(["apple", "golden", "apple"])
 
-        # Ambiguous 1-to-many join -> MANUAL_REVIEW
-        rec_ambig = PackEatRecord(
-            raw_label="ambiguous_item",
-            variety="var1",
-            species="spec1",
-            taxonomy_row={"_ambiguous_join": "true", "_match_count": "3"},
-        )
-        status_ambig, canon_ambig, _ = match_packeat_record(rec_ambig, canonical_items, alias_map)
-        assert status_ambig == "MANUAL_REVIEW"
-        assert canon_ambig is None
+        # Create temporary variety_classification.csv with granny
+        var_csv = tmp_path / "variety_classification.csv"
+        with open(var_csv, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["species", "variety", "label"])
+            writer.writerow(["apple", "granny", "apple (granny)"])
+            writer.writerow(["apple", "fuji", "apple (fuji)"])
+
+        # Parse CSVs through real parser
+        records = parse_packeat_csvs(tax_csv, var_csv)
+        assert len(records) == 2
+
+        # Analyze records
+        approved, reviews = analyze_packeat_records(records, canonical_items, alias_map)
+        assert "apple (granny)" in approved
+        assert approved["apple (granny)"] == "apple"
+        assert "apple (fuji)" in approved
+        assert approved["apple (fuji)"] == "apple"
+        assert len(reviews) == 2
+        # Verify neither record required manual review
+        assert all(r["match_status"] in {"EXACT", "ALIAS", "NORMALIZED_EXACT"} for r in reviews)
+        assert all(r["match_status"] != "MANUAL_REVIEW" for r in reviews)
+
+    def test_approved_mapping_validation_rules(self) -> None:
+        """Test validate_taxonomy_mapping rejects unknown canonicals and unapproved match statuses."""
+        from scripts.prepare_gallery_v2 import validate_taxonomy_mapping
+
+        from app.utils.taxonomy import get_taxonomy_manager
+
+        tax_mgr = get_taxonomy_manager()
+
+        # Valid mapping passes
+        valid_mapping = {
+            "entries": {
+                "apple_granny": {"canonical_class": "apple", "match_status": "ALIAS"},
+                "apple_fuji": {"canonical_class": "apple", "match_status": "EXACT"},
+                "pear_bartlett": "pear",  # flat string defaults to ALIAS
+            }
+        }
+        res = validate_taxonomy_mapping(valid_mapping, tax_mgr)
+        assert res["apple_granny"]["canonical_class"] == "apple"
+        assert res["apple_granny"]["match_status"] == "ALIAS"
+        assert res["pear_bartlett"]["canonical_class"] == "pear"
+        assert res["pear_bartlett"]["match_status"] == "ALIAS"
+
+        # Invalid target canonical species raises ValueError
+        invalid_canon_mapping = {
+            "entries": {
+                "apple_granny": {"canonical_class": "nonexistent_unicorn_fruit"},
+            }
+        }
+        with pytest.raises(ValueError, match="unknown canonical species"):
+            validate_taxonomy_mapping(invalid_canon_mapping, tax_mgr)
+
+        # Arbitrary/untrusted match_status raises ValueError
+        untrusted_status_mapping = {
+            "entries": {
+                "apple_granny": {
+                    "canonical_class": "apple",
+                    "match_status": "TRUST_ME_I_AM_VERIFIED",
+                },
+            }
+        }
+        with pytest.raises(ValueError, match="Invalid match_status"):
+            validate_taxonomy_mapping(untrusted_status_mapping, tax_mgr)

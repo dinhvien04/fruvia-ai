@@ -15,7 +15,10 @@ FAIL-CLOSED ACTIVATION GATE:
 If any mandatory requirement fails, exits with non-zero exit code (1). Never prints [PASS] on warnings.
 
 USAGE:
-    python scripts/validate_gallery_v2.py --collection fruvia_gallery_dinov2_base_v2
+    python scripts/validate_gallery_v2.py \
+        --collection fruvia_gallery_dinov2_base_v2 \
+        --allowed-image-host <YOUR_ACTUAL_FRUVIA_PUBLIC_IMAGE_HOST> \
+        --expect-total-count 431602
 """
 
 from __future__ import annotations
@@ -83,7 +86,9 @@ def is_valid_http_url(url_str: str, allowed_hosts: list[str] | None = None) -> b
             return False
         # If allowed_hosts specified, enforce exact hostname match (case-insensitive)
         if allowed_hosts:
-            host = parsed.netloc.split(":")[0].lower()
+            host = (parsed.hostname or "").lower().strip()
+            if not host:
+                return False
             return host in {ah.lower().strip() for ah in allowed_hosts if ah}
         return True
     except Exception:

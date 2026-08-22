@@ -37,6 +37,12 @@ if str(Path(__file__).resolve().parent.parent / "backend") not in sys.path:
 
 from app.utils.file_utils import load_yaml_config  # noqa: E402
 
+# Explicit documented dataset-specific naming differences for composite (species, variety) pairs.
+# Applied before composite taxonomy lookup to eliminate artificial species-level ambiguities.
+PACKEAT_PAIR_OVERRIDES: dict[tuple[str, str], tuple[str, str]] = {
+    ("apple", "granny"): ("apple", "granny_smith"),
+}
+
 
 @dataclass
 class PackEatRecord:
@@ -110,17 +116,15 @@ def match_packeat_record(
 
     # Check for composite species + variety and apply explicit overrides
     if record.species and record.variety:
-        s = record.species.strip()
-        v = record.variety.strip()
-        # Explicit override: ("apple", "granny") -> ("apple", "granny_smith")
-        if s.lower() == "apple" and v.lower() == "granny":
-            v = "granny_smith"
-            candidates.append(f"{s}_{v}")
-            candidates.append(f"{s} {v}")
-            candidates.append(v)
-        else:
-            candidates.append(f"{s}_{v}")
-            candidates.append(f"{s} {v}")
+        s = record.species.strip().lower()
+        v = record.variety.strip().lower()
+        # Apply documented pair override
+        if (s, v) in PACKEAT_PAIR_OVERRIDES:
+            s, v = PACKEAT_PAIR_OVERRIDES[(s, v)]
+
+        candidates.append(f"{s}_{v}")
+        candidates.append(f"{s} {v}")
+        candidates.append(v)
 
     for c in [record.raw_label, record.variety, record.species]:
         if c and str(c).strip() and str(c).strip() not in candidates:
@@ -308,9 +312,17 @@ def parse_packeat_csvs(
                 # Attempt composite key match (species, variety) or single key join
                 matched_tax_rows = []
                 if species_val and variety_val:
-                    composite_key = f"{species_val.lower().strip()}_{variety_val.lower().strip()}"
+                    s_norm = species_val.lower().strip()
+                    v_norm = variety_val.lower().strip()
+                    # Apply explicit documented composite pair override before lookup
+                    if (s_norm, v_norm) in PACKEAT_PAIR_OVERRIDES:
+                        s_norm, v_norm = PACKEAT_PAIR_OVERRIDES[(s_norm, v_norm)]
+
+                    composite_key = f"{s_norm}_{v_norm}"
                     if composite_key in tax_rows:
                         matched_tax_rows = tax_rows[composite_key]
+
+                # Fallback to species or raw_label ONLY if composite lookup yielded no matches
                 if not matched_tax_rows and species_val and species_val.lower().strip() in tax_rows:
                     matched_tax_rows = tax_rows[species_val.lower().strip()]
                 elif not matched_tax_rows and raw_label.lower().strip() in tax_rows:
