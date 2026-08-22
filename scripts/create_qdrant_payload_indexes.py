@@ -215,6 +215,25 @@ def main() -> None:
                 )
                 print(f"  [CREATED] {field_name} -> KEYWORD")
 
+        if not args.dry_run and missing_fields:
+            print("\n--- Post-Creation Verification ---")
+            post_results = inspect_collection_indexes(client, args.collection)
+            verification_failed = False
+            for f_name in missing_fields:
+                st, det = post_results.get(f_name, ("MISSING", "Field not found in schema"))
+                if st != "EXISTS":
+                    print(f"  [VERIFY_FAIL] {f_name}: {det}", file=sys.stderr)
+                    verification_failed = True
+                else:
+                    print(f"  [VERIFIED] {f_name} confirmed as KEYWORD index.")
+            if verification_failed:
+                print(
+                    "\n[FAIL] Post-creation verification failed: One or more created indexes are missing or invalid.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            print("[OK] Post-creation verification passed: All required indexes are active.")
+
         print("-" * 50)
         print("Payload indexing operation completed successfully.")
 

@@ -404,7 +404,7 @@ def validate_taxonomy_mapping(
             raise ValueError(f"Invalid mapping value for '{raw_label}': {target}")
 
         # Validate that canonical_target exists in taxonomy.yaml
-        if canonical_target not in taxonomy_manager.taxonomy:
+        if taxonomy_manager.get_item(canonical_target) is None:
             raise ValueError(
                 f"Approved taxonomy mapping targets unknown canonical species '{canonical_target}' "
                 f"for raw label '{raw_label}'. Not found in taxonomy.yaml."

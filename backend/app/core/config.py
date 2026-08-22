@@ -8,10 +8,11 @@ No secret is ever hardcoded — see .env.example for the full list.
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -285,11 +286,24 @@ class Settings(BaseSettings):
     @classmethod
     def validate_production_model_revision(cls, v: str, info) -> str:
         env = info.data.get("app_env", "development")
-        if env == "production" and (not v or v.strip().lower() == "main" or len(v.strip()) < 40):
+        v_str = str(v).strip() if v else ""
+        if env == "production":
+            sha_pattern = r"^[0-9a-fA-F]{40}$"
+            if not re.match(sha_pattern, v_str):
+                raise ValueError(
+                    f"In production, DINOV2_REVISION must match exactly a 40-character hexadecimal commit SHA (^[0-9a-fA-F]{{40}}$), got '{v}'."
+                )
+        return v_str
+
+    @model_validator(mode="after")
+    def validate_body_and_upload_limits(self) -> Settings:
+        """Enforce that max_request_body_mb is strictly greater than or equal to max_upload_mb."""
+        if self.max_request_body_mb < self.max_upload_mb:
             raise ValueError(
-                "In production, DINOV2_REVISION must be pinned to an immutable full Hugging Face commit SHA (40 hex chars), not 'main'."
+                f"MAX_REQUEST_BODY_MB ({self.max_request_body_mb}) must be >= MAX_UPLOAD_MB ({self.max_upload_mb}) "
+                "to accommodate multipart/form-data boundary and header overhead."
             )
-        return v
+        return self
 
     @field_validator("qdrant_url")
     @classmethod

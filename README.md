@@ -232,12 +232,13 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 - **Hybrid Filtering**: Native payload filtering on indexed fields (`category`, `canonical_class`, `source_dataset`, `dataset_name`) with automated fallback to Python-level filtering for legacy collections.
 
 ### 2. IN PROGRESS (External Processing & Staging)
-- **PackEat Dataset Processing**: High-resolution fruit variety imagery thumbnails being processed and mirrored to Cloudflare R2 object storage (`pub-r2.fruvia.ai/thumbnails/...`).
-- **Taxonomy Alignment**: `scripts/build_packeat_taxonomy_mapping.py` maps PackEat classes to `configs/taxonomy.yaml` canonical taxonomy.
+- **PackEat Staging Dataset**: 103,412 high-quality point vectors across 65/65 classes staged in collection `fruvia_packeat_dinov2_base_v1` (768-dim DINOv2 Base, Cosine distance).
+- **Taxonomy Alignment**: `configs/taxonomy.yaml` canonical source of truth synchronized with 100% PackEat classes (90 canonical species total).
 - **Migration & Payload Tooling**: 
-  - `scripts/create_qdrant_payload_indexes.py` (Payload index automation with fail-closed schema validation).
+  - `scripts/create_qdrant_payload_indexes.py` (Payload index automation with fail-closed schema validation and post-creation verification).
   - `scripts/prepare_gallery_v2.py` (Resumable batch migration pipeline with schema v1 atomic checkpointing, `--skip-invalid` reporting, and `--dry-run`).
-  - `scripts/validate_gallery_v2.py` (Read-only pre-flight validator for geometry, index health, and payload distribution).
+  - `scripts/validate_gallery_v2.py` (Read-only pre-flight validator for geometry, index health, uppercase taxonomy status normalization, and payload distribution).
+  - `scripts/build_packeat_taxonomy_mapping.py` (Composite key join and structured PackEat record alignment).
 
 ### 3. FUTURE (Unified Gallery V2 Deployment)
 - **Unified Target Collection**: `fruvia_gallery_dinov2_base_v2`

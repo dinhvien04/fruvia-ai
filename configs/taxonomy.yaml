@@ -322,6 +322,14 @@ taxonomy:
     aliases:
       - "lemon_meyer"
 
+  lettuce:
+    name_en: "Lettuce"
+    name_vi: "Xà lách"
+    category: "vegetable"
+    is_fruit: false
+    aliases:
+      - "salad"
+
   lime:
     name_en: "Lime"
     name_vi: "Chanh xanh"
@@ -549,6 +557,8 @@ taxonomy:
     name_vi: "Củ cải"
     category: "vegetable"
     is_fruit: false
+    aliases:
+      - "raddish"
 
   rambutan:
     name_en: "Rambutan"
@@ -611,6 +621,12 @@ taxonomy:
   tangelo:
     name_en: "Tangelo"
     name_vi: "Cam Tangelo"
+    category: "fruit"
+    is_fruit: true
+
+  tangerine:
+    name_en: "Tangerine"
+    name_vi: "Quýt"
     category: "fruit"
     is_fruit: true
 

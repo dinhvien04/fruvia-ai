@@ -230,6 +230,11 @@ def validate_image_content(
         ext = ""
         if "." in filename:
             ext = "." + filename.rsplit(".", 1)[-1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise UnsupportedFormatError(
+                f"File extension '{ext}' is not supported. "
+                f"Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+            )
         expected_fmt_ext = EXT_TO_PILLOW_FORMAT.get(ext)
         if expected_fmt_ext and expected_fmt_ext != detected_format:
             raise UnsupportedFormatError(
@@ -238,12 +243,16 @@ def validate_image_content(
 
     if content_type:
         mime_clean = content_type.lower().split(";")[0].strip()
-        if mime_clean in ALLOWED_MIME_TYPES:
-            expected_fmt_mime = MIME_TO_PILLOW_FORMAT.get(mime_clean)
-            if expected_fmt_mime and expected_fmt_mime != detected_format:
-                raise UnsupportedFormatError(
-                    f"Content-Type '{content_type}' does not match detected image format '{detected_format}'."
-                )
+        if mime_clean not in ALLOWED_MIME_TYPES:
+            raise UnsupportedFormatError(
+                f"Content-Type '{content_type}' is not supported. "
+                f"Allowed MIME types: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
+            )
+        expected_fmt_mime = MIME_TO_PILLOW_FORMAT.get(mime_clean)
+        if expected_fmt_mime and expected_fmt_mime != detected_format:
+            raise UnsupportedFormatError(
+                f"Content-Type '{content_type}' does not match detected image format '{detected_format}'."
+            )
 
     # Step 4: Re-open fresh stream with restricted decoders, check dimensions BEFORE load
     try:

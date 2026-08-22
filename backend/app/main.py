@@ -78,9 +78,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # --- Middleware ---
-    # Note: In FastAPI/Starlette, add_middleware wraps from inside out.
-    # The LAST middleware added executes FIRST on incoming requests.
+    # --- Middleware Stack Registration ---
+    # FastAPI/Starlette executes middleware in reverse order of registration:
+    # The LAST middleware added is the OUTERMOST middleware on incoming requests
+    # and executes LAST on outgoing responses.
     from starlette.middleware.trustedhost import TrustedHostMiddleware
 
     from app.core.middleware import (
@@ -90,10 +91,25 @@ def create_app() -> FastAPI:
     )
     from app.core.rate_limit import RateLimitMiddleware
 
-    # 1. Security Headers (outermost response headers)
-    app.add_middleware(SecurityHeadersMiddleware)
+    # 1. Raw HTTP Request Body Limit (Innermost: wraps endpoint/multipart parser)
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=settings.max_request_body_bytes,
+    )
 
-    # 2. Least-privilege CORS (No credentials, explicit origins and methods)
+    # 2. Rate Limiting (Evaluates before raw body consumption)
+    app.add_middleware(RateLimitMiddleware)
+
+    # 3. Request ID Tracing (Injects/propagates X-Request-ID on all inner responses)
+    app.add_middleware(RequestIdMiddleware)
+
+    # 4. Trusted Host protection
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.allowed_host_list,
+    )
+
+    # 5. Least-privilege CORS (No credentials, explicit origins and methods)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -102,23 +118,8 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type", "X-Request-ID", "Accept", "Origin"],
     )
 
-    # 3. Trusted Host protection
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.allowed_host_list,
-    )
-
-    # 4. Request ID Tracing
-    app.add_middleware(RequestIdMiddleware)
-
-    # 5. Rate Limiting
-    app.add_middleware(RateLimitMiddleware)
-
-    # 6. Raw HTTP Request Body Limit (Pure ASGI middleware before multipart parsing - runs FIRST on incoming requests)
-    app.add_middleware(
-        RequestBodyLimitMiddleware,
-        max_bytes=settings.max_request_body_bytes,
-    )
+    # 6. Security Headers (Outermost: ensures security headers on 200, 400, 413, 429, 500)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # --- Exception handlers ---
     app.add_exception_handler(FruviaError, fruvia_error_handler)  # type: ignore[arg-type]

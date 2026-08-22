@@ -106,6 +106,13 @@ def match_packeat_record(
     if not candidates:
         return "UNMATCHED", None, "No valid label or species in record"
 
+    if record.taxonomy_row and record.taxonomy_row.get("_ambiguous_join") == "true":
+        return (
+            "MANUAL_REVIEW",
+            None,
+            f"Ambiguous 1-to-many join ({record.taxonomy_row.get('_match_count')} taxonomy rows matched) for candidates {candidates}",
+        )
+
     # 1. Exact match
     for cand in candidates:
         cand_clean = cand.strip().lower()
@@ -221,14 +228,26 @@ def parse_packeat_csvs(
                 variety_val = cleaned_row.get("variety") or cleaned_row.get("variety_name")
                 species_val = cleaned_row.get("species")
 
-                # Attempt join with taxonomy rows safely without collapsing 1-to-many
+                # Attempt composite key match (species, variety) or single key join
                 matched_tax_rows = []
-                if species_val and species_val.lower().strip() in tax_rows:
+                if species_val and variety_val:
+                    composite_key = f"{species_val.lower().strip()}_{variety_val.lower().strip()}"
+                    if composite_key in tax_rows:
+                        matched_tax_rows = tax_rows[composite_key]
+                if not matched_tax_rows and species_val and species_val.lower().strip() in tax_rows:
                     matched_tax_rows = tax_rows[species_val.lower().strip()]
-                elif raw_label.lower().strip() in tax_rows:
+                elif not matched_tax_rows and raw_label.lower().strip() in tax_rows:
                     matched_tax_rows = tax_rows[raw_label.lower().strip()]
 
+                # Fail-safe: If join is ambiguous (multiple matching taxonomy entries), flag for manual review
+                is_ambiguous = len(matched_tax_rows) > 1
                 matched_tax_row = matched_tax_rows[0] if matched_tax_rows else None
+                if is_ambiguous:
+                    matched_tax_row = {
+                        **matched_tax_row,
+                        "_ambiguous_join": "true",
+                        "_match_count": str(len(matched_tax_rows)),
+                    }
 
                 records.append(
                     PackEatRecord(

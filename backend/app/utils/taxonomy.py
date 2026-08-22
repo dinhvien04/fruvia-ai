@@ -103,6 +103,12 @@ class TaxonomyManager:
 
         self._loaded = True
 
+    @property
+    def taxonomy(self) -> dict[str, TaxonomyItem]:
+        """Return dict of canonical taxonomy items."""
+        self.load()
+        return self._taxonomy_items
+
     def get_item(self, canonical_class: str) -> TaxonomyItem | None:
         """Retrieve TaxonomyItem by canonical_class slug."""
         self.load()
@@ -224,24 +230,29 @@ class TaxonomyManager:
             category = tax_item.category if tax_item else "fruit"
             return canonical, display_en, display_vi, category
 
-        # Case 4: Strip numbers at the end (e.g. "pear 13" -> "pear", "apple_red_2" -> "apple_red")
-        without_numbers = re.sub(r"\s+\d+$", "", norm_spaces).strip()
-        without_numbers_slug = without_numbers.replace(" ", "_")
-
-        if without_numbers_slug in self._alias_to_canonical:
-            canonical = self._alias_to_canonical[without_numbers_slug]
-            tax_item = self._taxonomy_items[canonical]
-            return canonical, tax_item.name_en, tax_item.name_vi, tax_item.category
-
+        # Case 4: Heuristics (only enabled when allow_heuristic=True)
         if allow_heuristic:
+            # Strip numbers at the end (e.g. "pear 13" -> "pear", "apple_red_2" -> "apple_red")
+            without_numbers = re.sub(r"\s+\d+$", "", norm_spaces).strip()
+            without_numbers_slug = without_numbers.replace(" ", "_")
+
+            if without_numbers_slug in self._alias_to_canonical:
+                canonical = self._alias_to_canonical[without_numbers_slug]
+                tax_item = self._taxonomy_items[canonical]
+                return canonical, tax_item.name_en, tax_item.name_vi, tax_item.category
+
             # Check prefix matching against taxonomy canonical keys
             for key, item in self._taxonomy_items.items():
                 key_spaces = key.replace("_", " ")
                 if without_numbers.startswith(key_spaces):
                     return key, item.name_en, item.name_vi, item.category
 
-        # Case 5: Fallback slug
-        clean_slug = without_numbers_slug or "unknown"
+            clean_slug = without_numbers_slug or "unknown"
+            display_en = format_display_name(clean_slug)
+            return clean_slug, display_en, None, "other"
+
+        # Case 5: Strict fallback slug (no heuristic number stripping or prefix guessing)
+        clean_slug = norm_slug or "unknown"
         display_en = format_display_name(clean_slug)
         return clean_slug, display_en, None, "other"
 

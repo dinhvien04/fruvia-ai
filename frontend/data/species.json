@@ -398,6 +398,16 @@
     ]
   },
   {
+    "id": "lettuce",
+    "name_en": "Lettuce",
+    "name_vi": "Xà lách",
+    "category": "vegetable",
+    "is_fruit": false,
+    "aliases": [
+      "salad"
+    ]
+  },
+  {
     "id": "lime",
     "name_en": "Lime",
     "name_vi": "Chanh xanh",
@@ -685,7 +695,9 @@
     "name_vi": "Củ cải",
     "category": "vegetable",
     "is_fruit": false,
-    "aliases": []
+    "aliases": [
+      "raddish"
+    ]
   },
   {
     "id": "rambutan",
@@ -767,6 +779,14 @@
     "id": "tangelo",
     "name_en": "Tangelo",
     "name_vi": "Cam Tangelo",
+    "category": "fruit",
+    "is_fruit": true,
+    "aliases": []
+  },
+  {
+    "id": "tangerine",
+    "name_en": "Tangerine",
+    "name_vi": "Quýt",
     "category": "fruit",
     "is_fruit": true,
     "aliases": []

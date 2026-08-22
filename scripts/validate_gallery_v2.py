@@ -55,12 +55,24 @@ def is_keyword_index_type(schema_info: Any) -> bool:
     return dt_str in {"keyword", "payloadschematype.keyword"}
 
 
+UNVERIFIED_TAXONOMY_STATUSES = {
+    "UNVERIFIED_PACKEAT",
+    "UNVERIFIED",
+    "MANUAL_REVIEW",
+    "UNMATCHED",
+    "PENDING_REVIEW",
+    "UNMAPPED",
+    "UNKNOWN",
+}
+
+
 def is_valid_http_url(url_str: str, allowed_hosts: list[str] | None = None) -> bool:
-    """Validate if string is a valid HTTP/HTTPS URL and matches allowed hostnames if specified."""
+    """Validate if string is a valid HTTPS/HTTP URL and matches allowed hostnames if specified."""
     if not url_str or not isinstance(url_str, str):
         return False
     try:
         parsed = urlparse(url_str.strip())
+        # Require https scheme in production or http for local development
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return False
         if allowed_hosts:
@@ -277,7 +289,11 @@ def validate_gallery_v2_collection(
                 # Distributions
                 dataset_counter[str(payload.get("source_dataset", "missing"))] += 1
                 category_counter[str(payload.get("category", "missing"))] += 1
-                status_counter[str(payload.get("taxonomy_status", "missing"))] += 1
+                raw_tax_status = payload.get("taxonomy_status", "missing")
+                normalized_tax_status = (
+                    str(raw_tax_status).strip().upper() if raw_tax_status is not None else "MISSING"
+                )
+                status_counter[normalized_tax_status] += 1
 
             scroll_offset = next_offset
             if next_offset is None:
@@ -360,14 +376,13 @@ def validate_gallery_v2_collection(
         pct = (cnt / total_scanned_points) * 100.0
         print(f"  - {st:25s}: {cnt:,} ({pct:.2f}%)")
 
-    unverified_count = (
-        status_counter.get("UNVERIFIED_PACKEAT", 0)
-        + status_counter.get("MANUAL_REVIEW", 0)
-        + status_counter.get("UNMATCHED", 0)
+    unverified_count = sum(
+        cnt for st, cnt in status_counter.items() if st in UNVERIFIED_TAXONOMY_STATUSES
     )
     if unverified_count > 0 and not allow_unverified_taxonomy:
         print(
-            f"[FAIL] Collection contains {unverified_count} unverified / unreviewed taxonomy records. Pass --allow-unverified-taxonomy if intentional.",
+            f"[FAIL] Collection contains {unverified_count} unverified / unreviewed taxonomy records ({', '.join(sorted([st for st in status_counter if st in UNVERIFIED_TAXONOMY_STATUSES]))}). "
+            "Pass --allow-unverified-taxonomy if intentional.",
             file=sys.stderr,
         )
         return False

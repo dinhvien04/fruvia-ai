@@ -20,12 +20,10 @@ const CONFIG = {
   STORAGE_HISTORY_KEY: "fruvia_recent_searches_v2",
   MAX_HISTORY_ITEMS: 10,
 
-  // Image Host Security Allowlist (Exact hostnames or approved subdomains)
+  // Image Host Security Allowlist (Exact hostnames; do NOT allow arbitrary *.r2.dev)
   ALLOWED_IMAGE_HOSTS: [
     "localhost",
-    "127.0.0.1",
-    "r2.dev",
-    "cloudflare-ipfs.com"
+    "127.0.0.1"
   ],
 
   // Product Stats (Single source of truth to avoid scattered hardcoded numbers)

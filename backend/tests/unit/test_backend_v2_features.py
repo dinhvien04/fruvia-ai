@@ -744,7 +744,7 @@ class TestProductionSecurityMiddlewareAndValidators:
         # Rejects DINOV2_REVISION=main in production
         with pytest.raises(
             ValueError,
-            match="DINOV2_REVISION must be pinned to an immutable full Hugging Face commit SHA",
+            match="DINOV2_REVISION must match exactly a 40-character hexadecimal commit SHA",
         ):
             Settings(
                 app_env="production",

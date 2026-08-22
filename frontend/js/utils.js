@@ -40,26 +40,43 @@ const Utils = {
     // 2. Full URL validation via URL object
     try {
       const parsed = new URL(trimmed, window.location.origin);
-      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-        const hostname = parsed.hostname.toLowerCase();
+      const isProduction = window.location.protocol === "https:" || (typeof CONFIG !== "undefined" && CONFIG.IS_PRODUCTION);
 
-        // Same origin is always allowed
-        if (hostname === window.location.hostname) {
+      // In production or when origin is https, external image URLs MUST be https:
+      if (parsed.protocol === "javascript:" || parsed.protocol === "file:" || parsed.protocol === "ftp:") {
+        return false;
+      }
+      if (isProduction && parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+        return false;
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return false;
+      }
+
+      // Reject embedded credentials (e.g. https://user:pass@host)
+      if (parsed.username || parsed.password) {
+        return false;
+      }
+
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Same origin is always allowed
+      if (hostname === window.location.hostname.toLowerCase()) {
+        return true;
+      }
+
+      // Local development hostnames (only when running on localhost)
+      if ((window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
+          (hostname === "localhost" || hostname === "127.0.0.1")) {
+        return true;
+      }
+
+      // Check against CONFIG.ALLOWED_IMAGE_HOSTS (exact hostname match only - never trust entire *.r2.dev)
+      const allowedHosts = (typeof CONFIG !== "undefined" && CONFIG.ALLOWED_IMAGE_HOSTS) || [];
+      for (const allowed of allowedHosts) {
+        const cleanAllowed = allowed.toLowerCase().trim();
+        if (cleanAllowed && hostname === cleanAllowed) {
           return true;
-        }
-
-        // Local development hostnames
-        if (hostname === "localhost" || hostname === "127.0.0.1") {
-          return true;
-        }
-
-        // Check against CONFIG.ALLOWED_IMAGE_HOSTS
-        const allowedHosts = CONFIG.ALLOWED_IMAGE_HOSTS || [];
-        for (const allowed of allowedHosts) {
-          const cleanAllowed = allowed.toLowerCase().trim();
-          if (hostname === cleanAllowed || hostname.endsWith("." + cleanAllowed)) {
-            return true;
-          }
         }
       }
     } catch {

@@ -134,6 +134,22 @@ class TestValidateImageContent:
         with pytest.raises(ImageValidationError):
             validate_image_content(non_image_bytes)
 
+    def test_unsupported_mime_type_rejected(self, sample_jpg_bytes: bytes) -> None:
+        """Uploading with an unsupported MIME type (e.g. application/octet-stream, text/plain) must fail closed."""
+        with pytest.raises(UnsupportedFormatError, match="Content-Type .* is not supported"):
+            validate_image_content(
+                sample_jpg_bytes,
+                content_type="application/octet-stream",
+                filename="test.jpg",
+            )
+
+        with pytest.raises(UnsupportedFormatError, match="Content-Type .* is not supported"):
+            validate_image_content(
+                sample_jpg_bytes,
+                content_type="text/plain",
+                filename="test.jpg",
+            )
+
 
 # ================================================================
 # validate_upload (full pipeline)

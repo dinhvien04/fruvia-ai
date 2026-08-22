@@ -88,6 +88,65 @@ class TestSettings:
             s = Settings()
         assert s.classification_threshold == 0.8
 
+    def test_production_dinov2_revision_validation(self) -> None:
+        valid_sha = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+        with patch.dict(
+            os.environ,
+            {
+                "APP_ENV": "production",
+                "ALLOWED_HOSTS": "fruvia.ai",
+                "CORS_ORIGINS": "https://fruvia.ai",
+                "DINOV2_REVISION": valid_sha,
+                "QDRANT_URL": "https://qdrant.cloud:6333",
+            },
+            clear=True,
+        ):
+            s = Settings()
+            assert s.dinov2_revision == valid_sha
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "APP_ENV": "production",
+                    "ALLOWED_HOSTS": "fruvia.ai",
+                    "CORS_ORIGINS": "https://fruvia.ai",
+                    "DINOV2_REVISION": "main",
+                    "QDRANT_URL": "https://qdrant.cloud:6333",
+                },
+                clear=True,
+            ),
+            pytest.raises(
+                ValueError,
+                match="DINOV2_REVISION must match exactly a 40-character hexadecimal commit SHA",
+            ),
+        ):
+            Settings()
+
+    def test_body_and_upload_limits_validation(self) -> None:
+        with (
+            patch.dict(
+                os.environ,
+                {"MAX_UPLOAD_MB": "15", "MAX_REQUEST_BODY_MB": "10"},
+                clear=True,
+            ),
+            pytest.raises(ValueError, match="MAX_REQUEST_BODY_MB .* must be >= MAX_UPLOAD_MB"),
+        ):
+            Settings()
+
+    def test_migration_key_distinction(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "QDRANT_API_KEY": "read-only-key",
+                "QDRANT_MIGRATION_API_KEY": "admin-key",
+            },
+            clear=True,
+        ):
+            s = Settings()
+            assert s.qdrant_api_key == "read-only-key"
+            assert s.qdrant_migration_api_key == "admin-key"
+
 
 class TestLoadClassNames:
     """Tests for load_class_names helper."""

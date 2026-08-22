@@ -1,10 +1,10 @@
 /**
  * Fruvia AI — Progressive Web App Service Worker
  * Caches static frontend assets safely.
- * NEVER caches POST /api/retrieve or dynamic backend search requests.
+ * NEVER caches POST /api/retrieve, /api/*, or dynamic backend search requests.
  */
 
-const CACHE_NAME = "fruvia-v2-static-v2";
+const CACHE_NAME = "fruvia-v2-static-v3";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -26,6 +26,10 @@ const STATIC_ASSETS = [
   "/js/api.js",
   "/js/utils.js",
   "/js/history.js",
+  "/js/history-ui.js",
+  "/js/home.js",
+  "/js/species.js",
+  "/js/offline.js",
   "/js/modal.js",
   "/js/upload.js",
   "/js/results.js",
@@ -47,6 +51,34 @@ const STATIC_ASSETS = [
   "/assets/svg/gallery.svg",
   "/assets/svg/history.svg"
 ];
+
+// Allowed public static route prefixes and exact paths for runtime cache updates
+const ALLOWED_CACHE_PATHS = new Set([
+  "/",
+  "/index.html",
+  "/search",
+  "/retrieval.html",
+  "/explore",
+  "/explore.html",
+  "/species.html",
+  "/offline.html",
+  "/manifest.webmanifest",
+  "/favicon.svg",
+  "/robots.txt",
+  "/sitemap.xml"
+]);
+
+function isCacheableStaticPath(pathname) {
+  if (ALLOWED_CACHE_PATHS.has(pathname)) {
+    return true;
+  }
+  return (
+    pathname.startsWith("/css/") ||
+    pathname.startsWith("/js/") ||
+    pathname.startsWith("/assets/") ||
+    pathname.startsWith("/data/")
+  );
+}
 
 // Install Event
 self.addEventListener("install", (event) => {
@@ -79,9 +111,14 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Security & Safety: ONLY cache same-origin static GET requests.
-  // NEVER cache API requests, cross-origin requests, health checks, or non-GET requests.
-  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
+  // Security & Safety: ONLY handle same-origin static GET requests.
+  // NEVER cache API requests (/api/*), health checks, non-GET requests, or unapproved paths.
+  if (
+    request.method !== "GET" ||
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith("/api/") ||
+    !isCacheableStaticPath(url.pathname)
+  ) {
     return;
   }
 
