@@ -125,6 +125,18 @@ const ResultModal = {
     const filenameEl = document.getElementById("modal-filename");
     if (filenameEl) filenameEl.textContent = item.filename || "—";
 
+    // 6. Action Link to Species Knowledge Page
+    const speciesLinkEl = document.getElementById("modal-species-link");
+    if (speciesLinkEl) {
+      if (item.canonical_class && String(item.canonical_class).trim()) {
+        const encodedClass = encodeURIComponent(String(item.canonical_class).trim().toLowerCase());
+        speciesLinkEl.href = `/species?id=${encodedClass}`;
+        speciesLinkEl.style.display = "inline-flex";
+      } else {
+        speciesLinkEl.style.display = "none";
+      }
+    }
+
     // Show modal & prevent body scroll
     this.modalEl.style.display = "flex";
     document.body.style.overflow = "hidden";

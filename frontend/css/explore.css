@@ -222,6 +222,324 @@
   color: var(--color-text-subtle);
 }
 
+/* ============================================================
+   Knowledge Integration UI Styles (V1)
+   ============================================================ */
+
+.knowledge-section {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-normal);
+}
+
+.knowledge-section-header {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.knowledge-section-title {
+  font-size: var(--font-xl);
+  color: var(--color-text-main);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-weight: 700;
+  margin: 0;
+}
+
+.section-icon {
+  font-size: 1.25rem;
+}
+
+.knowledge-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.knowledge-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background-color: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-sm);
+}
+
+.knowledge-empty {
+  padding: var(--space-lg);
+  background-color: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-sm);
+  text-align: center;
+}
+
+.knowledge-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+}
+
+.knowledge-alert p {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.knowledge-alert-info {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.knowledge-alert-warning {
+  background-color: #fffbeb;
+  border: 1px solid #fef3c7;
+  color: #92400e;
+}
+
+.alert-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* Knowledge Document Cards (Overview) */
+.knowledge-doc-card {
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.knowledge-doc-title {
+  font-size: var(--font-base);
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin: 0;
+}
+
+.knowledge-doc-text {
+  font-size: var(--font-sm);
+  color: var(--color-text-main);
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.knowledge-doc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding-top: var(--space-sm);
+  border-top: 1px dashed var(--color-border);
+  font-size: var(--font-xs);
+}
+
+.knowledge-source-badge {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.knowledge-source-link {
+  color: var(--color-primary-600);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.knowledge-source-link:hover {
+  color: var(--color-primary-700);
+  text-decoration: underline;
+}
+
+/* Scientific Taxonomy Card */
+.taxonomy-display-card {
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+}
+
+.scientific-name-block {
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.scientific-label {
+  font-size: var(--font-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  display: block;
+}
+
+.scientific-name-val {
+  font-size: var(--font-2xl);
+  font-family: Georgia, serif;
+  color: var(--color-primary-800);
+  margin-top: 4px;
+}
+
+.taxonomy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+.taxonomy-grid-item {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.taxonomy-key {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.taxonomy-val {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+/* Nutrition Cards & Nutrient Grid */
+.nutrition-record-card {
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+}
+
+.nutrition-record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.nutrition-record-title {
+  font-size: var(--font-base);
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin: 0;
+}
+
+.nutrient-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-sm);
+}
+
+.nutrient-item {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.nutrient-name {
+  font-size: var(--font-xs);
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.nutrient-amount {
+  font-size: var(--font-sm);
+  color: var(--color-text-main);
+  white-space: nowrap;
+}
+
+.nutrient-amount small {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* Sources List */
+.sources-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.source-list-item {
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.source-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.source-item-meta strong {
+  font-size: var(--font-sm);
+  color: var(--color-text-main);
+}
+
+.source-meta-sub {
+  font-size: var(--font-xs);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-lang-badge {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-800);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.source-action-btn {
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
   .explore-controls-bar {
     flex-direction: column;
@@ -233,4 +551,22 @@
   .species-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
+  .knowledge-section {
+    padding: var(--space-lg);
+  }
+  .nutrient-grid {
+    grid-template-columns: 1fr;
+  }
+  .taxonomy-grid {
+    grid-template-columns: 1fr;
+  }
+  .source-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .source-action-btn {
+    width: 100%;
+    text-align: center;
+  }
 }
+

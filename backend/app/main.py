@@ -218,6 +218,10 @@ def create_app() -> FastAPI:
         async def serve_offline() -> FileResponse:
             return FileResponse(FRONTEND_DIR / "offline.html")
 
+        @app.get("/species", include_in_schema=False)
+        async def serve_species_clean_route() -> FileResponse:
+            return FileResponse(FRONTEND_DIR / "species.html")
+
         @app.get("/species.html", include_in_schema=False)
         async def serve_species_detail() -> FileResponse:
             return FileResponse(FRONTEND_DIR / "species.html")
