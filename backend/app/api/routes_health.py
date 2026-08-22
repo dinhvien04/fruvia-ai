@@ -22,6 +22,16 @@ _health_cache: dict[str, float | bool | str] | None = None
 _last_health_check_time: float = 0.0
 
 
+class PublicConfigResponse(BaseModel):
+    """Safe public configuration endpoint exposing non-sensitive runtime parameters."""
+
+    app_version: str = Field(..., description="Application version")
+    allowed_image_hosts: list[str] = Field(
+        default_factory=list,
+        description="Approved image CDN hostnames for client-side image rendering",
+    )
+
+
 class HealthResponse(BaseModel):
     """Response schema for the health endpoint."""
 
@@ -131,4 +141,18 @@ async def readiness_check(
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"status": "not_ready"},
+    )
+
+
+@router.get("/public-config", response_model=PublicConfigResponse)
+async def get_public_config() -> PublicConfigResponse:
+    """
+    Public configuration endpoint for the frontend client.
+    Safely returns runtime public metadata such as allowed image CDN hosts and app version
+    without disclosing any backend secrets, API keys, or internal cluster topologies.
+    """
+    settings = get_settings()
+    return PublicConfigResponse(
+        app_version=settings.app_version,
+        allowed_image_hosts=settings.allowed_image_host_list,
     )

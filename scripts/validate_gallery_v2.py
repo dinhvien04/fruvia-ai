@@ -67,19 +67,24 @@ UNVERIFIED_TAXONOMY_STATUSES = {
 
 
 def is_valid_http_url(url_str: str, allowed_hosts: list[str] | None = None) -> bool:
-    """Validate if string is a valid HTTPS/HTTP URL and matches allowed hostnames if specified."""
+    """
+    Validate if string is a valid HTTPS URL and matches allowed hostnames if specified.
+    Requires HTTPS scheme, no embedded credentials, and exact hostname matching.
+    """
     if not url_str or not isinstance(url_str, str):
         return False
     try:
         parsed = urlparse(url_str.strip())
-        # Require https scheme in production or http for local development
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        # Require HTTPS scheme strictly
+        if parsed.scheme != "https" or not parsed.netloc:
             return False
+        # Reject URLs with embedded credentials
+        if parsed.username or parsed.password:
+            return False
+        # If allowed_hosts specified, enforce exact hostname match (case-insensitive)
         if allowed_hosts:
-            host = parsed.netloc.lower()
-            return any(
-                host == ah.lower() or host.endswith("." + ah.lower()) for ah in allowed_hosts
-            )
+            host = parsed.netloc.split(":")[0].lower()
+            return host in {ah.lower().strip() for ah in allowed_hosts if ah}
         return True
     except Exception:
         return False
@@ -201,6 +206,16 @@ def validate_gallery_v2_collection(
         )
         return False
 
+    # Image host allowlist validation
+    if min_image_url_coverage > 0:
+        cleaned_allowed_hosts = [h.strip() for h in (allowed_image_hosts or []) if h and h.strip()]
+        if not cleaned_allowed_hosts:
+            print(
+                "[FAIL] Explicit non-empty --allowed-image-host must be provided for image URL validation.",
+                file=sys.stderr,
+            )
+            return False
+
     # 3. Vector Configuration
     config = getattr(info, "config", None)
     params = getattr(config, "params", None)
@@ -308,12 +323,13 @@ def validate_gallery_v2_collection(
         print("[FAIL] Collection is empty (0 points).", file=sys.stderr)
         return False
 
-    # Verify reported points vs scanned points
+    # Verify reported points vs scanned points (fail closed if mismatch)
     if points_count > 0 and points_count != total_scanned_points:
         print(
-            f"[WARN] Reported points_count ({points_count:,}) differs from actual scanned points ({total_scanned_points:,}).",
+            f"[FAIL] Reported points_count ({points_count:,}) differs from actual scanned points ({total_scanned_points:,}).",
             file=sys.stderr,
         )
+        return False
 
     # Check Total Count Expectation if provided
     if expect_total_count is not None and total_scanned_points != expect_total_count:
@@ -456,37 +472,6 @@ def main() -> None:
         vector_sample_size=args.vector_sample_size,
         min_image_url_coverage=args.min_image_url_coverage,
         allowed_image_hosts=args.allowed_image_host if args.allowed_image_host else None,
-        allow_unverified_taxonomy=args.allow_unverified_taxonomy,
-        expect_total_count=args.expect_total_count,
-        expect_source_counts=expect_source_counts,
-        timeout=args.timeout,
-    )
-    if not success:
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
-
-
-def main() -> None:
-    args = parse_args()
-
-    # Parse expect-source-count arguments
-    expect_source_counts: dict[str, int] = {}
-    for item in args.expect_source_count:
-        if "=" in item:
-            src, cnt_str = item.split("=", 1)
-            try:
-                expect_source_counts[src.strip()] = int(cnt_str.strip())
-            except ValueError:
-                print(f"[ERROR] Invalid --expect-source-count format: '{item}'", file=sys.stderr)
-                sys.exit(1)
-
-    success = validate_gallery_v2_collection(
-        collection_name=args.collection,
-        vector_sample_size=args.vector_sample_size,
-        min_image_url_coverage=args.min_image_url_coverage,
         allow_unverified_taxonomy=args.allow_unverified_taxonomy,
         expect_total_count=args.expect_total_count,
         expect_source_counts=expect_source_counts,

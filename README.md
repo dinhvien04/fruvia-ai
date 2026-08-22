@@ -232,7 +232,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 - **Hybrid Filtering**: Native payload filtering on indexed fields (`category`, `canonical_class`, `source_dataset`, `dataset_name`) with automated fallback to Python-level filtering for legacy collections.
 
 ### 2. IN PROGRESS (External Processing & Staging)
-- **PackEat Staging Dataset**: 103,412 high-quality point vectors across 65/65 classes staged in collection `fruvia_packeat_dinov2_base_v1` (768-dim DINOv2 Base, Cosine distance).
+- **PackEat Staging Dataset**: 103,440 total points staged in collection `fruvia_packeat_dinov2_base_v1` (103,412 high-quality eligible points across 65/65 classes + 28 non-official records safely excluded via `gallery_eligible=False`, 768-dim DINOv2 Base, Cosine distance). Expected unified gallery size: ~328,190 + 103,412 = **431,602 vectors**.
 - **Taxonomy Alignment**: `configs/taxonomy.yaml` canonical source of truth synchronized with 100% PackEat classes (90 canonical species total).
 - **Migration & Payload Tooling**: 
   - `scripts/create_qdrant_payload_indexes.py` (Payload index automation with fail-closed schema validation and post-creation verification).

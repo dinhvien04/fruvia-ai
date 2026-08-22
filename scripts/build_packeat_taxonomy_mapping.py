@@ -31,7 +31,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.utils.file_utils import load_yaml_config
+# Ensure backend directory is in sys.path when running scripts standalone
+if str(Path(__file__).resolve().parent.parent / "backend") not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+
+from app.utils.file_utils import load_yaml_config  # noqa: E402
 
 
 @dataclass
@@ -95,14 +99,33 @@ def match_packeat_record(
     """
     Strict alignment of PackEat structured record against canonical taxonomy.
     Priority:
-    1. Exact match on raw_label or species or variety.
+    1. Exact match on composite species+variety or raw_label or species or variety.
     2. Registered alias match.
     3. Normalized exact match.
     4. Numeric suffix variety check -> Flagged as MANUAL_REVIEW (never auto-approved).
     5. Heuristic prefix -> Flagged as MANUAL_REVIEW (never auto-approved).
     6. UNMATCHED.
     """
-    candidates = [c for c in [record.raw_label, record.species, record.variety] if c and c.strip()]
+    candidates: list[str] = []
+
+    # Check for composite species + variety and apply explicit overrides
+    if record.species and record.variety:
+        s = record.species.strip()
+        v = record.variety.strip()
+        # Explicit override: ("apple", "granny") -> ("apple", "granny_smith")
+        if s.lower() == "apple" and v.lower() == "granny":
+            v = "granny_smith"
+            candidates.append(f"{s}_{v}")
+            candidates.append(f"{s} {v}")
+            candidates.append(v)
+        else:
+            candidates.append(f"{s}_{v}")
+            candidates.append(f"{s} {v}")
+
+    for c in [record.raw_label, record.variety, record.species]:
+        if c and str(c).strip() and str(c).strip() not in candidates:
+            candidates.append(str(c).strip())
+
     if not candidates:
         return "UNMATCHED", None, "No valid label or species in record"
 
@@ -173,8 +196,31 @@ def parse_packeat_csvs(
     records: list[PackEatRecord] = []
 
     # Valid recognized schemas for PackEat taxonomy & variety CSVs
-    valid_tax_headers = {"species", "label", "class", "fruit", "name", "id", "code"}
-    valid_var_headers = {"variety", "label", "species", "name", "variety_name", "class_name"}
+    valid_tax_headers = {
+        "species",
+        "label",
+        "class",
+        "fruit",
+        "name",
+        "id",
+        "code",
+        "common name",
+        "common_name",
+        "common variety",
+        "common_variety",
+    }
+    valid_var_headers = {
+        "variety",
+        "label",
+        "species",
+        "name",
+        "variety_name",
+        "class_name",
+        "common name",
+        "common_name",
+        "common variety",
+        "common_variety",
+    }
 
     tax_rows: dict[str, list[dict[str, str]]] = {}
     if taxonomy_csv_path and taxonomy_csv_path.exists():
@@ -192,16 +238,35 @@ def parse_packeat_csvs(
                     for k, v in row.items()
                     if k is not None
                 }
-                # Identifier key: id / species / label / name
-                key = (
-                    cleaned_row.get("id")
-                    or cleaned_row.get("species")
-                    or cleaned_row.get("label")
+                # Extract species and variety if present in taxonomy row
+                spec = (
+                    cleaned_row.get("species")
+                    or cleaned_row.get("common name")
+                    or cleaned_row.get("common_name")
+                    or cleaned_row.get("fruit")
                     or cleaned_row.get("name")
+                    or cleaned_row.get("label")
                 )
-                if key:
-                    key_lower = key.lower().strip()
-                    tax_rows.setdefault(key_lower, []).append(cleaned_row)
+                var = (
+                    cleaned_row.get("variety")
+                    or cleaned_row.get("common variety")
+                    or cleaned_row.get("common_variety")
+                    or cleaned_row.get("variety_name")
+                )
+                row_id = cleaned_row.get("id") or cleaned_row.get("code")
+
+                # Index by composite key (species_variety)
+                if spec and var:
+                    comp_key = f"{spec.lower().strip()}_{var.lower().strip()}"
+                    tax_rows.setdefault(comp_key, []).append(cleaned_row)
+
+                # Index by species/label
+                if spec:
+                    tax_rows.setdefault(spec.lower().strip(), []).append(cleaned_row)
+
+                # Index by ID/code
+                if row_id:
+                    tax_rows.setdefault(row_id.lower().strip(), []).append(cleaned_row)
 
     if variety_csv_path and variety_csv_path.exists():
         with open(variety_csv_path, encoding="utf-8-sig", errors="replace") as f:
@@ -221,12 +286,24 @@ def parse_packeat_csvs(
                 raw_label = (
                     cleaned_row.get("label")
                     or cleaned_row.get("variety")
+                    or cleaned_row.get("common variety")
+                    or cleaned_row.get("common_variety")
                     or cleaned_row.get("class_name")
                     or cleaned_row.get("name")
                     or "unknown"
                 )
-                variety_val = cleaned_row.get("variety") or cleaned_row.get("variety_name")
-                species_val = cleaned_row.get("species")
+                variety_val = (
+                    cleaned_row.get("variety")
+                    or cleaned_row.get("common variety")
+                    or cleaned_row.get("common_variety")
+                    or cleaned_row.get("variety_name")
+                )
+                species_val = (
+                    cleaned_row.get("species")
+                    or cleaned_row.get("common name")
+                    or cleaned_row.get("common_name")
+                    or cleaned_row.get("fruit")
+                )
 
                 # Attempt composite key match (species, variety) or single key join
                 matched_tax_rows = []
@@ -244,7 +321,7 @@ def parse_packeat_csvs(
                 matched_tax_row = matched_tax_rows[0] if matched_tax_rows else None
                 if is_ambiguous:
                     matched_tax_row = {
-                        **matched_tax_row,
+                        **(matched_tax_row or {}),
                         "_ambiguous_join": "true",
                         "_match_count": str(len(matched_tax_rows)),
                     }

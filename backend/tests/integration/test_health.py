@@ -111,3 +111,15 @@ class TestHealthEndpoint:
         assert resp.json() == {"status": "not_ready"}
 
         app.dependency_overrides.clear()
+
+    def test_public_config_endpoint(self, client: TestClient) -> None:
+        """GET /api/public-config should return non-sensitive public runtime settings."""
+        resp = client.get("/api/public-config")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "app_version" in data
+        assert "allowed_image_hosts" in data
+        assert isinstance(data["allowed_image_hosts"], list)
+        # Ensure no secrets or API keys are exposed
+        assert "qdrant_api_key" not in data
+        assert "qdrant_migration_api_key" not in data

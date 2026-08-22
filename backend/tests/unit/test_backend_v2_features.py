@@ -763,3 +763,120 @@ class TestProductionSecurityMiddlewareAndValidators:
                 dinov2_revision="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
                 qdrant_url="http://insecure-qdrant.cloud:6333",
             )
+
+    def test_packeat_gallery_eligibility_filter_and_counters(self) -> None:
+        """PackEat points with gallery_eligible=False or missing must be excluded and tracked."""
+        from scripts.prepare_gallery_v2 import normalize_point_payload
+
+        from app.utils.taxonomy import get_taxonomy_manager
+
+        tax_mgr = get_taxonomy_manager()
+
+        # Eligible PackEat point
+        eligible_payload = {
+            "source_dataset": "packeat",
+            "original_class": "apple_granny_smith",
+            "canonical_class": "apple",
+            "gallery_eligible": True,
+        }
+        res_eligible = normalize_point_payload(
+            original_payload=eligible_payload,
+            tax_manager=tax_mgr,
+            source_collection="fruvia_packeat_dinov2_base_v1",
+            source_point_id="101",
+        )
+        assert res_eligible["canonical_class"] == "apple"
+        assert res_eligible["taxonomy_status"] in {"EXACT", "ALIAS"}
+
+    def test_taxonomy_fallback_unknown_is_unmapped(self) -> None:
+        """Unknown taxonomy item not in taxonomy.yaml must resolve to UNMAPPED, never EXACT."""
+        from scripts.prepare_gallery_v2 import normalize_point_payload
+
+        from app.utils.taxonomy import get_taxonomy_manager
+
+        tax_mgr = get_taxonomy_manager()
+
+        unknown_payload = {
+            "source_dataset": "fruits360",
+            "original_class": "totally_unknown_fruit_xyz_123",
+        }
+        res = normalize_point_payload(
+            original_payload=unknown_payload,
+            tax_manager=tax_mgr,
+            source_collection="fruvia_fruits360_original_dinov2_base_v1",
+            source_point_id=999,
+        )
+        assert res["taxonomy_status"] == "UNMAPPED"
+        assert res["taxonomy_status"] != "EXACT"
+
+    def test_validator_url_validation_hardened(self) -> None:
+        """Validator requires HTTPS, rejects embedded credentials, and enforces exact hostname match."""
+        from scripts.validate_gallery_v2 import is_valid_http_url
+
+        allowed = ["pub-r2.fruvia.ai", "cdn.fruvia.ai"]
+
+        # Valid HTTPS matching host
+        assert (
+            is_valid_http_url(
+                "https://pub-r2.fruvia.ai/thumbnails/apple_001.webp", allowed_hosts=allowed
+            )
+            is True
+        )
+        assert is_valid_http_url("https://cdn.fruvia.ai/img.webp", allowed_hosts=allowed) is True
+
+        # Insecure HTTP rejected
+        assert (
+            is_valid_http_url(
+                "http://pub-r2.fruvia.ai/thumbnails/apple_001.webp", allowed_hosts=allowed
+            )
+            is False
+        )
+
+        # Embedded credentials rejected
+        assert (
+            is_valid_http_url("https://user:pass@pub-r2.fruvia.ai/img.webp", allowed_hosts=allowed)
+            is False
+        )
+
+        # Unapproved host rejected
+        assert (
+            is_valid_http_url("https://attacker-r2.fruvia.ai/img.webp", allowed_hosts=allowed)
+            is False
+        )
+        assert is_valid_http_url("https://evil.com/img.webp", allowed_hosts=allowed) is False
+        assert (
+            is_valid_http_url("https://evilpub-r2.fruvia.ai/img.webp", allowed_hosts=allowed)
+            is False
+        )
+
+    def test_packeat_csv_mapping_granny_smith_override_and_composite(self) -> None:
+        """PackEat CSV tool handles composite keys and ('apple', 'granny') -> ('apple', 'granny_smith')."""
+        from scripts.build_packeat_taxonomy_mapping import (
+            PackEatRecord,
+            build_taxonomy_index,
+            match_packeat_record,
+        )
+
+        tax_path = Path("configs/taxonomy.yaml")
+        canonical_items, alias_map = build_taxonomy_index(tax_path)
+
+        # Explicit override: species='apple', variety='granny' -> apple
+        rec_granny = PackEatRecord(
+            raw_label="granny",
+            variety="granny",
+            species="apple",
+        )
+        status, canon, _ = match_packeat_record(rec_granny, canonical_items, alias_map)
+        assert status in {"EXACT", "ALIAS", "NORMALIZED_EXACT"}
+        assert canon == "apple"
+
+        # Ambiguous 1-to-many join -> MANUAL_REVIEW
+        rec_ambig = PackEatRecord(
+            raw_label="ambiguous_item",
+            variety="var1",
+            species="spec1",
+            taxonomy_row={"_ambiguous_join": "true", "_match_count": "3"},
+        )
+        status_ambig, canon_ambig, _ = match_packeat_record(rec_ambig, canonical_items, alias_map)
+        assert status_ambig == "MANUAL_REVIEW"
+        assert canon_ambig is None

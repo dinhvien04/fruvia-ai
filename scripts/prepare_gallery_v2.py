@@ -40,7 +40,11 @@ from typing import Any
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PayloadSchemaType, PointStruct, VectorParams
 
-from app.utils.taxonomy import get_taxonomy_manager
+# Ensure backend directory is in sys.path when running scripts standalone
+if str(Path(__file__).resolve().parent.parent / "backend") not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+
+from app.utils.taxonomy import get_taxonomy_manager  # noqa: E402
 
 # Fruvia Gallery Migration Namespace for RFC 4122 UUIDv5 generation
 FRUVIA_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_DNS, "fruvia.ai.migration.gallery_v2")
@@ -226,6 +230,7 @@ def load_checkpoint(
             "total_processed": 0,
             "total_migrated": 0,
             "total_skipped": 0,
+            "total_excluded_ineligible": 0,
             "batches_completed": 0,
             "updated_at": None,
         }
@@ -294,6 +299,7 @@ def load_checkpoint(
                 "total_processed": 0,
                 "total_migrated": 0,
                 "total_skipped": 0,
+                "total_excluded_ineligible": 0,
                 "batches_completed": 0,
                 "updated_at": None,
             }
@@ -640,13 +646,22 @@ def normalize_point_payload(
             allow_heuristic=False,  # Strict non-heuristic resolution for migrations
         )
         resolution_method = "strict_taxonomy_resolve"
-        if source_tax_status and source_tax_status_str in {"exact", "alias", "normalized_exact"}:
-            taxonomy_status = source_tax_status.upper()
-        elif canonical_class == raw_class_str:
-            taxonomy_status = "EXACT"
-        elif canonical_class != "unknown" and canonical_class != raw_class_str:
-            taxonomy_status = "ALIAS"
+
+        # Verify if canonical_class actually exists in taxonomy.yaml
+        actual_item = tax_manager.get_item(canonical_class)
+        if actual_item is not None:
+            if source_tax_status and source_tax_status_str in {
+                "exact",
+                "alias",
+                "normalized_exact",
+            }:
+                taxonomy_status = source_tax_status.upper()
+            elif canonical_class == raw_class_str:
+                taxonomy_status = "EXACT"
+            else:
+                taxonomy_status = "ALIAS"
         else:
+            # Unknown taxonomy must NEVER become EXACT or ALIAS
             taxonomy_status = "UNMAPPED"
 
     # Source dataset resolution
@@ -856,14 +871,16 @@ def main() -> None:
         total_processed = int(checkpoint.get("total_processed", 0))
         total_migrated = int(checkpoint.get("total_migrated", 0))
         total_skipped = int(checkpoint.get("total_skipped", 0))
+        total_excluded_ineligible = int(checkpoint.get("total_excluded_ineligible", 0))
         batches_completed = int(checkpoint.get("batches_completed", 0))
 
         would_process = 0
         would_migrate = 0
         would_skip = 0
+        would_exclude_ineligible = 0
 
         print(
-            f"[RESUME] Starting from offset: {offset} (Migrated: {total_migrated}, Skipped: {total_skipped}, Batches: {batches_completed})"
+            f"[RESUME] Starting from offset: {offset} (Migrated: {total_migrated}, Skipped: {total_skipped}, Excluded Ineligible: {total_excluded_ineligible}, Batches: {batches_completed})"
         )
 
         processed_this_run = 0
@@ -889,8 +906,23 @@ def main() -> None:
 
             target_points: list[PointStruct] = []
             skipped_this_batch = 0
+            excluded_ineligible_this_batch = 0
 
             for rec in records:
+                raw_payload = rec.payload or {}
+
+                # Check gallery eligibility for PackEat source
+                is_packeat_point = (
+                    "packeat" in args.source_collection.lower()
+                    or raw_payload.get("source_dataset") == "packeat"
+                )
+                if is_packeat_point:
+                    gallery_eligible = raw_payload.get("gallery_eligible")
+                    if gallery_eligible is not True:
+                        # gallery_eligible is False or missing -> fail-closed exclusion
+                        excluded_ineligible_this_batch += 1
+                        continue
+
                 # Vector validation
                 vec = rec.vector
                 if isinstance(vec, dict):
@@ -916,7 +948,6 @@ def main() -> None:
                     skipped_this_batch += 1
                     continue
 
-                raw_payload = rec.payload or {}
                 norm_payload = normalize_point_payload(
                     original_payload=raw_payload,
                     tax_manager=tax_mgr,
@@ -952,6 +983,7 @@ def main() -> None:
                     )
                 total_migrated += len(target_points)
                 total_skipped += skipped_this_batch
+                total_excluded_ineligible += excluded_ineligible_this_batch
                 total_processed += len(records)
                 batches_completed += 1
 
@@ -977,19 +1009,21 @@ def main() -> None:
                         "total_processed": total_processed,
                         "total_migrated": total_migrated,
                         "total_skipped": total_skipped,
+                        "total_excluded_ineligible": total_excluded_ineligible,
                         "batches_completed": batches_completed,
                         "updated_at": time.time(),
                     },
                 )
                 print(
-                    f"[UPSERTED] Batch of {len(target_points)} points. Total migrated: {total_migrated}, Skipped: {total_skipped}"
+                    f"[UPSERTED] Batch of {len(target_points)} points. Total migrated: {total_migrated}, Skipped: {total_skipped}, Excluded: {total_excluded_ineligible}"
                 )
             else:
                 would_migrate += len(target_points)
                 would_skip += skipped_this_batch
+                would_exclude_ineligible += excluded_ineligible_this_batch
                 would_process += len(records)
                 print(
-                    f"[DRY-RUN] Would process batch of {len(records)} points ({len(target_points)} to migrate, {skipped_this_batch} to skip)."
+                    f"[DRY-RUN] Would process batch of {len(records)} points ({len(target_points)} to migrate, {skipped_this_batch} to skip, {excluded_ineligible_this_batch} excluded ineligible)."
                 )
 
             processed_this_run += len(records)
@@ -998,18 +1032,17 @@ def main() -> None:
             if next_offset is None or (args.limit and processed_this_run >= args.limit):
                 break
 
-            time.sleep(0.05)
-
         print("-" * 50)
         if args.dry_run:
             print("[DRY-RUN COMPLETE]")
-            print(f"Would process  : {would_process}")
-            print(f"Would migrate  : {would_migrate}")
-            print(f"Would skip     : {would_skip}")
-            print("Actual writes  : 0")
+            print(f"Would process              : {would_process}")
+            print(f"Would migrate              : {would_migrate}")
+            print(f"Would skip (invalid)       : {would_skip}")
+            print(f"Would exclude (ineligible) : {would_exclude_ineligible}")
+            print("Actual writes              : 0")
         else:
             print(
-                f"[COMPLETE] Migration run finished. Processed this run: {processed_this_run}. Total migrated: {total_migrated}, Total skipped: {total_skipped}"
+                f"[COMPLETE] Migration run finished. Processed this run: {processed_this_run}. Total migrated: {total_migrated}, Total skipped: {total_skipped}, Total excluded: {total_excluded_ineligible}"
             )
 
     except Exception as e:
