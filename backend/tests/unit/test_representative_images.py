@@ -40,6 +40,16 @@ def test_is_safe_image_url():
     assert is_safe_image_url("https://cdn.fruvia.ai/img.jpg", allowed_hosts=allowed) is True
     assert is_safe_image_url("https://evil.com/img.jpg", allowed_hosts=allowed) is False
 
+    # Production fail-closed when allowed_hosts is empty
+    assert (
+        is_safe_image_url("https://cdn.external.com/img.jpg", allowed_hosts=[], is_production=True)
+        is False
+    )
+    assert (
+        is_safe_image_url("http://localhost:8000/img.jpg", allowed_hosts=[], is_production=True)
+        is True
+    )
+
 
 def test_representative_image_service_caching():
     """Verify RepresentativeImageService caches results and does not make repeated Qdrant calls."""
@@ -47,7 +57,6 @@ def test_representative_image_service_caching():
     mock_client = MagicMock()
     mock_qdrant_repo.client = mock_client
     mock_qdrant_repo.collection_name = "test_collection"
-    mock_qdrant_repo.get_filter_capabilities.return_value = set()
 
     # Mock scroll result returning apple point
     mock_point = MagicMock()
@@ -80,7 +89,7 @@ def test_representative_image_service_caching():
         ttl_seconds=300.0,
     )
 
-    # First call: triggers scroll
+    # First call: triggers single bounded scroll
     images1 = service.get_representative_images(["apple", "banana"])
     assert (
         images1["apple"]
@@ -95,13 +104,60 @@ def test_representative_image_service_caching():
     assert mock_client.scroll.call_count == 1
 
 
+def test_representative_image_service_scans_past_null_images():
+    """Verify that service scans past points with null/invalid image_url until valid image found."""
+    mock_qdrant_repo = MagicMock()
+    mock_client = MagicMock()
+    mock_qdrant_repo.client = mock_client
+    mock_qdrant_repo.collection_name = "test_collection"
+
+    # Point 1 has null image_url, Point 2 has unsafe url, Point 3 has valid url
+    pt1 = MagicMock()
+    pt1.payload = {
+        "canonical_class": "apple",
+        "original_class": "Apple 1",
+        "image_url": None,
+    }
+    pt2 = MagicMock()
+    pt2.payload = {
+        "canonical_class": "apple",
+        "original_class": "Apple 2",
+        "image_url": "javascript:alert(1)",
+    }
+    pt3 = MagicMock()
+    pt3.payload = {
+        "canonical_class": "apple",
+        "original_class": "Apple 3",
+        "image_url": "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/apple.webp",
+    }
+
+    mock_client.scroll.return_value = ([pt1, pt2, pt3], None)
+
+    mock_tax_mgr = MagicMock()
+    mock_tax_mgr.taxonomy = {
+        "apple": TaxonomyItem(
+            canonical_class="apple", name_en="Apple", name_vi="Táo", category="fruit", is_fruit=True
+        ),
+    }
+    mock_tax_mgr.resolve.return_value = ("apple", "Apple", "Táo", "fruit")
+
+    service = RepresentativeImageService(
+        qdrant_repo=mock_qdrant_repo,
+        taxonomy_manager=mock_tax_mgr,
+        ttl_seconds=300.0,
+    )
+
+    images = service.get_representative_images(["apple"])
+    assert images["apple"] == "https://pub-8ee1729b06674ae5b328c4d21021eac3.r2.dev/apple.webp"
+
+
 def test_representative_image_service_qdrant_down_resilience():
     """Verify that if Qdrant fails, service returns None without raising errors."""
     mock_qdrant_repo = MagicMock()
     mock_client = MagicMock()
     mock_qdrant_repo.client = mock_client
     mock_qdrant_repo.collection_name = "test_collection"
-    mock_qdrant_repo.get_filter_capabilities.side_effect = Exception("Qdrant unreachable")
+    mock_client.scroll.side_effect = Exception("Qdrant unreachable")
 
     mock_tax_mgr = MagicMock()
     mock_tax_mgr.taxonomy = {

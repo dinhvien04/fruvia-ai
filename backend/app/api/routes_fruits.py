@@ -12,6 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.services.representative_image_service import (
     RepresentativeImageService,
@@ -78,7 +79,12 @@ async def list_species(
     items = tax_mgr.list_items(category=category, search_query=q)
 
     canonical_classes = [it.canonical_class for it in items]
-    rep_images = image_service.get_representative_images(canonical_classes) if image_service else {}
+    if image_service:
+        rep_images = await run_in_threadpool(
+            image_service.get_representative_images, canonical_classes
+        )
+    else:
+        rep_images = {}
 
     return SpeciesListResponse(
         total=len(items),
@@ -107,5 +113,9 @@ async def get_species(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Species '{canonical_class}' not found in taxonomy.",
         )
-    rep_img = image_service.get_representative_image(clean_class) if image_service else None
+    rep_img = (
+        await run_in_threadpool(image_service.get_representative_image, clean_class)
+        if image_service
+        else None
+    )
     return _to_schema(item, representative_image_url=rep_img)
