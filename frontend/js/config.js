@@ -73,6 +73,7 @@ const RuntimeConfig = {
   /**
    * Fetch public runtime configuration from backend and merge allowed image hosts.
    * Safe to call multiple times; uses memoized promise and fails gracefully.
+   * On failure, clears _loadPromise so a subsequent call can retry without infinite loops.
    * @returns {Promise<void>}
    */
   async load() {
@@ -105,6 +106,10 @@ const RuntimeConfig = {
           "Fruvia: Could not fetch public runtime config; using default localhost image allowlist.",
           err.message || err
         );
+      } finally {
+        if (!this._isLoaded) {
+          this._loadPromise = null;
+        }
       }
     })();
 

@@ -3,9 +3,9 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Load public runtime configuration
+  // Await public runtime configuration
   if (typeof RuntimeConfig !== 'undefined' && typeof RuntimeConfig.load === 'function') {
-    RuntimeConfig.load();
+    await RuntimeConfig.load();
   }
 
   const container = document.getElementById('species-detail-container');

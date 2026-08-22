@@ -95,6 +95,47 @@ def classify_gallery_eligibility(
     return True
 
 
+def resolve_qdrant_credentials(
+    dry_run: bool = False,
+    allow_runtime_key_for_local_migration: bool = False,
+) -> tuple[str, str]:
+    """
+    Resolve Qdrant URL and appropriate API key based on execution mode.
+
+    Credential Policy:
+    - dry_run=True:
+        Prefers read-only QDRANT_API_KEY (does not require administrative privileges).
+        Falls back to QDRANT_MIGRATION_API_KEY only if QDRANT_API_KEY is not set.
+    - dry_run=False (Real migration):
+        Requires administrative QDRANT_MIGRATION_API_KEY.
+        Permits QDRANT_API_KEY only if --allow-runtime-key-for-local-migration is explicitly enabled.
+    """
+    qdrant_url = os.getenv("QDRANT_URL")
+    if not qdrant_url:
+        raise ValueError("QDRANT_URL environment variable is not set.")
+
+    migration_api_key = os.getenv("QDRANT_MIGRATION_API_KEY")
+    runtime_api_key = os.getenv("QDRANT_API_KEY")
+
+    if dry_run:
+        if runtime_api_key:
+            return qdrant_url, runtime_api_key
+        if migration_api_key:
+            return qdrant_url, migration_api_key
+        raise ValueError("Neither QDRANT_API_KEY nor QDRANT_MIGRATION_API_KEY is set for dry-run.")
+
+    # Real migration mode
+    if migration_api_key:
+        return qdrant_url, migration_api_key
+    if runtime_api_key and allow_runtime_key_for_local_migration:
+        return qdrant_url, runtime_api_key
+
+    raise ValueError(
+        "QDRANT_MIGRATION_API_KEY is not set. Real Gallery V2 migration requires an administrative migration key. "
+        "Pass --allow-runtime-key-for-local-migration if running in local development."
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Unified Gallery V2 Point Migration Tool")
     parser.add_argument(
@@ -822,29 +863,14 @@ def normalize_point_payload(
 def main() -> None:
     args = parse_args()
 
-    qdrant_url = os.getenv("QDRANT_URL")
-    migration_api_key = os.getenv("QDRANT_MIGRATION_API_KEY")
-    runtime_api_key = os.getenv("QDRANT_API_KEY")
-
-    if not qdrant_url:
-        print("[ERROR] QDRANT_URL environment variable is not set.", file=sys.stderr)
+    try:
+        qdrant_url, api_key = resolve_qdrant_credentials(
+            dry_run=args.dry_run,
+            allow_runtime_key_for_local_migration=args.allow_runtime_key_for_local_migration,
+        )
+    except ValueError as e:
+        print(f"[ERROR] {e}", file=sys.stderr)
         sys.exit(1)
-
-    api_key = migration_api_key
-    if not api_key:
-        if runtime_api_key and args.allow_runtime_key_for_local_migration:
-            print(
-                "[WARN] Using QDRANT_API_KEY for migration because --allow-runtime-key-for-local-migration was provided.",
-                file=sys.stderr,
-            )
-            api_key = runtime_api_key
-        else:
-            print(
-                "[ERROR] QDRANT_MIGRATION_API_KEY is not set. Gallery V2 migration requires an administrative migration key.\n"
-                "Pass --allow-runtime-key-for-local-migration if running in local development.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
 
     checkpoint_file = (
         args.checkpoint_file

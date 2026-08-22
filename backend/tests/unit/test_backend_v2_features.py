@@ -983,3 +983,75 @@ class TestProductionSecurityMiddlewareAndValidators:
         }
         with pytest.raises(ValueError, match="Invalid match_status"):
             validate_taxonomy_mapping(untrusted_status_mapping, tax_mgr)
+
+    def test_dry_run_credential_selector_and_safety_rules(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test resolve_qdrant_credentials enforces read-only key for dry-run and admin key for real migration."""
+        from scripts.prepare_gallery_v2 import resolve_qdrant_credentials
+
+        monkeypatch.setenv("QDRANT_URL", "https://qdrant.example.com:6333")
+
+        # Case 1: Dry run with runtime key present -> chooses runtime key
+        monkeypatch.setenv("QDRANT_API_KEY", "read_only_runtime_key")
+        monkeypatch.delenv("QDRANT_MIGRATION_API_KEY", raising=False)
+        url, key = resolve_qdrant_credentials(dry_run=True)
+        assert url == "https://qdrant.example.com:6333"
+        assert key == "read_only_runtime_key"
+
+        # Case 2: Dry run with both keys present -> prefers read-only runtime key
+        monkeypatch.setenv("QDRANT_API_KEY", "read_only_runtime_key")
+        monkeypatch.setenv("QDRANT_MIGRATION_API_KEY", "admin_migration_key")
+        url, key = resolve_qdrant_credentials(dry_run=True)
+        assert key == "read_only_runtime_key"
+
+        # Case 3: Real migration with only runtime key -> fails closed
+        monkeypatch.setenv("QDRANT_API_KEY", "read_only_runtime_key")
+        monkeypatch.delenv("QDRANT_MIGRATION_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="QDRANT_MIGRATION_API_KEY is not set"):
+            resolve_qdrant_credentials(dry_run=False, allow_runtime_key_for_local_migration=False)
+
+        # Case 4: Real migration with runtime key + allow flag -> succeeds
+        url, key = resolve_qdrant_credentials(
+            dry_run=False, allow_runtime_key_for_local_migration=True
+        )
+        assert key == "read_only_runtime_key"
+
+        # Case 5: Real migration with migration key -> uses migration key
+        monkeypatch.setenv("QDRANT_MIGRATION_API_KEY", "admin_migration_key")
+        url, key = resolve_qdrant_credentials(dry_run=False)
+        assert key == "admin_migration_key"
+
+    def test_dry_run_zero_write_guarantee_on_qdrant_client(self) -> None:
+        """Verify that validate_source_and_target_schema in dry-run mode never calls mutation methods."""
+        from unittest.mock import MagicMock
+
+        from scripts.prepare_gallery_v2 import validate_source_and_target_schema
+
+        mock_client = MagicMock()
+        mock_col = MagicMock()
+        mock_col.name = "fruvia_packeat_dinov2_base_v1"
+        mock_client.get_collections.return_value = MagicMock(collections=[mock_col])
+
+        mock_source_info = MagicMock()
+        mock_source_info.config.params.vectors.size = 768
+        mock_source_info.config.params.vectors.distance = "Cosine"
+        mock_client.get_collection.return_value = mock_source_info
+
+        # Run validation in dry-run mode against non-existent target
+        validate_source_and_target_schema(
+            client=mock_client,
+            source_collection="fruvia_packeat_dinov2_base_v1",
+            target_collection="fruvia_gallery_dinov2_base_v2",
+            dry_run=True,
+            create_missing_target_indexes=True,
+        )
+
+        # Assert no write methods were called on Qdrant client
+        assert mock_client.create_collection.call_count == 0
+        assert mock_client.delete_collection.call_count == 0
+        assert mock_client.upsert.call_count == 0
+        assert mock_client.create_payload_index.call_count == 0
+        assert mock_client.delete_payload_index.call_count == 0
+        assert mock_client.set_payload.call_count == 0
+        assert mock_client.overwrite_payload.call_count == 0

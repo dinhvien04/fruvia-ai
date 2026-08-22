@@ -2,10 +2,10 @@
  * Fruvia AI — Home Page Scripts
  */
 
-document.addEventListener('DOMContentLoaded', () => {
-  // 0. Load public runtime configuration
+document.addEventListener('DOMContentLoaded', async () => {
+  // 0. Await public runtime configuration
   if (typeof RuntimeConfig !== 'undefined' && typeof RuntimeConfig.load === 'function') {
-    RuntimeConfig.load();
+    await RuntimeConfig.load();
   }
 
   // 1. Single Source Stats Populate

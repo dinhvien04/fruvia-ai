@@ -2,10 +2,10 @@
  * Fruvia AI — Search Page Orchestrator Controller
  * Coordinates UploadManager, ApiClient, ResultsRenderer, ResultModal, and SearchHistory.
  */
-document.addEventListener("DOMContentLoaded", () => {
-  // Load public runtime configuration in the background early
+document.addEventListener("DOMContentLoaded", async () => {
+  // Await public runtime configuration early before user can search and trigger rendering
   if (typeof RuntimeConfig !== "undefined" && typeof RuntimeConfig.load === "function") {
-    RuntimeConfig.load();
+    await RuntimeConfig.load();
   }
 
   // Initialize Modules
